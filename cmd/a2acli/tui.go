@@ -129,8 +129,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch v := event.(type) {
 		case *a2a.Message:
 			for _, p := range v.Parts {
-				if tp, ok := p.(a2a.TextPart); ok {
-					m.messages = append(m.messages, agentStyle.Render(fmt.Sprintf("Agent: %s", tp.Text)))
+				if tp, ok := p.Content.(a2a.Text); ok {
+					m.messages = append(m.messages, agentStyle.Render(fmt.Sprintf("Agent: %s", string(tp))))
 				}
 			}
 			m.status = "Received Message"
@@ -139,8 +139,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = string(v.Status.State)
 			statusMsg := ""
 			if v.Status.Message != nil && len(v.Status.Message.Parts) > 0 {
-				if tp, ok := v.Status.Message.Parts[0].(a2a.TextPart); ok {
-					statusMsg = tp.Text
+				if tp, ok := v.Status.Message.Parts[0].Content.(a2a.Text); ok {
+					statusMsg = string(tp)
 				}
 			}
 			if statusMsg != "" {
@@ -164,15 +164,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Display preview
 			for _, p := range v.Artifact.Parts {
-				if dp, ok := p.(a2a.DataPart); ok {
-					prettyJSON, _ := json.MarshalIndent(dp.Data, "", "  ")
+				if dp, ok := p.Content.(a2a.Data); ok {
+					prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
 					preview := string(prettyJSON)
 					if len(preview) > 200 {
 						preview = preview[:200] + "..."
 					}
 					m.messages = append(m.messages, fmt.Sprintf("Data: %s", preview))
-				} else if tp, ok := p.(a2a.TextPart); ok {
-					preview := tp.Text
+				} else if tp, ok := p.Content.(a2a.Text); ok {
+					preview := string(tp)
 					if len(preview) > 200 {
 						preview = preview[:200] + "..."
 					}

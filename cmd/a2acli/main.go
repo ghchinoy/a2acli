@@ -49,18 +49,21 @@ type tokenInterceptor struct {
 	token string
 }
 
-func (i *tokenInterceptor) Before(ctx context.Context, req *a2aclient.Request) (context.Context, error) {
+func (i *tokenInterceptor) Before(ctx context.Context, req *a2aclient.Request) (context.Context, any, error) {
 	if i.token != "" {
-		req.Meta["Authorization"] = []string{"Bearer " + i.token}
+		if req.ServiceParams == nil {
+			req.ServiceParams = make(a2aclient.ServiceParams)
+		}
+		req.ServiceParams["authorization"] = []string{"Bearer " + i.token}
 	}
-	return ctx, nil
+	return ctx, nil, nil
 }
 
 func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, error) {
 	httpClient := &http.Client{Timeout: 15 * time.Minute}
 	opts := []a2aclient.FactoryOption{a2aclient.WithJSONRPCTransport(httpClient)}
 	if authToken != "" {
-		opts = append(opts, a2aclient.WithInterceptors(&tokenInterceptor{token: authToken}))
+		opts = append(opts, a2aclient.WithCallInterceptors(&tokenInterceptor{token: authToken}))
 	}
 	return a2aclient.NewFromCard(ctx, card, opts...)
 }
@@ -90,9 +93,9 @@ func runDescribe(_ *cobra.Command, _ []string) {
 		if s.Description != "" {
 			fmt.Printf("    Description: %s\n", s.Description)
 		}
-		if len(s.Security) > 0 {
+		if len(s.SecurityRequirements) > 0 {
 			var schemes []string
-			for _, req := range s.Security {
+			for _, req := range s.SecurityRequirements {
 				for name := range req {
 					schemes = append(schemes, string(name))
 				}
@@ -125,7 +128,7 @@ func runInvoke(_ *cobra.Command, args []string) {
 		log.Fatalf("Error: %v", err)
 	}
 
-	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: messageText})
+	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(messageText))
 	if targetTaskID != "" {
 		msg.TaskID = a2a.TaskID(targetTaskID)
 		if !disableTUI {
@@ -139,7 +142,7 @@ func runInvoke(_ *cobra.Command, args []string) {
 		}
 	}
 
-	params := &a2a.MessageSendParams{
+	params := &a2a.SendMessageRequest{
 		Message: msg,
 	}
 	if skillID != "" {
@@ -188,7 +191,7 @@ func runResume(_ *cobra.Command, args []string) {
 
 	tid := a2a.TaskID(taskID)
 
-	task, err := client.GetTask(ctx, &a2a.TaskQueryParams{ID: tid})
+	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: tid})
 	if err != nil {
 		errMsg := err.Error()
 		if len(errMsg) > 0 {
@@ -211,7 +214,7 @@ func runResume(_ *cobra.Command, args []string) {
 	stream := make(chan streamMsg)
 	go func() {
 		defer close(stream)
-		for event, err := range client.ResubscribeToTask(ctx, &a2a.TaskIDParams{ID: tid}) {
+		for event, err := range client.SubscribeToTask(ctx, &a2a.SubscribeToTaskRequest{ID: tid}) {
 			stream <- streamMsg{Event: event, Err: err}
 			if err != nil {
 				return
@@ -241,7 +244,7 @@ func runStatus(_ *cobra.Command, args []string) {
 	}
 
 	tid := a2a.TaskID(taskID)
-	task, err := client.GetTask(ctx, &a2a.TaskQueryParams{ID: tid})
+	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: tid})
 	if err != nil {
 		log.Fatalf("Error retrieving task: %v", err)
 	}
@@ -258,8 +261,8 @@ func runStatus(_ *cobra.Command, args []string) {
 	fmt.Printf("Status:  %s\n", task.Status.State)
 	if task.Status.Message != nil {
 		for _, p := range task.Status.Message.Parts {
-			if tp, ok := p.(a2a.TextPart); ok {
-				fmt.Printf("Message: %s\n", tp.Text)
+			if tp, ok := p.Content.(a2a.Text); ok {
+				fmt.Printf("Message: %s\n", string(tp))
 			}
 		}
 	}
@@ -374,11 +377,11 @@ func saveArtifact(outDir string, artifact a2a.Artifact) (string, error) {
 
 	var contentBytes []byte
 	for _, p := range artifact.Parts {
-		if dp, ok := p.(a2a.DataPart); ok {
-			prettyJSON, _ := json.MarshalIndent(dp.Data, "", "  ")
+		if dp, ok := p.Content.(a2a.Data); ok {
+			prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
 			contentBytes = prettyJSON
-		} else if tp, ok := p.(a2a.TextPart); ok {
-			contentBytes = []byte(tp.Text)
+		} else if tp, ok := p.Content.(a2a.Text); ok {
+			contentBytes = []byte(string(tp))
 		}
 	}
 
@@ -417,11 +420,11 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 
 		truncated := false
 		for _, p := range art.Parts {
-			if dp, ok := p.(a2a.DataPart); ok {
-				prettyJSON, _ := json.MarshalIndent(dp.Data, "", "  ")
+			if dp, ok := p.Content.(a2a.Data); ok {
+				prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
 				fmt.Printf("Data (Preview):\n%s\n", string(prettyJSON))
-			} else if tp, ok := p.(a2a.TextPart); ok {
-				preview := tp.Text
+			} else if tp, ok := p.Content.(a2a.Text); ok {
+				preview := string(tp)
 				if len(preview) > 500 {
 					preview = preview[:500] + "... (truncated)"
 					truncated = true
