@@ -1,6 +1,6 @@
 # A2A CLI
 
-A standalone command-line client for interacting with Agent-to-Agent (A2A) services. It is built using the [a2a-go](https://github.com/a2aproject/a2a-go) SDK and provides an interactive streaming terminal UI.
+A standalone command-line client for interacting with Agent-to-Agent (A2A) services. It is fully compliant with the **A2A Specification v1.0**. It is built using the [a2a-go](https://github.com/a2aproject/a2a-go) SDK and provides both an interactive streaming terminal UI and a scriptable non-interactive JSON mode.
 
 ## Features
 
@@ -42,6 +42,7 @@ Use the `--help` flag on any command to see the available options.
 - `-t, --token string`: Authorization token (if required by the agent)
 - `-k, --task string`: Existing Task ID to continue a conversation/task (must be non-terminal)
 - `-r, --ref string`: Task ID to reference as context (works for completed tasks)
+- `--no-tui`: Disables the interactive BubbleTea TUI and outputs JSON/NDJSON (useful for CI/CD and scripting). Can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
 
 ### Commands
 
@@ -89,7 +90,29 @@ Retrieve the current state of a task without streaming:
 
 - `make build`: Compiles the binary to `bin/a2acli`.
 - `make run`: Builds and runs the CLI.
+- `make lint`: Runs `golangci-lint` configured for Google Go standards.
+- `make test-e2e`: Runs the end-to-end conformance tests.
 - `make clean`: Removes the `bin/` directory.
+
+### Testing Conformance (TCK)
+
+To verify the CLI's v1.0 compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server.
+
+The `a2acli` contains an automated end-to-end conformance test suite that will build the CLI, spin up the TCK SUT server locally, and run black-box tests asserting the machine-readable JSON output of the CLI.
+
+To run the conformance suite, ensure you have the `a2a-go` SDK cloned adjacently in your workspace (e.g., `../github/a2a-go`), then run:
+
+```bash
+make test-e2e
+```
+
+To run the SUT manually for your own testing:
+
+```bash
+# In the a2a-go repository
+cd e2e/tck
+go run sut.go sut_agent_executor.go
+```
 
 ## 🤝 Contributing
 
