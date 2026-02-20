@@ -1,3 +1,18 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package main provides the entry point for the A2A CLI.
 package main
 
 import (
@@ -17,9 +32,9 @@ import (
 var (
 	subtleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	docStyle    = lipgloss.NewStyle().Margin(1, 2)
-	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")) // Pinkish
+	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))           // Pinkish
 	taskIDStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true) // Cyan
-	agentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42")) // Green
+	agentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))            // Green
 )
 
 type streamMsg struct {
@@ -104,10 +119,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 			return m, tea.Quit
 		}
-		
+
 		// Handle A2A Events
 		event := msg.Event
-		
+
 		if event.TaskInfo().TaskID != "" {
 			m.taskID = string(event.TaskInfo().TaskID)
 		}
@@ -139,7 +154,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = "Artifact Received"
 			header := fmt.Sprintf("--- ARTIFACT: %s ---", v.Artifact.Name)
 			m.messages = append(m.messages, lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(header))
-			
+
 			saveMsg := ""
 			if m.outDir != "" {
 				path, err := saveArtifact(m.outDir, *v.Artifact)
@@ -155,11 +170,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if dp, ok := p.(a2a.DataPart); ok {
 					prettyJSON, _ := json.MarshalIndent(dp.Data, "", "  ")
 					preview := string(prettyJSON)
-					if len(preview) > 200 { preview = preview[:200] + "..." }
+					if len(preview) > 200 {
+						preview = preview[:200] + "..."
+					}
 					m.messages = append(m.messages, fmt.Sprintf("Data: %s", preview))
 				} else if tp, ok := p.(a2a.TextPart); ok {
 					preview := tp.Text
-					if len(preview) > 200 { preview = preview[:200] + "..." }
+					if len(preview) > 200 {
+						preview = preview[:200] + "..."
+					}
 					m.messages = append(m.messages, fmt.Sprintf("Text: %s", preview))
 				}
 			}
@@ -184,7 +203,7 @@ func (m model) View() string {
 	if m.quitting {
 		spin = ""
 	}
-	
+
 	statusLine := fmt.Sprintf("%s%s", spin, statusStyle.Render(strings.ToUpper(m.status)))
 	if m.taskID != "" {
 		statusLine += fmt.Sprintf(" | Task: %s", taskIDStyle.Render(m.taskID))
@@ -215,13 +234,13 @@ func saveArtifact(outDir string, artifact a2a.Artifact) (string, error) {
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return "", err
 	}
-	
+
 	filename := artifact.Name
 	if filename == "" {
 		filename = fmt.Sprintf("artifact_%d.txt", time.Now().Unix())
 	}
 	path := filepath.Join(outDir, filename)
-	
+
 	var contentBytes []byte
 	for _, p := range artifact.Parts {
 		if dp, ok := p.(a2a.DataPart); ok {
@@ -231,7 +250,7 @@ func saveArtifact(outDir string, artifact a2a.Artifact) (string, error) {
 			contentBytes = []byte(tp.Text)
 		}
 	}
-	
+
 	if err := os.WriteFile(path, contentBytes, 0644); err != nil {
 		return "", err
 	}

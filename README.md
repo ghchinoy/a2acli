@@ -91,6 +91,14 @@ Retrieve the current state of a task without streaming:
 - `make run`: Builds and runs the CLI.
 - `make clean`: Removes the `bin/` directory.
 
-## License
+## 🤝 Contributing
 
-This project is licensed under the same terms as the `a2a-go` SDK.
+Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on how to get involved.
+
+Before starting work on a new feature or significant change, please open an issue to discuss your proposed approach with the maintainers. This helps ensure your contribution aligns with the project's goals and prevents duplicated effort or wasted work.
+
+---
+
+## 📄 License
+
+This project is licensed under the Apache 2.0 License. See the [LICENSE](LICENSE) file for more details.

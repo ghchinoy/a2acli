@@ -1,3 +1,18 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package main provides the entry point for the A2A CLI.
 package main
 
 import (
@@ -39,6 +54,187 @@ func (i *tokenInterceptor) Before(ctx context.Context, req *a2aclient.Request) (
 	return ctx, nil
 }
 
+func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, error) {
+	httpClient := &http.Client{Timeout: 15 * time.Minute}
+	opts := []a2aclient.FactoryOption{a2aclient.WithJSONRPCTransport(httpClient)}
+	if authToken != "" {
+		opts = append(opts, a2aclient.WithInterceptors(&tokenInterceptor{token: authToken}))
+	}
+	return a2aclient.NewFromCard(ctx, card, opts...)
+}
+
+func runDescribe(_ *cobra.Command, _ []string) {
+	card, err := agentcard.DefaultResolver.Resolve(context.Background(), serviceURL)
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+	fmt.Printf("Agent: %s\n", card.Name)
+	if card.Description != "" {
+		fmt.Printf("Description: %s\n", card.Description)
+	}
+	fmt.Printf("Capabilities: [Streaming: %v]\n", card.Capabilities.Streaming)
+	fmt.Printf("\nSkills:\n")
+	for _, s := range card.Skills {
+		fmt.Printf("  - [%s] %s\n", s.ID, s.Name)
+		if s.Description != "" {
+			fmt.Printf("    Description: %s\n", s.Description)
+		}
+		if len(s.Security) > 0 {
+			var schemes []string
+			for _, req := range s.Security {
+				for name := range req {
+					schemes = append(schemes, string(name))
+				}
+			}
+			fmt.Printf("    Security: %s\n", strings.Join(schemes, ", "))
+		}
+	}
+}
+
+func runInvoke(_ *cobra.Command, args []string) {
+	messageText := args[0]
+
+	if instructionFile != "" {
+		content, err := os.ReadFile(instructionFile)
+		if err != nil {
+			log.Fatalf("Error reading instruction file: %v", err)
+		}
+		messageText = fmt.Sprintf("%s\n\nSupplemental Instructions:\n%s", messageText, string(content))
+	}
+
+	ctx := context.Background()
+
+	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+
+	client, err := createClient(ctx, card)
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+
+	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: messageText})
+	if targetTaskID != "" {
+		msg.TaskID = a2a.TaskID(targetTaskID)
+		fmt.Printf("Continuing Task: %s\n", targetTaskID)
+	}
+	if refTaskID != "" {
+		msg.ReferenceTasks = []a2a.TaskID{a2a.TaskID(refTaskID)}
+		fmt.Printf("Referencing Task: %s\n", refTaskID)
+	}
+
+	params := &a2a.MessageSendParams{
+		Message: msg,
+	}
+	if skillID != "" {
+		params.Metadata = map[string]any{"skillId": skillID}
+	}
+
+	fmt.Printf("Invoking A2A Service (Streaming)...\n\n")
+
+	stream := make(chan streamMsg)
+	go func() {
+		defer close(stream)
+		for event, err := range client.SendStreamingMessage(ctx, params) {
+			stream <- streamMsg{Event: event, Err: err}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	runTUI(stream)
+}
+
+func runResume(_ *cobra.Command, args []string) {
+	taskID := args[0]
+	ctx := context.Background()
+
+	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+
+	client, err := createClient(ctx, card)
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+
+	fmt.Printf("Resuming Task %s ...\n\n", taskID)
+
+	tid := a2a.TaskID(taskID)
+
+	task, err := client.GetTask(ctx, &a2a.TaskQueryParams{ID: tid})
+	if err != nil {
+		errMsg := err.Error()
+		if len(errMsg) > 0 {
+			fmt.Printf("Error: %v\n", err)
+			fmt.Println("Hint: If you are using the default in-memory store, restarting the server wipes all tasks.")
+			os.Exit(1)
+		}
+		log.Fatalf("Error retrieving task status: %v", err)
+	}
+
+	if task.Status.State == a2a.TaskStateCompleted || task.Status.State == a2a.TaskStateFailed || task.Status.State == a2a.TaskStateRejected {
+		displayTaskResult(task, outDir)
+		return
+	}
+
+	fmt.Println("Task is active. Connecting to stream...")
+	stream := make(chan streamMsg)
+	go func() {
+		defer close(stream)
+		for event, err := range client.ResubscribeToTask(ctx, &a2a.TaskIDParams{ID: tid}) {
+			stream <- streamMsg{Event: event, Err: err}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	runTUI(stream)
+}
+
+func runStatus(_ *cobra.Command, args []string) {
+	taskID := args[0]
+	ctx := context.Background()
+
+	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+
+	client, err := createClient(ctx, card)
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+
+	tid := a2a.TaskID(taskID)
+	task, err := client.GetTask(ctx, &a2a.TaskQueryParams{ID: tid})
+	if err != nil {
+		log.Fatalf("Error retrieving task: %v", err)
+	}
+
+	fmt.Printf("Task ID: %s\n", task.ID)
+	fmt.Printf("Status:  %s\n", task.Status.State)
+	if task.Status.Message != nil {
+		for _, p := range task.Status.Message.Parts {
+			if tp, ok := p.(a2a.TextPart); ok {
+				fmt.Printf("Message: %s\n", tp.Text)
+			}
+		}
+	}
+	fmt.Printf("Artifacts: %d\n", len(task.Artifacts))
+
+	if len(task.Metadata) > 0 {
+		fmt.Println("\nMetadata:")
+		for k, v := range task.Metadata {
+			fmt.Printf("  %s: %v\n", k, v)
+		}
+	}
+}
+
 func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "a2acli",
@@ -53,227 +249,41 @@ func main() {
 	var describeCmd = &cobra.Command{
 		Use:   "describe",
 		Short: "Describe the agent card",
-		Run: func(cmd *cobra.Command, args []string) {
-			card, err := agentcard.DefaultResolver.Resolve(context.Background(), serviceURL)
-			if err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-			fmt.Printf("Agent: %s\n", card.Name)
-			if card.Description != "" {
-				fmt.Printf("Description: %s\n", card.Description)
-			}
-			fmt.Printf("Capabilities: [Streaming: %v]\n", card.Capabilities.Streaming)
-			fmt.Printf("\nSkills:\n")
-			for _, s := range card.Skills {
-				fmt.Printf("  - [%s] %s\n", s.ID, s.Name)
-				if s.Description != "" {
-					fmt.Printf("    Description: %s\n", s.Description)
-				}
-				if len(s.Security) > 0 {
-					var schemes []string
-					for _, req := range s.Security {
-						for name := range req {
-							schemes = append(schemes, string(name))
-						}
-					}
-					fmt.Printf("    Security: %s\n", strings.Join(schemes, ", "))
-				}
-			}
-		},
+		Run:   runDescribe,
 	}
 
 	var invokeCmd = &cobra.Command{
 		Use:   "invoke [message]",
 		Short: "Invoke a skill (streaming)",
 		Args:  cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			messageText := args[0]
-
-			if instructionFile != "" {
-				content, err := os.ReadFile(instructionFile)
-				if err != nil {
-					log.Fatalf("Error reading instruction file: %v", err)
-				}
-				messageText = fmt.Sprintf("%s\n\nSupplemental Instructions:\n%s", messageText, string(content))
-			}
-
-			ctx := context.Background()
-
-			card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
-			if err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-
-			// 2. Create Client
-			httpClient := &http.Client{Timeout: 15 * time.Minute}
-			opts := []a2aclient.FactoryOption{a2aclient.WithJSONRPCTransport(httpClient)}
-			if authToken != "" {
-				opts = append(opts, a2aclient.WithInterceptors(&tokenInterceptor{token: authToken}))
-			}
-
-			client, err := a2aclient.NewFromCard(ctx, card, opts...)
-			if err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-
-			// 3. Prepare Message
-			msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: messageText})
-			if targetTaskID != "" {
-				msg.TaskID = a2a.TaskID(targetTaskID)
-				fmt.Printf("Continuing Task: %s\n", targetTaskID)
-			}
-			if refTaskID != "" {
-				msg.ReferenceTasks = []a2a.TaskID{a2a.TaskID(refTaskID)}
-				fmt.Printf("Referencing Task: %s\n", refTaskID)
-			}
-
-			params := &a2a.MessageSendParams{
-				Message: msg,
-			}
-			if skillID != "" {
-				params.Metadata = map[string]any{"skillId": skillID}
-			}
-
-			fmt.Printf("Invoking A2A Service (Streaming)...\n\n")
-
-			// Adapter: Convert Iterator to Channel for Bubble Tea
-			stream := make(chan streamMsg)
-			go func() {
-				defer close(stream)
-				for event, err := range client.SendStreamingMessage(ctx, params) {
-					stream <- streamMsg{Event: event, Err: err}
-					if err != nil {
-						return
-					}
-				}
-			}()
-
-			runTUI(stream)
-		},
+		Run:   runInvoke,
 	}
 
 	var resumeCmd = &cobra.Command{
 		Use:   "resume [taskID]",
 		Short: "Resume listening to an existing task",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			taskID := args[0]
-			ctx := context.Background()
-
-			card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
-			if err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-
-			httpClient := &http.Client{Timeout: 15 * time.Minute}
-			opts := []a2aclient.FactoryOption{a2aclient.WithJSONRPCTransport(httpClient)}
-			if authToken != "" {
-				opts = append(opts, a2aclient.WithInterceptors(&tokenInterceptor{token: authToken}))
-			}
-
-			client, err := a2aclient.NewFromCard(ctx, card, opts...)
-			if err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-
-			fmt.Printf("Resuming Task %s ...\n\n", taskID)
-
-			tid := a2a.TaskID(taskID)
-			
-			// Check status first
-			task, err := client.GetTask(ctx, &a2a.TaskQueryParams{ID: tid})
-			if err != nil {
-				errMsg := err.Error()
-				// Simple string check for "not found" as the SDK error might be wrapped
-				if len(errMsg) > 0 { // Check if it looks like a "not found" error
-					// Just print the error for now, but add a hint
-					fmt.Printf("Error: %v\n", err)
-					fmt.Println("Hint: If you are using the default in-memory store, restarting the server wipes all tasks.")
-					os.Exit(1)
-				}
-				log.Fatalf("Error retrieving task status: %v", err)
-			}
-
-			if task.Status.State == a2a.TaskStateCompleted || task.Status.State == a2a.TaskStateFailed || task.Status.State == a2a.TaskStateRejected {
-				displayTaskResult(task, outDir)
-				return
-			}
-
-			// If active, stream updates
-			fmt.Println("Task is active. Connecting to stream...")
-			stream := make(chan streamMsg)
-			go func() {
-				defer close(stream)
-				for event, err := range client.ResubscribeToTask(ctx, &a2a.TaskIDParams{ID: tid}) {
-					stream <- streamMsg{Event: event, Err: err}
-					if err != nil {
-						return
-					}
-				}
-			}()
-
-			runTUI(stream)
-		},
+		Run:   runResume,
 	}
 
 	var statusCmd = &cobra.Command{
 		Use:   "status [taskID]",
 		Short: "Get the status of a task",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			taskID := args[0]
-			ctx := context.Background()
-
-			card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
-			if err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-
-			httpClient := &http.Client{Timeout: 15 * time.Minute}
-			opts := []a2aclient.FactoryOption{a2aclient.WithJSONRPCTransport(httpClient)}
-			if authToken != "" {
-				opts = append(opts, a2aclient.WithInterceptors(&tokenInterceptor{token: authToken}))
-			}
-
-			client, err := a2aclient.NewFromCard(ctx, card, opts...)
-			if err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-
-			tid := a2a.TaskID(taskID)
-			task, err := client.GetTask(ctx, &a2a.TaskQueryParams{ID: tid})
-			if err != nil {
-				log.Fatalf("Error retrieving task: %v", err)
-			}
-
-			fmt.Printf("Task ID: %s\n", task.ID)
-			fmt.Printf("Status:  %s\n", task.Status.State)
-			if task.Status.Message != nil {
-				for _, p := range task.Status.Message.Parts {
-					if tp, ok := p.(a2a.TextPart); ok {
-						fmt.Printf("Message: %s\n", tp.Text)
-					}
-				}
-			}
-			fmt.Printf("Artifacts: %d\n", len(task.Artifacts))
-
-			if len(task.Metadata) > 0 {
-				fmt.Println("\nMetadata:")
-				for k, v := range task.Metadata {
-					fmt.Printf("  %s: %v\n", k, v)
-				}
-			}
-		},
+		Run:   runStatus,
 	}
 
 	invokeCmd.Flags().StringVarP(&skillID, "skill", "s", "", "Skill ID")
 	invokeCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	invokeCmd.Flags().StringVarP(&instructionFile, "instruction-file", "f", "", "Path to a file with supplemental instructions")
-	
+
 	resumeCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 
 	rootCmd.AddCommand(describeCmd, invokeCmd, resumeCmd, statusCmd)
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func runTUI(stream chan streamMsg) {
@@ -290,20 +300,19 @@ func runTUI(stream chan streamMsg) {
 
 func displayTaskResult(task *a2a.Task, outDir string) {
 	fmt.Printf("Task Status: [%s]\n", task.Status.State)
-	
+
 	if len(task.Artifacts) == 0 {
 		fmt.Println("No artifacts produced.")
 		return
 	}
 
 	fmt.Printf("\n--- %d ARTIFACT(S) AVAILABLE ---\n", len(task.Artifacts))
-	
+
 	for _, art := range task.Artifacts {
 		fmt.Printf("\nName: %s\n", art.Name)
 		fmt.Printf("Description: %s\n", art.Description)
-		
+
 		truncated := false
-		// Preview content
 		for _, p := range art.Parts {
 			if dp, ok := p.(a2a.DataPart); ok {
 				prettyJSON, _ := json.MarshalIndent(dp.Data, "", "  ")

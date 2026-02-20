@@ -1,4 +1,4 @@
-module github.com/a2aproject/a2acli
+module github.com/ghchinoy/a2acli
 
 go 1.25.5
 
