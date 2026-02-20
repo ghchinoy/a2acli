@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,6 +41,7 @@ var (
 	refTaskID       string
 	outDir          string
 	instructionFile string
+	disableTUI      bool
 )
 
 type tokenInterceptor struct {
@@ -68,6 +70,15 @@ func runDescribe(_ *cobra.Command, _ []string) {
 	if err != nil {
 		log.Fatalf("Error: %v", err)
 	}
+
+	if disableTUI {
+		b, err := json.MarshalIndent(card, "", "  ")
+		if err == nil {
+			fmt.Println(string(b))
+		}
+		return
+	}
+
 	fmt.Printf("Agent: %s\n", card.Name)
 	if card.Description != "" {
 		fmt.Printf("Description: %s\n", card.Description)
@@ -117,11 +128,15 @@ func runInvoke(_ *cobra.Command, args []string) {
 	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: messageText})
 	if targetTaskID != "" {
 		msg.TaskID = a2a.TaskID(targetTaskID)
-		fmt.Printf("Continuing Task: %s\n", targetTaskID)
+		if !disableTUI {
+			fmt.Printf("Continuing Task: %s\n", targetTaskID)
+		}
 	}
 	if refTaskID != "" {
 		msg.ReferenceTasks = []a2a.TaskID{a2a.TaskID(refTaskID)}
-		fmt.Printf("Referencing Task: %s\n", refTaskID)
+		if !disableTUI {
+			fmt.Printf("Referencing Task: %s\n", refTaskID)
+		}
 	}
 
 	params := &a2a.MessageSendParams{
@@ -131,7 +146,9 @@ func runInvoke(_ *cobra.Command, args []string) {
 		params.Metadata = map[string]any{"skillId": skillID}
 	}
 
-	fmt.Printf("Invoking A2A Service (Streaming)...\n\n")
+	if !disableTUI {
+		fmt.Printf("Invoking A2A Service (Streaming)...\n\n")
+	}
 
 	stream := make(chan streamMsg)
 	go func() {
@@ -144,7 +161,11 @@ func runInvoke(_ *cobra.Command, args []string) {
 		}
 	}()
 
-	runTUI(stream)
+	if disableTUI {
+		runRaw(stream, outDir)
+	} else {
+		runTUI(stream)
+	}
 }
 
 func runResume(_ *cobra.Command, args []string) {
@@ -161,7 +182,9 @@ func runResume(_ *cobra.Command, args []string) {
 		log.Fatalf("Error: %v", err)
 	}
 
-	fmt.Printf("Resuming Task %s ...\n\n", taskID)
+	if !disableTUI {
+		fmt.Printf("Resuming Task %s ...\n\n", taskID)
+	}
 
 	tid := a2a.TaskID(taskID)
 
@@ -181,7 +204,10 @@ func runResume(_ *cobra.Command, args []string) {
 		return
 	}
 
-	fmt.Println("Task is active. Connecting to stream...")
+	if !disableTUI {
+		fmt.Println("Task is active. Connecting to stream...")
+	}
+
 	stream := make(chan streamMsg)
 	go func() {
 		defer close(stream)
@@ -193,7 +219,11 @@ func runResume(_ *cobra.Command, args []string) {
 		}
 	}()
 
-	runTUI(stream)
+	if disableTUI {
+		runRaw(stream, outDir)
+	} else {
+		runTUI(stream)
+	}
 }
 
 func runStatus(_ *cobra.Command, args []string) {
@@ -214,6 +244,14 @@ func runStatus(_ *cobra.Command, args []string) {
 	task, err := client.GetTask(ctx, &a2a.TaskQueryParams{ID: tid})
 	if err != nil {
 		log.Fatalf("Error retrieving task: %v", err)
+	}
+
+	if disableTUI {
+		b, err := json.MarshalIndent(task, "", "  ")
+		if err == nil {
+			fmt.Println(string(b))
+		}
+		return
 	}
 
 	fmt.Printf("Task ID: %s\n", task.ID)
@@ -245,6 +283,11 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token")
 	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (must be non-terminal)")
 	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference as context (works for completed tasks)")
+	rootCmd.PersistentFlags().BoolVar(&disableTUI, "no-tui", false, "Disable the Terminal UI (useful for scripting and CI)")
+
+	if os.Getenv("A2ACLI_NO_TUI") == "true" || os.Getenv("NO_COLOR") != "" {
+		disableTUI = true
+	}
 
 	var describeCmd = &cobra.Command{
 		Use:   "describe",
@@ -298,7 +341,67 @@ func runTUI(stream chan streamMsg) {
 	}
 }
 
+func runRaw(stream chan streamMsg, outDir string) {
+	for msg := range stream {
+		if msg.Err != nil {
+			fmt.Fprintf(os.Stderr, "{\"error\": %q}\n", msg.Err.Error())
+			os.Exit(1)
+		}
+
+		b, err := json.Marshal(msg.Event)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "{\"error\": \"failed to encode event to json\"}\n")
+			continue
+		}
+		fmt.Println(string(b))
+
+		if v, ok := msg.Event.(*a2a.TaskArtifactUpdateEvent); ok && outDir != "" {
+			_, _ = saveArtifact(outDir, *v.Artifact)
+		}
+	}
+}
+
+func saveArtifact(outDir string, artifact a2a.Artifact) (string, error) {
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		return "", err
+	}
+
+	filename := artifact.Name
+	if filename == "" {
+		filename = fmt.Sprintf("artifact_%d.txt", time.Now().Unix())
+	}
+	path := filepath.Join(outDir, filename)
+
+	var contentBytes []byte
+	for _, p := range artifact.Parts {
+		if dp, ok := p.(a2a.DataPart); ok {
+			prettyJSON, _ := json.MarshalIndent(dp.Data, "", "  ")
+			contentBytes = prettyJSON
+		} else if tp, ok := p.(a2a.TextPart); ok {
+			contentBytes = []byte(tp.Text)
+		}
+	}
+
+	if err := os.WriteFile(path, contentBytes, 0644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func displayTaskResult(task *a2a.Task, outDir string) {
+	if disableTUI {
+		b, err := json.MarshalIndent(task, "", "  ")
+		if err == nil {
+			fmt.Println(string(b))
+		}
+		if outDir != "" {
+			for _, art := range task.Artifacts {
+				_, _ = saveArtifact(outDir, *art)
+			}
+		}
+		return
+	}
+
 	fmt.Printf("Task Status: [%s]\n", task.Status.State)
 
 	if len(task.Artifacts) == 0 {

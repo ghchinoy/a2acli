@@ -18,10 +18,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -228,31 +225,4 @@ func (m model) View() string {
 		history,
 		statusLine,
 	))
-}
-
-func saveArtifact(outDir string, artifact a2a.Artifact) (string, error) {
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return "", err
-	}
-
-	filename := artifact.Name
-	if filename == "" {
-		filename = fmt.Sprintf("artifact_%d.txt", time.Now().Unix())
-	}
-	path := filepath.Join(outDir, filename)
-
-	var contentBytes []byte
-	for _, p := range artifact.Parts {
-		if dp, ok := p.(a2a.DataPart); ok {
-			prettyJSON, _ := json.MarshalIndent(dp.Data, "", "  ")
-			contentBytes = prettyJSON
-		} else if tp, ok := p.(a2a.TextPart); ok {
-			contentBytes = []byte(tp.Text)
-		}
-	}
-
-	if err := os.WriteFile(path, contentBytes, 0644); err != nil {
-		return "", err
-	}
-	return path, nil
 }
