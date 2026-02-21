@@ -20,6 +20,7 @@ bd sync               # Sync with git
 - **Configuration**: Support both local `.env` files and the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) (e.g., `~/.config/a2acli/config.yaml`) for application configuration.
 - **Task Management**: Use `bd todo add "<description>"` for quickly capturing tasks and feature requests as they arise during development.
 - **Documentation**: Maintain a clear `README.md` containing installation instructions, global flags, and detailed command usage examples.
+- **Cobra Commands**: Due to strict `revive` linting rules, always use the blank identifier `_` for unused parameters in Cobra command handlers (e.g., `func runMyCmd(_ *cobra.Command, _ []string) { ... }`) to prevent compilation/lint failures.
 - **Cross-Repo Context**: The `a2acli` tests depend on the `a2a-go` SDK repository ([https://github.com/a2aproject/a2a-go](https://github.com/a2aproject/a2a-go)) being checked out locally. By default, it assumes the path is `../github/a2a-go`. If it is located elsewhere, `A2A_GO_SRC` must be set. When debugging e2e tests or core protocol behavior, investigate the SDK's TCK source code located in `e2e/tck/sut.go`.
 
 ## Testing & QA
@@ -27,6 +28,7 @@ bd sync               # Sync with git
 - **Conformance Testing (TCK):** Always verify core CLI logic by running `make test-e2e`. This automatically builds the binary and tests it against the local `a2a-go` SDK System Under Test (SUT) server. 
 - **Non-Interactive Modes:** When adding new features or outputs, ensure they gracefully bypass Bubble Tea (`--no-tui` or `A2ACLI_NO_TUI=true`) and emit parseable JSON/NDJSON to support the automated e2e tests.
 - **Go Tests:** Avoid `bats-core` or external bash scripting frameworks. Rely entirely on the standard Go `testing` package combined with `os/exec` for invoking compiled binaries.
+- **Code Formatting:** Rely exclusively on `go fmt ./...`. Do not assume `goimports` is installed in the local environment. If `golangci-lint` fails due to unused imports, remove them manually.
 
 ## Releasing & Publishing
 
@@ -46,6 +48,8 @@ bd sync               # Sync with git
    ```bash
    git pull --rebase
    bd sync
+   git add .beads/
+   git commit -m "chore(bd): sync tasks"
    git push
    git status  # MUST show "up to date with origin"
    ```
