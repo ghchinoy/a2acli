@@ -28,6 +28,11 @@ bd sync               # Sync with git
 - **Non-Interactive Modes:** When adding new features or outputs, ensure they gracefully bypass Bubble Tea (`--no-tui` or `A2ACLI_NO_TUI=true`) and emit parseable JSON/NDJSON to support the automated e2e tests.
 - **Go Tests:** Avoid `bats-core` or external bash scripting frameworks. Rely entirely on the standard Go `testing` package combined with `os/exec` for invoking compiled binaries.
 
+## Releasing & Publishing
+
+- **GoReleaser**: This project uses GoReleaser via GitHub Actions. **Never manually publish binary artifacts or edit `version.go`.** 
+- **Triggering a Release**: To release a new version, simply push a semantic version tag (e.g., `git tag v1.0.0 && git push origin v1.0.0`). The CI/CD pipeline will automatically inject linker flags into the binary and publish the archives. Refer to `docs/RELEASING.md` for full details.
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
