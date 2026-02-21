@@ -112,6 +112,8 @@ a2acli status <task_id> --service-url http://localhost:9001
 - `make test-e2e`: Runs the end-to-end conformance tests.
 - `make clean`: Removes the `bin/` directory.
 
+For details on how to build, publish, and release new versions of `a2acli`, see the [Releasing Guide](docs/RELEASING.md).
+
 ### Testing Conformance (TCK)
 
 To verify the CLI's v1.0 compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server.
