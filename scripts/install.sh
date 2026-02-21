@@ -44,10 +44,16 @@ else
     exit 1
 fi
 
-# Note: Since there are no published binary artifacts yet in GitHub Releases,
-# this script assumes a standard naming convention for future releases:
-# e.g., a2acli_darwin_arm64.tar.gz
-TARBALL="${BINARY}_${OS}_${ARCH}.tar.gz"
+# Map Go architecture names to standard OS strings that GoReleaser uses
+OS_TITLE="$(tr '[:lower:]' '[:upper:]' <<< ${OS:0:1})${OS:1}"
+
+if [ "$ARCH" = "amd64" ]; then
+    ARCH_MAP="x86_64"
+else
+    ARCH_MAP="$ARCH"
+fi
+
+TARBALL="${BINARY}_${OS_TITLE}_${ARCH_MAP}.tar.gz"
 
 DOWNLOAD_URL=$(echo "$RELEASE_DATA" | grep "browser_download_url" | grep "$TARBALL" | cut -d '"' -f 4 | head -n 1)
 
