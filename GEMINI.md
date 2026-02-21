@@ -15,11 +15,18 @@ bd sync               # Sync with git
 ## Coding Standards and Patterns
 
 - **Project Structure**: Go CLI entry points should be placed in `cmd/<app-name>/` (e.g., `cmd/a2acli/main.go`).
-- **Build System**: Use a `Makefile` containing at least `build`, `run`, and `clean` targets. Binaries should be output to the `bin/` directory and ignored in version control.
+- **Build System & Quality Gates**: Use a `Makefile` containing `build`, `run`, `lint`, `test-e2e`, and `clean` targets. `make lint` MUST be run using `golangci-lint` to enforce Google Go code standards before concluding any task. Binaries should be output to the `bin/` directory and ignored in version control.
 - **UI Framework**: Use the [Charm](https://charm.sh) ecosystem (Bubble Tea, Lipgloss, Bubbles) for all Terminal User Interfaces (TUIs).
 - **Configuration**: Support both local `.env` files and the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) (e.g., `~/.config/a2acli/config.yaml`) for application configuration.
 - **Task Management**: Use `bd todo add "<description>"` for quickly capturing tasks and feature requests as they arise during development.
 - **Documentation**: Maintain a clear `README.md` containing installation instructions, global flags, and detailed command usage examples.
+- **Cross-Repo Context**: The `a2acli` tests depend on the `a2a-go` SDK repository being cloned adjacently in the workspace (e.g., `../github/a2a-go`). When debugging e2e tests or core protocol behavior, investigate the SDK's TCK source code located at `../github/a2a-go/e2e/tck/sut.go`.
+
+## Testing & QA
+
+- **Conformance Testing (TCK):** Always verify core CLI logic by running `make test-e2e`. This automatically builds the binary and tests it against the local `a2a-go` SDK System Under Test (SUT) server. 
+- **Non-Interactive Modes:** When adding new features or outputs, ensure they gracefully bypass Bubble Tea (`--no-tui` or `A2ACLI_NO_TUI=true`) and emit parseable JSON/NDJSON to support the automated e2e tests.
+- **Go Tests:** Avoid `bats-core` or external bash scripting frameworks. Rely entirely on the standard Go `testing` package combined with `os/exec` for invoking compiled binaries.
 
 ## Landing the Plane (Session Completion)
 
