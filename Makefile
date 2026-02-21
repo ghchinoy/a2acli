@@ -3,8 +3,14 @@
 # Default path to the a2a-go SDK repository, required for conformance tests.
 A2A_GO_SRC ?= ../../github/a2a-go
 
+# Version details for binary
+VERSION ?= $(shell git describe --tags --always --dirty)
+COMMIT  ?= $(shell git rev-parse --short HEAD)
+DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
+
 build:
-	go build -o bin/a2acli ./cmd/a2acli
+	go build -ldflags="$(LDFLAGS)" -o bin/a2acli ./cmd/a2acli
 
 run: build
 	./bin/a2acli

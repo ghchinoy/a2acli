@@ -335,13 +335,19 @@ func main() {
 		Run:   runStatus,
 	}
 
+	var versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print the version number of a2acli",
+		Run:   runVersion,
+	}
+
 	invokeCmd.Flags().StringVarP(&skillID, "skill", "s", "", "Skill ID")
 	invokeCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	invokeCmd.Flags().StringVarP(&instructionFile, "instruction-file", "f", "", "Path to a file with supplemental instructions")
 
 	resumeCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 
-	rootCmd.AddCommand(describeCmd, invokeCmd, resumeCmd, statusCmd)
+	rootCmd.AddCommand(describeCmd, invokeCmd, resumeCmd, statusCmd, versionCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
