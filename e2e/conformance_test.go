@@ -36,7 +36,7 @@ func TestConformance(t *testing.T) {
 		// Default to relative path for standard local development
 		a2aGoSrc = "../../github/a2a-go"
 	}
-	
+
 	sutDir := a2aGoSrc + "/e2e/tck"
 	if _, err := os.Stat(sutDir); os.IsNotExist(err) {
 		t.Fatalf("\n\n❌ REQUIRED DEPENDENCY MISSING ❌\n\nThe a2a-go SDK source code was not found at:\n'%s'\n\nRunning e2e conformance tests requires the a2a-go source to be checked out locally so the TCK SUT server can be spun up.\n\nPlease clone 'https://github.com/a2aproject/a2a-go' or provide the correct path using:\n\n    make test-e2e A2A_GO_SRC=/path/to/a2a-go\n\n", a2aGoSrc)
