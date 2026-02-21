@@ -1,18 +1,3 @@
-// Copyright 2026 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-// Package main provides the entry point for the A2A CLI.
 package main
 
 import (
@@ -121,7 +106,7 @@ func runDescribe(_ *cobra.Command, _ []string) {
 	}
 }
 
-func runInvoke(_ *cobra.Command, args []string) {
+func runSend(_ *cobra.Command, args []string) {
 	messageText := args[0]
 
 	if instructionFile != "" {
@@ -187,7 +172,7 @@ func runInvoke(_ *cobra.Command, args []string) {
 	}
 }
 
-func runResume(_ *cobra.Command, args []string) {
+func runWatch(_ *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
 
@@ -202,7 +187,7 @@ func runResume(_ *cobra.Command, args []string) {
 	}
 
 	if !disableTUI {
-		fmt.Printf("Resuming Task %s ...\n\n", taskID)
+		fmt.Printf("Watching Task %s ...\n\n", taskID)
 	}
 
 	tid := a2a.TaskID(taskID)
@@ -245,7 +230,7 @@ func runResume(_ *cobra.Command, args []string) {
 	}
 }
 
-func runStatus(_ *cobra.Command, args []string) {
+func runGet(_ *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
 
@@ -314,25 +299,28 @@ func main() {
 		Run:   runDescribe,
 	}
 
-	var invokeCmd = &cobra.Command{
-		Use:   "invoke [message]",
-		Short: "Invoke a skill (streaming)",
-		Args:  cobra.MinimumNArgs(1),
-		Run:   runInvoke,
+	var sendCmd = &cobra.Command{
+		Use:     "send [message]",
+		Aliases: []string{"invoke", "SendMessage"},
+		Short:   "Send a message to an agent (streaming)",
+		Args:    cobra.MinimumNArgs(1),
+		Run:     runSend,
 	}
 
-	var resumeCmd = &cobra.Command{
-		Use:   "resume [taskID]",
-		Short: "Resume listening to an existing task",
-		Args:  cobra.ExactArgs(1),
-		Run:   runResume,
+	var watchCmd = &cobra.Command{
+		Use:     "watch [taskID]",
+		Aliases: []string{"resume", "SubscribeToTask"},
+		Short:   "Watch an existing task's streaming updates",
+		Args:    cobra.ExactArgs(1),
+		Run:     runWatch,
 	}
 
-	var statusCmd = &cobra.Command{
-		Use:   "status [taskID]",
-		Short: "Get the status of a task",
-		Args:  cobra.ExactArgs(1),
-		Run:   runStatus,
+	var getCmd = &cobra.Command{
+		Use:     "get [taskID]",
+		Aliases: []string{"status", "GetTask"},
+		Short:   "Get the status of a task",
+		Args:    cobra.ExactArgs(1),
+		Run:     runGet,
 	}
 
 	var versionCmd = &cobra.Command{
@@ -341,13 +329,13 @@ func main() {
 		Run:   runVersion,
 	}
 
-	invokeCmd.Flags().StringVarP(&skillID, "skill", "s", "", "Skill ID")
-	invokeCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
-	invokeCmd.Flags().StringVarP(&instructionFile, "instruction-file", "f", "", "Path to a file with supplemental instructions")
+	sendCmd.Flags().StringVarP(&skillID, "skill", "s", "", "Skill ID")
+	sendCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	sendCmd.Flags().StringVarP(&instructionFile, "instruction-file", "f", "", "Path to a file with supplemental instructions")
 
-	resumeCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	watchCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 
-	rootCmd.AddCommand(describeCmd, invokeCmd, resumeCmd, statusCmd, versionCmd)
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, versionCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)

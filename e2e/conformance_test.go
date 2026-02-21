@@ -81,8 +81,8 @@ func TestConformance(t *testing.T) {
 		}
 	})
 
-	t.Run("Invoke", func(t *testing.T) {
-		cmd := exec.Command(cliPath, "invoke", "hello", "--no-tui", "-u", sutURL)
+	t.Run("Send", func(t *testing.T) {
+		cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "-u", sutURL)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("invoke failed: %v\nOutput: %s", err, out)
