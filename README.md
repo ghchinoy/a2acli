@@ -1,5 +1,8 @@
 # A2A CLI
 
+[![GitHub Release](https://img.shields.io/github/v/release/ghchinoy/a2acli)](https://github.com/ghchinoy/a2acli/releases)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A standalone command-line client for interacting with Agent-to-Agent (A2A) services. It is fully compliant with the **A2A Specification v1.0**. It is built using the [a2a-go](https://github.com/a2aproject/a2a-go) SDK and provides both an interactive streaming terminal UI and a scriptable non-interactive JSON mode.
 
 ## Features
