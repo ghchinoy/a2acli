@@ -25,6 +25,7 @@ var (
 	targetTaskID    string
 	refTaskID       string
 	outDir          string
+	outFile         string
 	instructionFile string
 	disableTUI      bool
 	wait            bool
@@ -171,9 +172,9 @@ func runSend(_ *cobra.Command, args []string) {
 			if err == nil {
 				fmt.Println(string(b))
 			}
-			if task, ok := result.(*a2a.Task); ok && outDir != "" {
-				for _, art := range task.Artifacts {
-					_, _ = saveArtifact(outDir, *art)
+			if task, ok := result.(*a2a.Task); ok && (outDir != "" || outFile != "") {
+				for i, art := range task.Artifacts {
+					_, _ = saveArtifact(outDir, outFile, *art, i)
 				}
 			}
 			return
@@ -276,7 +277,7 @@ func runWatch(_ *cobra.Command, args []string) {
 	}
 }
 
-func runGet(_ *cobra.Command, args []string) {
+func runGet(cmd *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
 
@@ -291,6 +292,14 @@ func runGet(_ *cobra.Command, args []string) {
 	}
 
 	tid := a2a.TaskID(taskID)
+
+	// Default outDir for 'download' command if neither is specified
+	if cmd.Name() == "download" || cmd.Name() == "retrieve" {
+		if outDir == "" && outFile == "" {
+			outDir = "."
+		}
+	}
+
 	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: tid})
 	if err != nil {
 		log.Fatalf("Error retrieving task: %v", err)
@@ -301,26 +310,16 @@ func runGet(_ *cobra.Command, args []string) {
 		if err == nil {
 			fmt.Println(string(b))
 		}
+		if outDir != "" || outFile != "" {
+			for i, art := range task.Artifacts {
+				_, _ = saveArtifact(outDir, outFile, *art, i)
+			}
+		}
 		return
 	}
 
-	fmt.Printf("Task ID: %s\n", task.ID)
-	fmt.Printf("Status:  %s\n", task.Status.State)
-	if task.Status.Message != nil {
-		for _, p := range task.Status.Message.Parts {
-			if tp, ok := p.Content.(a2a.Text); ok {
-				fmt.Printf("Message: %s\n", string(tp))
-			}
-		}
-	}
-	fmt.Printf("Artifacts: %d\n", len(task.Artifacts))
-
-	if len(task.Metadata) > 0 {
-		fmt.Println("\nMetadata:")
-		for k, v := range task.Metadata {
-			fmt.Printf("  %s: %v\n", k, v)
-		}
-	}
+	// Always display the full result (which handles saving now!)
+	displayTaskResult(task, outDir)
 }
 
 func main() {
@@ -377,13 +376,28 @@ func main() {
 
 	sendCmd.Flags().StringVarP(&skillID, "skill", "s", "", "Skill ID")
 	sendCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
-	sendCmd.Flags().StringVarP(&instructionFile, "instruction-file", "f", "", "Path to a file with supplemental instructions")
+	sendCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
+	sendCmd.Flags().StringVarP(&instructionFile, "instruction-file", "i", "", "Path to a file with supplemental instructions")
 	sendCmd.Flags().BoolVarP(&wait, "wait", "w", false, "Block and wait for task completion instead of streaming (maps to A2A Blocking:true)")
 	sendCmd.Flags().BoolVar(&wait, "sync", false, "Alias for --wait")
 
 	watchCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	watchCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 
-	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, versionCmd)
+	getCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	getCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
+
+	var downloadCmd = &cobra.Command{
+		Use:     "download [taskID]",
+		Aliases: []string{"retrieve"},
+		Short:   "Download artifacts from a task",
+		Args:    cobra.ExactArgs(1),
+		Run:     runGet, // Reuse runGet which now handles outDir and outFile natively
+	}
+	downloadCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	downloadCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
+
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, versionCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
@@ -416,37 +430,10 @@ func runRaw(stream chan streamMsg, outDir string) {
 		}
 		fmt.Println(string(b))
 
-		if v, ok := msg.Event.(*a2a.TaskArtifactUpdateEvent); ok && outDir != "" {
-			_, _ = saveArtifact(outDir, *v.Artifact)
+		if v, ok := msg.Event.(*a2a.TaskArtifactUpdateEvent); ok && (outDir != "" || outFile != "") {
+			_, _ = saveArtifact(outDir, outFile, *v.Artifact, 0)
 		}
 	}
-}
-
-func saveArtifact(outDir string, artifact a2a.Artifact) (string, error) {
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return "", err
-	}
-
-	filename := artifact.Name
-	if filename == "" {
-		filename = fmt.Sprintf("artifact_%d.txt", time.Now().Unix())
-	}
-	path := filepath.Join(outDir, filename)
-
-	var contentBytes []byte
-	for _, p := range artifact.Parts {
-		if dp, ok := p.Content.(a2a.Data); ok {
-			prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
-			contentBytes = prettyJSON
-		} else if tp, ok := p.Content.(a2a.Text); ok {
-			contentBytes = []byte(string(tp))
-		}
-	}
-
-	if err := os.WriteFile(path, contentBytes, 0644); err != nil {
-		return "", err
-	}
-	return path, nil
 }
 
 func displayTaskResult(task *a2a.Task, outDir string) {
@@ -455,9 +442,9 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 		if err == nil {
 			fmt.Println(string(b))
 		}
-		if outDir != "" {
-			for _, art := range task.Artifacts {
-				_, _ = saveArtifact(outDir, *art)
+		if outDir != "" || outFile != "" {
+			for i, art := range task.Artifacts {
+				_, _ = saveArtifact(outDir, outFile, *art, i)
 			}
 		}
 		return
@@ -472,7 +459,7 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 
 	fmt.Printf("\n--- %d ARTIFACT(S) AVAILABLE ---\n", len(task.Artifacts))
 
-	for _, art := range task.Artifacts {
+	for i, art := range task.Artifacts {
 		fmt.Printf("\nName: %s\n", art.Name)
 		fmt.Printf("Description: %s\n", art.Description)
 
@@ -491,16 +478,60 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 			}
 		}
 
-		if outDir != "" {
-			path, err := saveArtifact(outDir, *art)
+		if outDir != "" || outFile != "" {
+			path, err := saveArtifact(outDir, outFile, *art, i)
 			if err != nil {
 				fmt.Printf("Error saving artifact: %v\n", err)
 			} else {
 				fmt.Printf(">> Saved to: %s\n", path)
 			}
 		} else if truncated {
-			fmt.Println("(Hint: Use --out-dir <path> to save the full artifact content)")
+			fmt.Println("(Hint: Use --out-dir <path> or --file <name> to save the full artifact content)")
 		}
 	}
 	fmt.Println("\n------------------------------")
+}
+func saveArtifact(outDir, outFile string, artifact a2a.Artifact, index int) (string, error) {
+	var path string
+	if outFile != "" {
+		fName := outFile
+		if index > 0 {
+			ext := filepath.Ext(outFile)
+			base := strings.TrimSuffix(outFile, ext)
+			fName = fmt.Sprintf("%s_%d%s", base, index, ext)
+		}
+		if outDir != "" {
+			path = filepath.Join(outDir, fName)
+		} else {
+			path = fName
+		}
+	} else {
+		if outDir == "" {
+			outDir = "."
+		}
+		filename := artifact.Name
+		if filename == "" {
+			filename = fmt.Sprintf("artifact_%d_%d.txt", time.Now().Unix(), index)
+		}
+		path = filepath.Join(outDir, filename)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return "", err
+	}
+
+	var contentBytes []byte
+	for _, p := range artifact.Parts {
+		if dp, ok := p.Content.(a2a.Data); ok {
+			prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
+			contentBytes = prettyJSON
+		} else if tp, ok := p.Content.(a2a.Text); ok {
+			contentBytes = []byte(string(tp))
+		}
+	}
+
+	if err := os.WriteFile(path, contentBytes, 0644); err != nil {
+		return "", err
+	}
+	return path, nil
 }

@@ -153,8 +153,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.messages = append(m.messages, lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(header))
 
 			saveMsg := ""
-			if m.outDir != "" {
-				path, err := saveArtifact(m.outDir, *v.Artifact)
+			if m.outDir != "" || outFile != "" {
+				path, err := saveArtifact(m.outDir, outFile, *v.Artifact, 0)
 				if err != nil {
 					saveMsg = fmt.Sprintf("Error saving: %v", err)
 				} else {

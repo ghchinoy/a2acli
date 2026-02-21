@@ -119,6 +119,19 @@ Retrieve the current state of a task without streaming.
 a2acli get <task_id> --service-url http://localhost:9001
 ```
 
+If the task has completed and produced artifacts, you can save them locally during a `get`:
+```bash
+a2acli get <task_id> --out-dir ./downloads/
+a2acli get <task_id> --file report.md
+```
+
+#### Download / Retrieve Artifacts
+A convenience wrapper over the `get` command explicitly meant for downloading artifacts. By default, this saves artifacts to the current directory if no `--out-dir` or `--file` is provided.
+```bash
+a2acli download <task_id>
+a2acli retrieve <task_id> --file final_report.json
+```
+
 ## Development
 
 - `make build`: Compiles the binary to `bin/a2acli`.
