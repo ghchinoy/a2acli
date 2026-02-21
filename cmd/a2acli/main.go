@@ -27,6 +27,7 @@ var (
 	outDir          string
 	instructionFile string
 	disableTUI      bool
+	wait            bool
 )
 
 type tokenInterceptor struct {
@@ -148,6 +149,51 @@ func runSend(_ *cobra.Command, args []string) {
 	}
 	if skillID != "" {
 		params.Metadata = map[string]any{"skillId": skillID}
+	}
+
+	if wait {
+		b := true
+		params.Config = &a2a.SendMessageConfig{
+			Blocking: &b,
+		}
+
+		if !disableTUI {
+			fmt.Printf("Invoking A2A Service (Blocking)...\n\n")
+		}
+
+		result, err := client.SendMessage(ctx, params)
+		if err != nil {
+			log.Fatalf("Error: %v", err)
+		}
+
+		if disableTUI {
+			b, err := json.MarshalIndent(result, "", "  ")
+			if err == nil {
+				fmt.Println(string(b))
+			}
+			if task, ok := result.(*a2a.Task); ok && outDir != "" {
+				for _, art := range task.Artifacts {
+					_, _ = saveArtifact(outDir, *art)
+				}
+			}
+			return
+		}
+
+		if task, ok := result.(*a2a.Task); ok {
+			displayTaskResult(task, outDir)
+			fmt.Printf("\nTask ID: %s (use --task %s to continue, or --ref %s to reference)\n", task.ID, task.ID, task.ID)
+		} else if msg, ok := result.(*a2a.Message); ok {
+			fmt.Printf("Received simple message from agent (Task ID: %s)\n", msg.TaskID)
+			for _, p := range msg.Parts {
+				if tp, ok := p.Content.(a2a.Text); ok {
+					fmt.Printf("Agent: %s\n", string(tp))
+				}
+			}
+		} else {
+			fmt.Printf("Unknown result type received: %T\n", result)
+		}
+
+		return
 	}
 
 	if !disableTUI {
@@ -332,6 +378,8 @@ func main() {
 	sendCmd.Flags().StringVarP(&skillID, "skill", "s", "", "Skill ID")
 	sendCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	sendCmd.Flags().StringVarP(&instructionFile, "instruction-file", "f", "", "Path to a file with supplemental instructions")
+	sendCmd.Flags().BoolVarP(&wait, "wait", "w", false, "Block and wait for task completion instead of streaming (maps to A2A Blocking:true)")
+	sendCmd.Flags().BoolVar(&wait, "sync", false, "Alias for --wait")
 
 	watchCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 

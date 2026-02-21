@@ -120,4 +120,28 @@ func TestConformance(t *testing.T) {
 			}
 		}
 	})
+	t.Run("SendWait", func(t *testing.T) {
+		cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "--wait", "-u", sutURL)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("send --wait failed: %v\nOutput: %s", err, out)
+		}
+
+		var task map[string]any
+		if err := json.Unmarshal(out, &task); err != nil {
+			t.Fatalf("failed to parse JSON from describe: %v\nOutput: %s", err, out)
+		}
+
+		if statusBlock, ok := task["status"].(map[string]any); ok {
+			if state, ok := statusBlock["state"].(string); ok {
+				if state != "COMPLETED" {
+					t.Fatalf("Expected state COMPLETED, got %s", state)
+				}
+			} else {
+				t.Fatalf("No state string found in status block")
+			}
+		} else {
+			t.Fatalf("No status block found in JSON payload")
+		}
+	})
 }
