@@ -86,6 +86,22 @@ func runDescribe(_ *cobra.Command, _ []string) {
 	if card.Description != "" {
 		fmt.Printf("Description: %s\n", card.Description)
 	}
+
+	var formats []string
+	seenFormats := make(map[string]bool)
+	for _, iface := range card.SupportedInterfaces {
+		b := string(iface.ProtocolBinding)
+		if b != "" && !seenFormats[b] {
+			seenFormats[b] = true
+			formats = append(formats, b)
+		}
+	}
+	formatStr := strings.Join(formats, ", ")
+
+	if formatStr != "" {
+		fmt.Printf("Supported Bindings: %s\n", formatStr)
+	}
+
 	fmt.Printf("Capabilities: [Streaming: %v]\n", card.Capabilities.Streaming)
 	fmt.Printf("\nSkills:\n")
 	for _, s := range card.Skills {
