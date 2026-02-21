@@ -59,11 +59,46 @@ a2acli --help
 
 ### Global Flags
 
+- `-c, --config string`: Path to a specific config file (default is `~/.config/a2acli/config.yaml`)
+- `-e, --env string`: Specific named environment to load from the config file
 - `-u, --service-url string`: Base URL of the A2A service (default "http://127.0.0.1:9001")
 - `-t, --token string`: Authorization token (if required by the agent)
 - `-k, --task string`: Existing Task ID to continue a conversation/task (must be non-terminal)
 - `-r, --ref string`: Task ID to reference as context (works for completed tasks)
 - `--no-tui`: Disables the interactive BubbleTea TUI and outputs JSON/NDJSON (useful for CI/CD and scripting). Can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
+
+### Configuration Management
+
+`a2acli` supports managing multiple servers using an XDG Base Directory compliant configuration file. By default, it looks for `~/.config/a2acli/config.yaml`.
+
+You can define multiple named environments to easily switch between local, staging, and production agents without typing URLs and tokens repeatedly:
+
+```yaml
+# ~/.config/a2acli/config.yaml
+default_env: "local"
+
+envs:
+  local:
+    service_url: "http://127.0.0.1:9001"
+  staging:
+    service_url: "https://staging-agent.internal.corp"
+    token: "my-staging-auth-token"
+  prod:
+    service_url: "https://agent.example.com"
+    token: "my-secure-prod-token"
+```
+
+To view your currently active configuration context, run:
+```bash
+a2acli config
+```
+
+To run a command using a specific environment from your config file, use the `--env` (`-e`) flag:
+```bash
+a2acli send "Generate report" --env staging
+```
+
+Environment variables are also supported (e.g., `A2ACLI_SERVICE_URL`). The precedence is: *CLI Flags > Environment Variables > Config File > Defaults.*
 
 ### Commands
 

@@ -29,6 +29,11 @@ var (
 	instructionFile string
 	disableTUI      bool
 	wait            bool
+
+	rootCmd = &cobra.Command{
+		Use:   "a2acli",
+		Short: "A2A CLI Client",
+	}
 )
 
 type tokenInterceptor struct {
@@ -323,11 +328,10 @@ func runGet(cmd *cobra.Command, args []string) {
 }
 
 func main() {
-	var rootCmd = &cobra.Command{
-		Use:   "a2acli",
-		Short: "A2A CLI Client",
-	}
+	cobra.OnInitialize(initConfig)
 
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.config/a2acli/config.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&envName, "env", "e", "", "environment name to load from config")
 	rootCmd.PersistentFlags().StringVarP(&serviceURL, "service-url", "u", "http://127.0.0.1:9001", "Base URL of the A2A service")
 	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token")
 	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (must be non-terminal)")
@@ -397,7 +401,13 @@ func main() {
 	downloadCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	downloadCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 
-	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, versionCmd)
+	var configCmd = &cobra.Command{
+		Use:   "config",
+		Short: "View the active configuration",
+		Run:   runConfig,
+	}
+
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, configCmd, versionCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
