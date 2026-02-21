@@ -100,10 +100,10 @@ To verify the CLI's v1.0 compliance, you can test it against the official A2A Te
 
 The `a2acli` contains an automated end-to-end conformance test suite that will build the CLI, spin up the TCK SUT server locally, and run black-box tests asserting the machine-readable JSON output of the CLI.
 
-To run the conformance suite, ensure you have the `a2a-go` SDK cloned adjacently in your workspace (e.g., `../github/a2a-go`), then run:
+To run the conformance suite, ensure you have the `a2a-go` SDK repository checked out locally (from [https://github.com/a2aproject/a2a-go](https://github.com/a2aproject/a2a-go)). By default, the tests assume it is cloned at `../github/a2a-go` relative to your workspace. If it is located elsewhere, provide the path via the `A2A_GO_SRC` environment variable:
 
 ```bash
-make test-e2e
+A2A_GO_SRC=/path/to/your/a2a-go make test-e2e
 ```
 
 To run the SUT manually for your own testing:

@@ -20,7 +20,7 @@ bd sync               # Sync with git
 - **Configuration**: Support both local `.env` files and the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) (e.g., `~/.config/a2acli/config.yaml`) for application configuration.
 - **Task Management**: Use `bd todo add "<description>"` for quickly capturing tasks and feature requests as they arise during development.
 - **Documentation**: Maintain a clear `README.md` containing installation instructions, global flags, and detailed command usage examples.
-- **Cross-Repo Context**: The `a2acli` tests depend on the `a2a-go` SDK repository being cloned adjacently in the workspace (e.g., `../github/a2a-go`). When debugging e2e tests or core protocol behavior, investigate the SDK's TCK source code located at `../github/a2a-go/e2e/tck/sut.go`.
+- **Cross-Repo Context**: The `a2acli` tests depend on the `a2a-go` SDK repository ([https://github.com/a2aproject/a2a-go](https://github.com/a2aproject/a2a-go)) being checked out locally. By default, it assumes the path is `../github/a2a-go`. If it is located elsewhere, `A2A_GO_SRC` must be set. When debugging e2e tests or core protocol behavior, investigate the SDK's TCK source code located in `e2e/tck/sut.go`.
 
 ## Testing & QA
 

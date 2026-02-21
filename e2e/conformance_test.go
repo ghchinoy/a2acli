@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -30,7 +31,12 @@ func TestConformance(t *testing.T) {
 		t.Fatalf("failed to build a2acli: %v\nOutput:\n%s", err, string(out))
 	}
 
-	sutDir := "../../github/a2a-go/e2e/tck"
+	a2aGoSrc := os.Getenv("A2A_GO_SRC")
+	if a2aGoSrc == "" {
+		// Default to relative path for standard local development
+		a2aGoSrc = "../../github/a2a-go"
+	}
+	sutDir := a2aGoSrc + "/e2e/tck"
 	sutCmd := exec.Command("go", "run", "sut.go", "sut_agent_executor.go")
 	sutCmd.Dir = sutDir
 	var sutOut bytes.Buffer
