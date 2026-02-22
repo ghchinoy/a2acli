@@ -10,6 +10,7 @@ A standalone command-line client for interacting with Agent-to-Agent (A2A) servi
 - **A2A-Aligned Discovery**: Inspect an agent's `AgentCard`, skills, and capabilities using protocol-native terminology (`describe`).
 - **Structured Messaging**: Full lifecycle support for A2A tasks, including `send` (initiate), `watch` (subscribe), and `get` (retrieve).
 - **Agent-First Design**: Built-in support for non-interactive JSON output, deterministic exit codes, and proactive "Hint" guidance for automated agents.
+- **Dynamic Transport Selection**: Automatically selects the best available protocol (gRPC, JSON-RPC, or HTTP+JSON) based on advertised agent capabilities.
 - **Interactive TUI**: A beautiful [Bubble Tea](https://github.com/charmbracelet/bubbletea) interface for real-time streaming updates and artifact previews.
 - **Configuration Management**: First-class support for XDG-compliant multi-environment configurations and auth token interception.
 
@@ -66,6 +67,7 @@ a2acli --help
 - `-k, --task string`: Existing Task ID to continue a conversation/task (must be non-terminal)
 - `-r, --ref string`: Task ID to reference as context (works for completed tasks)
 - `-n, --no-tui`: Disables the interactive TUI and outputs JSON/NDJSON. Can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
+- `--transport string`: Force a specific transport protocol (`grpc`, `jsonrpc`, `httpjson`). Defaults to auto-selection based on the agent's card.
 - `-V, --version`: Print version information.
 
 ### Configuration Management
@@ -167,6 +169,15 @@ Example Error:
 ```text
 Error: failed to resolve AgentCard: connection refused
 Hint: Ensure the A2A server is running at http://localhost:9001
+```
+
+### Dynamic Transport Selection
+Agents can automatically negotiate the most efficient transport protocol without manual intervention. By default, `a2acli` prioritizes protocols in the order: **gRPC > JSON-RPC > HTTP+JSON**.
+
+For specialized environments, you can override this logic:
+```bash
+# Force gRPC for high-performance streaming
+a2acli send "Generate video" --transport grpc
 ```
 
 ## Development
