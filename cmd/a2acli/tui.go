@@ -27,11 +27,7 @@ import (
 )
 
 var (
-	subtleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	docStyle    = lipgloss.NewStyle().Margin(1, 2)
-	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))           // Pinkish
-	taskIDStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true) // Cyan
-	agentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))            // Green
+	docStyle = lipgloss.NewStyle().Margin(1, 2)
 )
 
 type streamMsg struct {
@@ -58,7 +54,7 @@ type doneMsg struct{}
 func initialModel(sub <-chan streamMsg, outDir string) model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = StyleAccent
 	return model{
 		sub:      sub,
 		spinner:  s,
@@ -71,13 +67,13 @@ func initialModel(sub <-chan streamMsg, outDir string) model {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
-		waitForActivity(m.sub),
+		m.waitForActivity(),
 	)
 }
 
-func waitForActivity(sub <-chan streamMsg) tea.Cmd {
+func (m model) waitForActivity() tea.Cmd {
 	return func() tea.Msg {
-		msg, ok := <-sub
+		msg, ok := <-m.sub
 		if !ok {
 			return doneMsg{}
 		}
@@ -124,13 +120,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.taskID = string(event.TaskInfo().TaskID)
 		}
 
-		cmds := []tea.Cmd{waitForActivity(m.sub)} // Continue listening
+		cmds := []tea.Cmd{m.waitForActivity()} // Continue listening
 
 		switch v := event.(type) {
 		case *a2a.Message:
 			for _, p := range v.Parts {
 				if tp, ok := p.Content.(a2a.Text); ok {
-					m.messages = append(m.messages, agentStyle.Render(fmt.Sprintf("Agent: %s", string(tp))))
+					m.messages = append(m.messages, fmt.Sprintf("%s %s", StyleCommand.Render("Agent:"), string(tp)))
 				}
 			}
 			m.status = "Received Message"
@@ -143,14 +139,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					statusMsg = string(tp)
 				}
 			}
+
+			var stateStyle lipgloss.Style
+			switch v.Status.State {
+			case a2a.TaskStateCompleted:
+				stateStyle = StylePass
+			case a2a.TaskStateFailed, a2a.TaskStateRejected:
+				stateStyle = StyleFail
+			default:
+				stateStyle = StyleWarn
+			}
+
 			if statusMsg != "" {
-				m.messages = append(m.messages, subtleStyle.Render(fmt.Sprintf("[%s] %s", v.Status.State, statusMsg)))
+				m.messages = append(m.messages, fmt.Sprintf("[%s] %s", stateStyle.Render(string(v.Status.State)), StyleMuted.Render(statusMsg)))
 			}
 
 		case *a2a.TaskArtifactUpdateEvent:
 			m.status = "Artifact Received"
-			header := fmt.Sprintf("--- ARTIFACT: %s ---", v.Artifact.Name)
-			m.messages = append(m.messages, lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(header))
+			m.messages = append(m.messages, StyleArtifact.Render(fmt.Sprintf("ARTIFACT: %s", v.Artifact.Name)))
 
 			saveMsg := ""
 			if m.outDir != "" || outFile != "" {
@@ -170,17 +176,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if len(preview) > 200 {
 						preview = preview[:200] + "..."
 					}
-					m.messages = append(m.messages, fmt.Sprintf("Data: %s", preview))
+					m.messages = append(m.messages, fmt.Sprintf("%s\n%s", StyleMuted.Render("Data (Preview):"), preview))
 				} else if tp, ok := p.Content.(a2a.Text); ok {
 					preview := string(tp)
 					if len(preview) > 200 {
 						preview = preview[:200] + "..."
 					}
-					m.messages = append(m.messages, fmt.Sprintf("Text: %s", preview))
+					m.messages = append(m.messages, fmt.Sprintf("%s\n%s", StyleMuted.Render("Content (Preview):"), preview))
 				}
 			}
 			if saveMsg != "" {
-				m.messages = append(m.messages, subtleStyle.Render(saveMsg))
+				m.messages = append(m.messages, StyleAccent.Render(saveMsg))
 			}
 		}
 
@@ -192,7 +198,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	if m.err != nil {
-		return fmt.Sprintf("Error: %v\n", m.err)
+		return StyleFail.Render(fmt.Sprintf("Error: %v\n", m.err))
 	}
 
 	// Status Bar
@@ -201,9 +207,10 @@ func (m model) View() string {
 		spin = ""
 	}
 
-	statusLine := fmt.Sprintf("%s%s", spin, statusStyle.Render(strings.ToUpper(m.status)))
+	state := strings.ToUpper(m.status)
+	statusLine := fmt.Sprintf("%s%s", spin, StyleAccent.Render(state))
 	if m.taskID != "" {
-		statusLine += fmt.Sprintf(" | Task: %s", taskIDStyle.Render(m.taskID))
+		statusLine += fmt.Sprintf(" | Task: %s", StyleID.Render(m.taskID))
 	}
 
 	// History
@@ -221,8 +228,9 @@ func (m model) View() string {
 	}
 
 	return docStyle.Width(width).Render(fmt.Sprintf(
-		"%s\n\n%s\n\n(ctrl+c to quit)",
+		"%s\n\n%s\n\n%s",
 		history,
 		statusLine,
+		StyleMuted.Render("(ctrl+c to quit)"),
 	))
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2aclient"
 	"github.com/a2aproject/a2a-go/a2aclient/agentcard"
+	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -48,7 +49,29 @@ var (
 		Use:   "a2acli",
 		Short: "A2A CLI Client",
 	}
+
+	// Command group IDs for help organization
+	GroupDiscovery = "discovery"
+	GroupMessaging = "messaging"
+	GroupSystem    = "system"
 )
+
+func fatalf(format string, err error, hint string) {
+	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", err)
+	if hint != "" {
+		fmt.Fprintf(os.Stderr, "Hint: %s\n", hint)
+	}
+	os.Exit(1)
+}
+
+func init() {
+	rootCmd.AddGroup(
+		&cobra.Group{ID: GroupDiscovery, Title: "Discovery & Identity:"},
+		&cobra.Group{ID: GroupMessaging, Title: "Messaging & Tasks:"},
+		&cobra.Group{ID: GroupSystem, Title: "Client Configuration:"},
+	)
+	rootCmd.SetHelpFunc(colorizedHelpFunc)
+}
 
 type tokenInterceptor struct {
 	a2aclient.PassthroughInterceptor
@@ -77,7 +100,7 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 func runDescribe(_ *cobra.Command, _ []string) {
 	card, err := agentcard.DefaultResolver.Resolve(context.Background(), serviceURL)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		fatalf("failed to resolve AgentCard: %v", err, "Ensure the A2A server is running at "+serviceURL)
 	}
 
 	if disableTUI {
@@ -133,7 +156,7 @@ func runSend(_ *cobra.Command, args []string) {
 	if instructionFile != "" {
 		content, err := os.ReadFile(instructionFile)
 		if err != nil {
-			log.Fatalf("Error reading instruction file: %v", err)
+			fatalf("failed to read instruction file %q", err, "Verify the file path exists and is readable")
 		}
 		messageText = fmt.Sprintf("%s\n\nSupplemental Instructions:\n%s", messageText, string(content))
 	}
@@ -142,12 +165,12 @@ func runSend(_ *cobra.Command, args []string) {
 
 	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
 
 	client, err := createClient(ctx, card)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		fatalf("failed to create client", err, "Verify your --token or configuration settings")
 	}
 
 	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(messageText))
@@ -183,7 +206,7 @@ func runSend(_ *cobra.Command, args []string) {
 
 		result, err := client.SendMessage(ctx, params)
 		if err != nil {
-			log.Fatalf("Error: %v", err)
+			fatalf("SendMessage failed", err, "Check service connectivity or skill availability")
 		}
 
 		if disableTUI {
@@ -244,12 +267,12 @@ func runWatch(_ *cobra.Command, args []string) {
 
 	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
 
 	client, err := createClient(ctx, card)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		fatalf("failed to create client", err, "Verify your --token or configuration settings")
 	}
 
 	if !disableTUI {
@@ -260,13 +283,7 @@ func runWatch(_ *cobra.Command, args []string) {
 
 	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: tid})
 	if err != nil {
-		errMsg := err.Error()
-		if len(errMsg) > 0 {
-			fmt.Printf("Error: %v\n", err)
-			fmt.Println("Hint: If you are using the default in-memory store, restarting the server wipes all tasks.")
-			os.Exit(1)
-		}
-		log.Fatalf("Error retrieving task status: %v", err)
+		fatalf("failed to retrieve task status", err, "If using an in-memory store, task history is lost on server restart")
 	}
 
 	if task.Status.State == a2a.TaskStateCompleted || task.Status.State == a2a.TaskStateFailed || task.Status.State == a2a.TaskStateRejected {
@@ -302,12 +319,12 @@ func runGet(cmd *cobra.Command, args []string) {
 
 	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
 
 	client, err := createClient(ctx, card)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		fatalf("failed to create client", err, "Verify your --token or configuration settings")
 	}
 
 	tid := a2a.TaskID(taskID)
@@ -321,7 +338,7 @@ func runGet(cmd *cobra.Command, args []string) {
 
 	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: tid})
 	if err != nil {
-		log.Fatalf("Error retrieving task: %v", err)
+		fatalf("failed to retrieve task", err, "Check the task ID or verify the server state")
 	}
 
 	if disableTUI {
@@ -341,6 +358,38 @@ func runGet(cmd *cobra.Command, args []string) {
 	displayTaskResult(task, outDir)
 }
 
+func runCancel(_ *cobra.Command, args []string) {
+	taskID := args[0]
+	ctx := context.Background()
+
+	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
+	if err != nil {
+		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
+	}
+
+	client, err := createClient(ctx, card)
+	if err != nil {
+		fatalf("failed to create client", err, "Verify your --token or configuration settings")
+	}
+
+	tid := a2a.TaskID(taskID)
+
+	task, err := client.CancelTask(ctx, &a2a.CancelTaskRequest{ID: tid})
+	if err != nil {
+		fatalf("failed to cancel task", err, "Check the task ID or verify the server state")
+	}
+
+	if disableTUI {
+		b, err := json.MarshalIndent(task, "", "  ")
+		if err == nil {
+			fmt.Println(string(b))
+		}
+		return
+	}
+
+	fmt.Printf("Task %s has been requested to cancel. Current state: %s\n", task.ID, task.Status.State)
+}
+
 func main() {
 	cobra.OnInitialize(initConfig)
 
@@ -350,46 +399,86 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token")
 	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (must be non-terminal)")
 	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference as context (works for completed tasks)")
-	rootCmd.PersistentFlags().BoolVar(&disableTUI, "no-tui", false, "Disable the Terminal UI (useful for scripting and CI)")
+	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI (useful for scripting and CI)")
+	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
 
 	if os.Getenv("A2ACLI_NO_TUI") == "true" || os.Getenv("NO_COLOR") != "" {
 		disableTUI = true
 	}
 
 	var describeCmd = &cobra.Command{
-		Use:   "describe",
-		Short: "Describe the agent card",
-		Run:   runDescribe,
+		Use:     "describe",
+		GroupID: GroupDiscovery,
+		Short:   "Describe the agent card",
+		Long: `Retrieve and display the A2A AgentCard for the target service.
+
+The AgentCard contains the agent's identity, description, supported 
+interface protocols (e.g., JSON-RPC), and available skills. It also 
+lists any security requirements for each skill.`,
+		Example: `  a2acli describe
+  a2acli describe --service-url http://localhost:9001
+  a2acli describe --no-tui --token "my-auth-token"`,
+		Run: runDescribe,
 	}
 
 	var sendCmd = &cobra.Command{
 		Use:     "send [message]",
+		GroupID: GroupMessaging,
 		Aliases: []string{"invoke", "SendMessage"},
 		Short:   "Send a message to an agent (streaming)",
-		Args:    cobra.MinimumNArgs(1),
-		Run:     runSend,
+		Long: `Initiate a new task or continue an existing one by sending a message to the agent.
+
+By default, this command uses streaming to provide real-time updates from 
+the agent. Use the --wait flag to perform a blocking call instead.
+
+You can save artifacts produced by the task using the --out-dir flag.`,
+		Example: `  a2acli send "Write a simple CLI in Go"
+  a2acli send "Add error handling to that CLI" --task <taskID>
+  a2acli send "Summarize this task" --ref <taskID>
+  a2acli send "Generate report" --skill reports --wait --out-dir ./reports`,
+		Args: cobra.MinimumNArgs(1),
+		Run:  runSend,
 	}
 
 	var watchCmd = &cobra.Command{
 		Use:     "watch [taskID]",
+		GroupID: GroupMessaging,
 		Aliases: []string{"resume", "SubscribeToTask"},
 		Short:   "Watch an existing task's streaming updates",
-		Args:    cobra.ExactArgs(1),
-		Run:     runWatch,
+		Long: `Connect to an active task's event stream to receive real-time updates.
+
+This is useful for resuming observation of a long-running task or 
+watching a task initiated by another client. If the task is 
+already completed, the command will display the final results.`,
+		Example: `  a2acli watch <taskID>
+  a2acli watch <taskID> --no-tui
+  a2acli watch <taskID> --out-dir ./artifacts`,
+		Args: cobra.ExactArgs(1),
+		Run:  runWatch,
 	}
 
 	var getCmd = &cobra.Command{
 		Use:     "get [taskID]",
+		GroupID: GroupMessaging,
 		Aliases: []string{"status", "GetTask"},
 		Short:   "Get the status of a task",
-		Args:    cobra.ExactArgs(1),
-		Run:     runGet,
+		Long: `Retrieve the current state and results of a task.
+
+Displays the task status (e.g., active, completed, failed) and a 
+preview of any artifacts produced. Use the --out-dir flag to 
+download artifacts to a directory.`,
+		Example: `  a2acli get <taskID>
+  a2acli get <taskID> --no-tui
+  a2acli get <taskID> --out-dir ./status`,
+		Args: cobra.ExactArgs(1),
+		Run:  runGet,
 	}
 
 	var versionCmd = &cobra.Command{
-		Use:   "version",
-		Short: "Print the version number of a2acli",
-		Run:   runVersion,
+		Use:     "version",
+		GroupID: GroupSystem,
+		Short:   "Print the version number of a2acli",
+		Run:     runVersion,
 	}
 
 	sendCmd.Flags().StringVarP(&skillID, "skill", "s", "", "Skill ID")
@@ -407,21 +496,61 @@ func main() {
 
 	var downloadCmd = &cobra.Command{
 		Use:     "download [taskID]",
+		GroupID: GroupMessaging,
 		Aliases: []string{"retrieve"},
 		Short:   "Download artifacts from a task",
-		Args:    cobra.ExactArgs(1),
-		Run:     runGet, // Reuse runGet which now handles outDir and outFile natively
+		Long: `Download all artifacts produced by a specific task.
+
+This is a convenience command that retrieves the task and saves its 
+artifacts to the current directory or a specified output directory.`,
+		Example: `  a2acli download <taskID>
+  a2acli download <taskID> --out-dir ./results
+  a2acli download <taskID> --file output.txt`,
+		Args: cobra.ExactArgs(1),
+		Run:  runGet, // Reuse runGet which now handles outDir and outFile natively
 	}
 	downloadCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	downloadCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 
-	var configCmd = &cobra.Command{
-		Use:   "config",
-		Short: "View the active configuration",
-		Run:   runConfig,
+	var cancelCmd = &cobra.Command{
+		Use:     "cancel [taskID]",
+		GroupID: GroupMessaging,
+		Aliases: []string{"terminate", "CancelTask"},
+		Short:   "Cancel an active task",
+		Long: `Request cancellation of an active task.
+
+If the task is still running, the agent will attempt to stop its 
+execution. This is a best-effort request and the task may 
+already have completed or be in a non-cancelable state.`,
+		Example: `  a2acli cancel <taskID>
+  a2acli cancel <taskID> --no-tui`,
+		Args: cobra.ExactArgs(1),
+		Run:  runCancel,
 	}
 
-	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, configCmd, versionCmd)
+	var configCmd = &cobra.Command{
+		Use:     "config",
+		GroupID: GroupSystem,
+		Short:   "View the active configuration",
+		Long: `Display the active configuration settings.
+
+Settings are loaded from the default configuration file ($HOME/.config/a2acli/config.yaml) 
+and can be overridden by environment variables and command-line flags.`,
+		Example: `  a2acli config
+  a2acli config --env production
+  a2acli config --config ./myconfig.yaml`,
+		Run: runConfig,
+	}
+
+	rootCmd.Run = func(cmd *cobra.Command, _ []string) {
+		if v, _ := cmd.Flags().GetBool("version"); v {
+			runVersion(cmd, nil)
+			return
+		}
+		_ = cmd.Help()
+	}
+
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
@@ -474,46 +603,59 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 		return
 	}
 
-	fmt.Printf("Task Status: [%s]\n", task.Status.State)
+	state := string(task.Status.State)
+	var stateStyle lipgloss.Style
+	switch task.Status.State {
+	case a2a.TaskStateCompleted:
+		stateStyle = StylePass
+	case a2a.TaskStateFailed, a2a.TaskStateRejected:
+		stateStyle = StyleFail
+	default:
+		stateStyle = StyleWarn
+	}
+
+	fmt.Printf("Task Status: [%s]\n", stateStyle.Render(state))
 
 	if len(task.Artifacts) == 0 {
 		fmt.Println("No artifacts produced.")
 		return
 	}
 
-	fmt.Printf("\n--- %d ARTIFACT(S) AVAILABLE ---\n", len(task.Artifacts))
+	fmt.Printf("\n%s\n", StyleAccent.Render(fmt.Sprintf("--- %d ARTIFACT(S) AVAILABLE ---", len(task.Artifacts))))
 
 	for i, art := range task.Artifacts {
-		fmt.Printf("\nName: %s\n", art.Name)
-		fmt.Printf("Description: %s\n", art.Description)
+		fmt.Printf("\nName: %s\n", StyleArtifact.Render(art.Name))
+		if art.Description != "" {
+			fmt.Printf("Description: %s\n", art.Description)
+		}
 
 		truncated := false
 		for _, p := range art.Parts {
 			if dp, ok := p.Content.(a2a.Data); ok {
 				prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
-				fmt.Printf("Data (Preview):\n%s\n", string(prettyJSON))
+				fmt.Printf("%s\n%s\n", StyleMuted.Render("Data (Preview):"), string(prettyJSON))
 			} else if tp, ok := p.Content.(a2a.Text); ok {
 				preview := string(tp)
 				if len(preview) > 500 {
 					preview = preview[:500] + "... (truncated)"
 					truncated = true
 				}
-				fmt.Printf("Content (Preview):\n%s\n", preview)
+				fmt.Printf("%s\n%s\n", StyleMuted.Render("Content (Preview):"), preview)
 			}
 		}
 
 		if outDir != "" || outFile != "" {
 			path, err := saveArtifact(outDir, outFile, *art, i)
 			if err != nil {
-				fmt.Printf("Error saving artifact: %v\n", err)
+				fmt.Printf("%s %v\n", StyleFail.Render("Error saving artifact:"), err)
 			} else {
-				fmt.Printf(">> Saved to: %s\n", path)
+				fmt.Printf("%s %s\n", StyleAccent.Render(">> Saved to:"), StyleArtifact.Render(path))
 			}
 		} else if truncated {
-			fmt.Println("(Hint: Use --out-dir <path> or --file <name> to save the full artifact content)")
+			fmt.Printf("%s\n", StyleMuted.Render("(Hint: Use --out-dir <path> or --file <name> to save the full artifact content)"))
 		}
 	}
-	fmt.Println("\n------------------------------")
+	fmt.Printf("\n%s\n", StyleAccent.Render("------------------------------"))
 }
 func saveArtifact(outDir, outFile string, artifact a2a.Artifact, index int) (string, error) {
 	var path string
