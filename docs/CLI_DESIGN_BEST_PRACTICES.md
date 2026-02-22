@@ -56,6 +56,18 @@ CLIs should prioritize high-density information display while minimizing cogniti
 *   **Maximize Data-Ink Ratio**: Minimize non-essential "ink" (decorative borders, unnecessary colors). Reserve color for elements that demand attention or convey state.
 *   **Whitespace over Color**: Use positioning and whitespace as the primary tool for conveying hierarchy. Reserve color for exceptional states (errors, warnings) or high-value scan targets.
 *   **Semantic Color Tokens**: Use meaning-based tokens (e.g., `Accent`, `Muted`, `Pass`, `Warn`, `Fail`) rather than raw color names. This ensures semantic consistency across the application.
+*   **Standard Semantic Palette (Ayu-based)**: Use the following hex codes (aligned with the `ayu` theme) to ensure cross-tool consistency and high contrast in both terminal modes.
+
+| Token | Visual Intent | Light Hex | Dark Hex | Role |
+| :--- | :--- | :--- | :--- | :--- |
+| `Accent` | Landmarks | `#399ee6` | `#59c2ff` | Headers, Group Titles, Section Labels |
+| `Command` | Scan Targets | `#5c6166` | `#bfbdb6` | Command names, Flags |
+| `Pass` | Success | `#86b300` | `#c2d94c` | Completed tasks, Success states |
+| `Warn` | Transient | `#f2ae49` | `#ffb454` | Active tasks, Warnings, Pending states |
+| `Fail` | Error | `#f07171` | `#f07178` | Failed tasks, Errors, Rejected states |
+| `Muted` | De-emphasis | `#828c99` | `#6c7680` | Metadata, Types, Defaults, Previews |
+| `ID` | Identifiers | `#46ba94` | `#95e6cb` | Unique IDs (TaskIDs, SkillIDs) |
+
 *   **Perceptual Optimization**: Ensure output is optimized for both **Light and Dark** terminal backgrounds. Use adaptive colors that maintain contrast and semantic meaning regardless of the user's terminal theme.
 
 ## 8. Functional Color Usage
