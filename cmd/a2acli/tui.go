@@ -108,92 +108,104 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case eventMsg:
-		if msg.Err != nil {
-			m.err = msg.Err
-			return m, tea.Quit
-		}
-
-		// Handle A2A Events
-		event := msg.Event
-
-		if event.TaskInfo().TaskID != "" {
-			m.taskID = string(event.TaskInfo().TaskID)
-		}
-
-		cmds := []tea.Cmd{m.waitForActivity()} // Continue listening
-
-		switch v := event.(type) {
-		case *a2a.Message:
-			for _, p := range v.Parts {
-				if tp, ok := p.Content.(a2a.Text); ok {
-					m.messages = append(m.messages, fmt.Sprintf("%s %s", StyleCommand.Render("Agent:"), string(tp)))
-				}
-			}
-			m.status = "Received Message"
-
-		case *a2a.TaskStatusUpdateEvent:
-			m.status = string(v.Status.State)
-			statusMsg := ""
-			if v.Status.Message != nil && len(v.Status.Message.Parts) > 0 {
-				if tp, ok := v.Status.Message.Parts[0].Content.(a2a.Text); ok {
-					statusMsg = string(tp)
-				}
-			}
-
-			var stateStyle lipgloss.Style
-			switch v.Status.State {
-			case a2a.TaskStateCompleted:
-				stateStyle = StylePass
-			case a2a.TaskStateFailed, a2a.TaskStateRejected:
-				stateStyle = StyleFail
-			default:
-				stateStyle = StyleWarn
-			}
-
-			if statusMsg != "" {
-				m.messages = append(m.messages, fmt.Sprintf("[%s] %s", stateStyle.Render(string(v.Status.State)), StyleMuted.Render(statusMsg)))
-			}
-
-		case *a2a.TaskArtifactUpdateEvent:
-			m.status = "Artifact Received"
-			m.messages = append(m.messages, StyleArtifact.Render(fmt.Sprintf("ARTIFACT: %s", v.Artifact.Name)))
-
-			saveMsg := ""
-			if m.outDir != "" || outFile != "" {
-				path, err := saveArtifact(m.outDir, outFile, *v.Artifact, 0)
-				if err != nil {
-					saveMsg = fmt.Sprintf("Error saving: %v", err)
-				} else {
-					saveMsg = fmt.Sprintf("Saved to: %s", path)
-				}
-			}
-
-			// Display preview
-			for _, p := range v.Artifact.Parts {
-				if dp, ok := p.Content.(a2a.Data); ok {
-					prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
-					preview := string(prettyJSON)
-					if len(preview) > 200 {
-						preview = preview[:200] + "..."
-					}
-					m.messages = append(m.messages, fmt.Sprintf("%s\n%s", StyleMuted.Render("Data (Preview):"), preview))
-				} else if tp, ok := p.Content.(a2a.Text); ok {
-					preview := string(tp)
-					if len(preview) > 200 {
-						preview = preview[:200] + "..."
-					}
-					m.messages = append(m.messages, fmt.Sprintf("%s\n%s", StyleMuted.Render("Content (Preview):"), preview))
-				}
-			}
-			if saveMsg != "" {
-				m.messages = append(m.messages, StyleAccent.Render(saveMsg))
-			}
-		}
-
-		return m, tea.Batch(cmds...)
+		return m.handleEvent(msg)
 	}
 
 	return m, nil
+}
+
+func (m model) handleEvent(msg eventMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.err = msg.Err
+		return m, tea.Quit
+	}
+
+	// Handle A2A Events
+	event := msg.Event
+
+	if event.TaskInfo().TaskID != "" {
+		m.taskID = string(event.TaskInfo().TaskID)
+	}
+
+	cmds := []tea.Cmd{m.waitForActivity()} // Continue listening
+
+	switch v := event.(type) {
+	case *a2a.Message:
+		for _, p := range v.Parts {
+			if tp, ok := p.Content.(a2a.Text); ok {
+				m.messages = append(m.messages, fmt.Sprintf("%s %s", StyleCommand.Render("Agent:"), string(tp)))
+			}
+		}
+		m.status = "Received Message"
+
+	case *a2a.TaskStatusUpdateEvent:
+		m.handleStatusUpdate(v)
+
+	case *a2a.TaskArtifactUpdateEvent:
+		m.handleArtifactUpdate(v)
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m *model) handleStatusUpdate(v *a2a.TaskStatusUpdateEvent) {
+	m.status = string(v.Status.State)
+	statusMsg := ""
+	if v.Status.Message != nil && len(v.Status.Message.Parts) > 0 {
+		if tp, ok := v.Status.Message.Parts[0].Content.(a2a.Text); ok {
+			statusMsg = string(tp)
+		}
+	}
+
+	var stateStyle lipgloss.Style
+	switch v.Status.State {
+	case a2a.TaskStateCompleted:
+		stateStyle = StylePass
+	case a2a.TaskStateFailed, a2a.TaskStateRejected:
+		stateStyle = StyleFail
+	default:
+		stateStyle = StyleWarn
+	}
+
+	if statusMsg != "" {
+		m.messages = append(m.messages, fmt.Sprintf("[%s] %s", stateStyle.Render(string(v.Status.State)), StyleMuted.Render(statusMsg)))
+	}
+}
+
+func (m *model) handleArtifactUpdate(v *a2a.TaskArtifactUpdateEvent) {
+	m.status = "Artifact Received"
+	m.messages = append(m.messages, StyleArtifact.Render(fmt.Sprintf("ARTIFACT: %s", v.Artifact.Name)))
+
+	saveMsg := ""
+	if m.outDir != "" || outFile != "" {
+		path, err := saveArtifact(m.outDir, outFile, *v.Artifact, 0)
+		if err != nil {
+			saveMsg = fmt.Sprintf("Error saving: %v", err)
+		} else {
+			saveMsg = fmt.Sprintf("Saved to: %s", path)
+		}
+	}
+
+	// Display preview
+	for _, p := range v.Artifact.Parts {
+		if dp, ok := p.Content.(a2a.Data); ok {
+			prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
+			preview := string(prettyJSON)
+			if len(preview) > 200 {
+				preview = preview[:200] + "..."
+			}
+			m.messages = append(m.messages, fmt.Sprintf("%s\n%s", StyleMuted.Render("Data (Preview):"), preview))
+		} else if tp, ok := p.Content.(a2a.Text); ok {
+			preview := string(tp)
+			if len(preview) > 200 {
+				preview = preview[:200] + "..."
+			}
+			m.messages = append(m.messages, fmt.Sprintf("%s\n%s", StyleMuted.Render("Content (Preview):"), preview))
+		}
+	}
+	if saveMsg != "" {
+		m.messages = append(m.messages, StyleAccent.Render(saveMsg))
+	}
 }
 
 func (m model) View() string {
