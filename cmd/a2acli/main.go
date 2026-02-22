@@ -28,6 +28,7 @@ import (
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2aclient"
 	"github.com/a2aproject/a2a-go/a2aclient/agentcard"
+	a2agrpc "github.com/a2aproject/a2a-go/a2agrpc/v1"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -44,6 +45,7 @@ var (
 	instructionFile string
 	disableTUI      bool
 	wait            bool
+	transport       string
 
 	rootCmd = &cobra.Command{
 		Use:   "a2acli",
@@ -90,7 +92,55 @@ func (i *tokenInterceptor) Before(ctx context.Context, req *a2aclient.Request) (
 
 func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, error) {
 	httpClient := &http.Client{Timeout: 15 * time.Minute}
-	opts := []a2aclient.FactoryOption{a2aclient.WithJSONRPCTransport(httpClient)}
+
+	// Determine transport
+	selectedTransport := a2a.TransportProtocolJSONRPC // Default
+	if transport != "" {
+		switch strings.ToLower(transport) {
+		case "grpc":
+			selectedTransport = a2a.TransportProtocolGRPC
+		case "jsonrpc":
+			selectedTransport = a2a.TransportProtocolJSONRPC
+		case "rest", "httpjson":
+			selectedTransport = a2a.TransportProtocolHTTPJSON
+		default:
+			return nil, fmt.Errorf("unsupported transport: %s", transport)
+		}
+	} else {
+		// Dynamic selection based on priority: gRPC > JSON-RPC > HTTP+JSON
+		available := make(map[a2a.TransportProtocol]bool)
+		for _, iface := range card.SupportedInterfaces {
+			available[iface.ProtocolBinding] = true
+		}
+
+		if available[a2a.TransportProtocolGRPC] {
+			selectedTransport = a2a.TransportProtocolGRPC
+		} else if available[a2a.TransportProtocolJSONRPC] {
+			selectedTransport = a2a.TransportProtocolJSONRPC
+		} else if available[a2a.TransportProtocolHTTPJSON] {
+			selectedTransport = a2a.TransportProtocolHTTPJSON
+		}
+	}
+
+	var transportOpt a2aclient.FactoryOption
+	switch selectedTransport {
+	case a2a.TransportProtocolGRPC:
+		transportOpt = a2agrpc.WithGRPCTransport()
+	case a2a.TransportProtocolHTTPJSON:
+		transportOpt = a2aclient.WithRESTTransport(httpClient)
+	default:
+		transportOpt = a2aclient.WithJSONRPCTransport(httpClient)
+	}
+
+	if !disableTUI {
+		if transport == "" {
+			fmt.Printf("Auto-selected transport: %s\n", StyleAccent.Render(string(selectedTransport)))
+		} else {
+			fmt.Printf("Forcing transport: %s\n", StyleAccent.Render(string(selectedTransport)))
+		}
+	}
+
+	opts := []a2aclient.FactoryOption{transportOpt}
 	if authToken != "" {
 		opts = append(opts, a2aclient.WithCallInterceptors(&tokenInterceptor{token: authToken}))
 	}
@@ -400,6 +450,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (must be non-terminal)")
 	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference as context (works for completed tasks)")
 	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI (useful for scripting and CI)")
+	rootCmd.PersistentFlags().StringVar(&transport, "transport", "", "Force a specific transport protocol (grpc, jsonrpc, rest)")
 	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
 
 	if os.Getenv("A2ACLI_NO_TUI") == "true" || os.Getenv("NO_COLOR") != "" {

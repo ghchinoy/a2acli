@@ -33,3 +33,4 @@ The following tasks were tracked in the `bd` issue tracker:
 3.  **a2ac-5rv**: Implemented basic semantic help styling in `cmd/a2acli/help.go`.
 4.  **a2ac-59j**: Standardized 'Hint' guidance for common error states.
 5.  **a2ac-eh1**: Audited and synchronized flag short-names.
+6.  **a2ac-udz**: Implemented dynamic transport selection (gRPC vs JSON-RPC).

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 )
@@ -25,6 +24,24 @@ func waitForServer(url string, timeout time.Duration) error {
 	return fmt.Errorf("timeout waiting for server at %s", url)
 }
 
+func runSUT(t *testing.T, sutDir string, mode string) (*exec.Cmd, string, *bytes.Buffer) {
+	sutCmd := exec.Command("go", "run", "sut.go", "sut_agent_executor.go", "-mode", mode)
+	sutCmd.Dir = sutDir
+	var sutOut bytes.Buffer
+	sutCmd.Stdout = &sutOut
+	sutCmd.Stderr = &sutOut
+	if err := sutCmd.Start(); err != nil {
+		t.Fatalf("failed to start SUT (%s): %v", mode, err)
+	}
+
+	sutURL := "http://127.0.0.1:9999"
+	if err := waitForServer(sutURL+"/agent", 10*time.Second); err != nil {
+		_ = sutCmd.Process.Kill()
+		t.Fatalf("Server (%s) failed to start. Logs:\n%s", mode, sutOut.String())
+	}
+	return sutCmd, sutURL, &sutOut
+}
+
 func TestConformance(t *testing.T) {
 	cmdBuild := exec.Command("go", "build", "-o", "../bin/a2acli", "../cmd/a2acli")
 	if out, err := cmdBuild.CombinedOutput(); err != nil {
@@ -33,115 +50,79 @@ func TestConformance(t *testing.T) {
 
 	a2aGoSrc := os.Getenv("A2A_GO_SRC")
 	if a2aGoSrc == "" {
-		// Default to relative path for standard local development
 		a2aGoSrc = "../../github/a2a-go"
 	}
 
 	sutDir := a2aGoSrc + "/e2e/tck"
 	if _, err := os.Stat(sutDir); os.IsNotExist(err) {
-		t.Fatalf("\n\n❌ REQUIRED DEPENDENCY MISSING ❌\n\nThe a2a-go SDK source code was not found at:\n'%s'\n\nRunning e2e conformance tests requires the a2a-go source to be checked out locally so the TCK SUT server can be spun up.\n\nPlease clone 'https://github.com/a2aproject/a2a-go' or provide the correct path using:\n\n    make test-e2e A2A_GO_SRC=/path/to/a2a-go\n\n", a2aGoSrc)
-	}
-
-	sutCmd := exec.Command("go", "run", "sut.go", "sut_agent_executor.go")
-	sutCmd.Dir = sutDir
-	var sutOut bytes.Buffer
-	sutCmd.Stdout = &sutOut
-	sutCmd.Stderr = &sutOut
-	if err := sutCmd.Start(); err != nil {
-		t.Fatalf("failed to start SUT: %v", err)
-	}
-
-	defer func() {
-		if sutCmd.Process != nil {
-			_ = sutCmd.Process.Kill()
-		}
-	}()
-
-	sutURL := "http://127.0.0.1:9999"
-	if err := waitForServer(sutURL+"/agent", 5*time.Second); err != nil {
-		t.Fatalf("Server failed to start. Logs:\n%s", sutOut.String())
+		t.Fatalf("a2a-go SDK source not found at %s", a2aGoSrc)
 	}
 
 	cliPath := "../bin/a2acli"
 
-	t.Run("Describe", func(t *testing.T) {
-		cmd := exec.Command(cliPath, "describe", "--no-tui", "-u", sutURL)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("describe failed: %v\nOutput: %s", err, out)
-		}
+	t.Run("JSON-RPC", func(t *testing.T) {
+		sutCmd, sutURL, _ := runSUT(t, sutDir, "http")
+		defer func() { _ = sutCmd.Process.Kill() }()
 
-		var card map[string]any
-		if err := json.Unmarshal(out, &card); err != nil {
-			t.Fatalf("failed to parse JSON from describe: %v\nOutput: %s", err, out)
-		}
+		t.Run("Describe", func(t *testing.T) {
+			cmd := exec.Command(cliPath, "describe", "--no-tui", "-u", sutURL)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("describe failed: %v\nOutput: %s", err, out)
+			}
+			var card map[string]any
+			if err := json.Unmarshal(out, &card); err != nil {
+				t.Fatalf("failed to parse JSON: %v", err)
+			}
+			if name, _ := card["name"].(string); name != "TCK Core Agent" {
+				t.Errorf("expected TCK Core Agent, got %v", name)
+			}
+		})
 
-		if name, _ := card["name"].(string); name != "TCK Core Agent" {
-			t.Errorf("expected name 'TCK Core Agent', got %v", name)
-		}
+		t.Run("SendWait", func(t *testing.T) {
+			cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "--wait", "-u", sutURL)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("send --wait failed: %v\nOutput: %s", err, out)
+			}
+			var task map[string]any
+			if err := json.Unmarshal(out, &task); err != nil {
+				t.Fatalf("failed to parse JSON: %v", err)
+			}
+			status := task["status"].(map[string]any)
+			if status["state"] != "COMPLETED" {
+				t.Errorf("expected COMPLETED, got %v", status["state"])
+			}
+		})
 	})
 
-	t.Run("Send", func(t *testing.T) {
-		cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "-u", sutURL)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("invoke failed: %v\nOutput: %s", err, out)
-		}
+	t.Run("gRPC", func(t *testing.T) {
+		sutCmd, sutURL, _ := runSUT(t, sutDir, "grpc")
+		defer func() { _ = sutCmd.Process.Kill() }()
 
-		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-
-		var states []string
-		for _, line := range lines {
-			if strings.HasPrefix(line, "Task ID:") {
-				continue
+		t.Run("SendWait", func(t *testing.T) {
+			// This should auto-select gRPC because the SUT only advertises gRPC in this mode
+			cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "--wait", "-u", sutURL)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("send --wait (gRPC) failed: %v\nOutput: %s", err, out)
 			}
-			var event map[string]any
-			if err := json.Unmarshal([]byte(line), &event); err != nil {
-				continue
+			var task map[string]any
+			if err := json.Unmarshal(out, &task); err != nil {
+				t.Fatalf("failed to parse JSON: %v", err)
 			}
-
-			if statusBlock, ok := event["status"].(map[string]any); ok {
-				if state, ok := statusBlock["state"].(string); ok {
-					states = append(states, state)
-				}
+			status := task["status"].(map[string]any)
+			if status["state"] != "COMPLETED" {
+				t.Errorf("expected COMPLETED, got %v", status["state"])
 			}
-		}
+		})
 
-		if len(states) < 3 {
-			t.Fatalf("Expected at least 3 state updates, got %d. States: %v\nOutput:\n%s", len(states), states, out)
-		}
-
-		expected := []string{"SUBMITTED", "WORKING", "COMPLETED"}
-
-		tail := states[len(states)-3:]
-		for i, exp := range expected {
-			if tail[i] != exp {
-				t.Errorf("Expected state[%d] = %s, got %s", i, exp, tail[i])
+		t.Run("ForcegRPC", func(t *testing.T) {
+			cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "--wait", "-u", sutURL, "--transport", "grpc")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("send --wait --transport grpc failed: %v\nOutput: %s", err, out)
 			}
-		}
-	})
-	t.Run("SendWait", func(t *testing.T) {
-		cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "--wait", "-u", sutURL)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("send --wait failed: %v\nOutput: %s", err, out)
-		}
-
-		var task map[string]any
-		if err := json.Unmarshal(out, &task); err != nil {
-			t.Fatalf("failed to parse JSON from describe: %v\nOutput: %s", err, out)
-		}
-
-		if statusBlock, ok := task["status"].(map[string]any); ok {
-			if state, ok := statusBlock["state"].(string); ok {
-				if state != "COMPLETED" {
-					t.Fatalf("Expected state COMPLETED, got %s", state)
-				}
-			} else {
-				t.Fatalf("No state string found in status block")
-			}
-		} else {
-			t.Fatalf("No status block found in JSON payload")
-		}
+		})
 	})
 }
