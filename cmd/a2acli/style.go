@@ -18,53 +18,62 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// UI Semantic Tokens based on the Tufte-inspired Design Philosophy.
-// These are optimized for both Light and Dark terminal backgrounds using AdaptiveColor.
+// UI Semantic Tokens based on the Tufte-inspired Design Philosophy and Ayu theme.
+// These are optimized for both Light and Dark terminal backgrounds using Ayu hex codes.
 var (
 	// Accent is for primary navigation landmarks (Headers, Group Titles).
-	// Uses a deeper Cyan for Light mode and standard Cyan for Dark mode.
+	// Uses Ayu Blue.
 	StyleAccent = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "30", // Dark Cyan
-		Dark:  "6",  // Cyan
+		Light: "#3199e1",
+		Dark:  "#53bdfa",
 	})
 
 	// Command is for scan-targets (Command names, Flags).
+	// Uses Ayu Bright Green.
 	StyleCommand = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "2",  // Green
-		Dark:  "10", // Bright Green
+		Light: "#86b300",
+		Dark:  "#c2d94c",
 	})
 
 	// Muted is for de-emphasized metadata (Defaults, Types, Supplemental info).
+	// Uses Ayu Foreground/Grey.
 	StyleMuted = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
-		Light: "244", // Medium Grey
-		Dark:  "240", // Dark Grey
+		Light: "#6c7680",
+		Dark:  "#b3b1ad",
 	})
 
 	// Pass is for successful A2A Task states (Completed).
+	// Uses Ayu Green.
 	StylePass = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "2",  // Green
-		Dark:  "10", // Bright Green
+		Light: "#99bf4d",
+		Dark:  "#91b362",
 	})
 
 	// Warn is for transient or concerning A2A Task states (Active, Pending).
-	// Yellow/Yellow is difficult on light backgrounds; use Orange/Gold instead.
+	// Uses Ayu Yellow.
 	StyleWarn = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "130", // Brown/Orange
-		Dark:  "11",  // Yellow
+		Light: "#eca944",
+		Dark:  "#f9af4f",
 	})
 
 	// Fail is for terminal error A2A Task states (Failed, Rejected).
+	// Uses Ayu Red.
 	StyleFail = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "1", // Red
-		Dark:  "9", // Bright Red
+		Light: "#ea6c6d",
+		Dark:  "#ea6c73",
 	})
 
 	// ID is for high-value unique identifiers (TaskIDs, SkillIDs).
+	// Uses Ayu Cyan.
 	StyleID = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
-		Light: "5",  // Magenta
-		Dark:  "13", // Bright Magenta
+		Light: "#46ba94",
+		Dark:  "#90e1c6",
 	})
 
 	// Artifact is for data products (Artifact Names, Files).
-	StyleArtifact = lipgloss.NewStyle().Bold(true).Underline(true)
+	// Uses Bold Contrast.
+	StyleArtifact = lipgloss.NewStyle().Bold(true).Underline(true).Foreground(lipgloss.AdaptiveColor{
+		Light: "#000000",
+		Dark:  "#ffffff",
+	})
 )
