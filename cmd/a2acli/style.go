@@ -19,59 +19,53 @@ import (
 )
 
 // UI Semantic Tokens based on the Tufte-inspired Design Philosophy and Ayu theme.
-// These are optimized for both Light and Dark terminal backgrounds using Ayu hex codes.
+// These are aligned with the 'beads' project for cross-tool visual consistency.
 var (
 	// Accent is for primary navigation landmarks (Headers, Group Titles).
-	// Uses Ayu Blue.
 	StyleAccent = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "#3199e1",
-		Dark:  "#53bdfa",
+		Light: "#399ee6", // ayu light bright blue
+		Dark:  "#59c2ff", // ayu dark bright blue
 	})
 
 	// Command is for scan-targets (Command names, Flags).
-	// Uses Ayu Bright Green.
+	// Uses subtle foreground colors to prioritize data-ink.
 	StyleCommand = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "#86b300",
-		Dark:  "#c2d94c",
+		Light: "#5c6166", // ayu light command grey
+		Dark:  "#bfbdb6", // ayu dark command grey
 	})
 
 	// Muted is for de-emphasized metadata (Defaults, Types, Supplemental info).
-	// Uses Ayu Foreground/Grey.
 	StyleMuted = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
-		Light: "#6c7680",
-		Dark:  "#b3b1ad",
+		Light: "#828c99", // ayu light muted
+		Dark:  "#6c7680", // ayu dark muted
 	})
 
 	// Pass is for successful A2A Task states (Completed).
-	// Uses Ayu Green.
 	StylePass = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "#99bf4d",
-		Dark:  "#91b362",
+		Light: "#86b300", // ayu light bright green
+		Dark:  "#c2d94c", // ayu dark bright green
 	})
 
 	// Warn is for transient or concerning A2A Task states (Active, Pending).
-	// Uses Ayu Yellow.
 	StyleWarn = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "#eca944",
-		Dark:  "#f9af4f",
+		Light: "#f2ae49", // ayu light bright yellow
+		Dark:  "#ffb454", // ayu dark bright yellow
 	})
 
 	// Fail is for terminal error A2A Task states (Failed, Rejected).
-	// Uses Ayu Red.
 	StyleFail = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{
-		Light: "#ea6c6d",
-		Dark:  "#ea6c73",
+		Light: "#f07171", // ayu light bright red
+		Dark:  "#f07178", // ayu dark bright red
 	})
 
 	// ID is for high-value unique identifiers (TaskIDs, SkillIDs).
-	// Uses Ayu Cyan.
+	// Using Ayu Cyan for identifiers helps them stand out from standard text.
 	StyleID = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{
-		Light: "#46ba94",
-		Dark:  "#90e1c6",
+		Light: "#46ba94", // ayu light cyan
+		Dark:  "#95e6cb", // ayu dark cyan
 	})
 
 	// Artifact is for data products (Artifact Names, Files).
-	// Uses Bold Contrast.
 	StyleArtifact = lipgloss.NewStyle().Bold(true).Underline(true).Foreground(lipgloss.AdaptiveColor{
 		Light: "#000000",
 		Dark:  "#ffffff",
