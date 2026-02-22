@@ -14,14 +14,21 @@ bd sync               # Sync with git
 
 ## Coding Standards and Patterns
 
-- **Project Structure**: Go CLI entry points should be placed in `cmd/<app-name>/` (e.g., `cmd/a2acli/main.go`).
-- **Build System & Quality Gates**: Use a `Makefile` containing `build`, `run`, `lint`, `test-e2e`, and `clean` targets. `make lint` MUST be run using `golangci-lint` to enforce Google Go code standards before concluding any task. Binaries should be output to the `bin/` directory and ignored in version control.
-- **UI Framework**: Use the [Charm](https://charm.sh) ecosystem (Bubble Tea, Lipgloss, Bubbles) for all Terminal User Interfaces (TUIs).
-- **Configuration**: Support both local `.env` files and the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) (e.g., `~/.config/a2acli/config.yaml`) for application configuration.
+- **Project Structure**: Go CLI entry points should be placed in `cmd/<app-name>/` (e.g., `cmd/a2acli/main.go`). Logic for help and styling should be separated (e.g., `help.go`, `style.go`).
+- **Build System & Quality Gates**: Use a `Makefile` containing `build`, `run`, `lint`, `test-e2e`, `install`, and `clean` targets. Run `make help` to see available targets. `make lint` MUST be run using `golangci-lint` before concluding any task.
+- **UI Framework & Design**: 
+  - Use the [Charm](https://charm.sh) ecosystem (Bubble Tea, Lipgloss, Bubbles) for TUIs.
+  - Adhere to the principles in `docs/CLI_DESIGN_BEST_PRACTICES.md` (Tufte-inspired, high data-ink ratio).
+  - Use the centralized semantic tokens in `cmd/a2acli/style.go` (Ayu-theme aligned) for all UI output to ensure consistency across light/dark themes.
+- **A2A Protocol Alignment**: Command groups should reflect A2A concepts: **Discovery & Identity**, **Messaging & Tasks**, and **Client Configuration**.
+- **Self-Documentation**: Every Cobra command MUST include `Long` and `Example` fields. Use `rootCmd.SetHelpFunc(colorizedHelpFunc)` to maintain the styled help hierarchy.
+- **Error Handling**: Use the `fatalf(format, err, hint)` helper to provide proactive "Hints" for common failure states (e.g., missing config or server connectivity issues).
+- **Transport Selection**: The CLI supports dynamic transport negotiation (gRPC > JSON-RPC > HTTP+JSON). Prefer high-performance gRPC when advertised by the agent's `AgentCard`.
+- **Configuration**: Support both local `.env` files and the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) (e.g., `~/.config/a2acli/config.yaml`).
 - **Task Management**: Use `bd todo add "<description>"` for quickly capturing tasks and feature requests as they arise during development.
 - **Documentation**: Maintain a clear `README.md` containing installation instructions, global flags, and detailed command usage examples.
-- **Cobra Commands**: Due to strict `revive` linting rules, always use the blank identifier `_` for unused parameters in Cobra command handlers (e.g., `func runMyCmd(_ *cobra.Command, _ []string) { ... }`) to prevent compilation/lint failures.
-- **Cross-Repo Context**: The `a2acli` tests depend on the `a2a-go` SDK repository ([https://github.com/a2aproject/a2a-go](https://github.com/a2aproject/a2a-go)) being checked out locally. By default, it assumes the path is `../github/a2a-go`. If it is located elsewhere, `A2A_GO_SRC` must be set. When debugging e2e tests or core protocol behavior, investigate the SDK's TCK source code located in `e2e/tck/sut.go`.
+- **Cobra Commands**: Due to strict `revive` linting rules, always use the blank identifier `_` for unused parameters in Cobra command handlers.
+- **Cross-Repo Context**: The `a2acli` tests depend on the `a2a-go` SDK repository. By default, it assumes `../github/a2a-go`. Override via `A2A_GO_SRC`. When debugging e2e tests, investigate the SDK's TCK source code in `e2e/tck/sut.go`.
 
 ## Testing & QA
 
