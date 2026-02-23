@@ -43,6 +43,7 @@ bd sync               # Sync with git
 ## Releasing & Publishing
 
 - **GoReleaser**: This project uses GoReleaser via GitHub Actions. **Never manually publish binary artifacts or edit `version.go`.** 
+- **Pre-Release Verification**: Before tagging a new release, always execute `make conformance-report` to verify Spec v1.0 compliance. This ensures that `docs/CONFORMANCE_REPORT.md` is updated with the latest TCK results and environment context (SDK branch/commit), providing a clear audit trail for the release.
 - **Triggering a Release**: To release a new version, simply push a semantic version tag (e.g., `git tag v1.0.0 && git push origin v1.0.0`). The CI/CD pipeline will automatically inject linker flags into the binary and publish the archives. Refer to `docs/RELEASING.md` for full details.
 
 ## Landing the Plane (Session Completion)
