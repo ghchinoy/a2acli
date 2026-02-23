@@ -5,7 +5,7 @@
 
 A standalone command-line client for interacting with Agent-to-Agent (A2A) services. It is fully compliant with the **A2A Specification v1.0**. It is built using the [a2a-go](https://github.com/a2aproject/a2a-go) SDK and provides both an interactive streaming terminal UI and a scriptable non-interactive JSON mode.
 
-## Features
+## 🌟 Features
 
 - **A2A-Aligned Discovery**: Inspect an agent's `AgentCard`, skills, and capabilities using protocol-native terminology (`describe`).
 - **Structured Messaging**: Full lifecycle support for A2A tasks, including `send` (initiate), `watch` (subscribe), and `get` (retrieve).
@@ -14,7 +14,7 @@ A standalone command-line client for interacting with Agent-to-Agent (A2A) servi
 - **Interactive TUI**: A beautiful [Bubble Tea](https://github.com/charmbracelet/bubbletea) interface for real-time streaming updates and artifact previews.
 - **Configuration Management**: First-class support for XDG-compliant multi-environment configurations and auth token interception.
 
-## Installation
+## 📦 Installation
 
 ### 1. Via Go Install (Recommended)
 
@@ -50,7 +50,7 @@ Alternatively, you can run it directly:
 make run
 ```
 
-## Usage
+## 🚀 Usage
 
 Use the `--help` flag on any command to see the available options and A2A-aligned command groups.
 
@@ -151,7 +151,7 @@ a2acli config
 a2acli version
 ```
 
-## Agent & Automation
+## 🤖 Agent & Automation
 
 `a2acli` is designed with coding agents and automation in mind.
 
@@ -180,7 +180,7 @@ For specialized environments, you can override this logic:
 a2acli send "Generate video" --transport grpc
 ```
 
-## Development
+## 🛠️ Development
 
 - `make build`: Compiles the binary to `bin/a2acli`.
 - `make run`: Builds and runs the CLI.
@@ -190,9 +190,9 @@ a2acli send "Generate video" --transport grpc
 
 For details on how to build, publish, and release new versions of `a2acli`, see the [Releasing Guide](docs/RELEASING.md).
 
-### Testing Conformance (TCK)
+### 🏆 Testing Conformance (TCK)
 
-To verify the CLI's v1.0 compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server.
+To verify the CLI's v1.0 compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server. See the latest [Conformance Report](docs/CONFORMANCE_REPORT.md) for current status.
 
 The `a2acli` contains an automated end-to-end conformance test suite that will build the CLI, spin up the TCK SUT server locally, and run black-box tests asserting the machine-readable JSON output of the CLI.
 

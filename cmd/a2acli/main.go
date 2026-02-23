@@ -59,7 +59,7 @@ var (
 )
 
 func fatalf(format string, err error, hint string) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", err)
+	fmt.Fprintf(os.Stderr, "Error: "+format+": %v\n", err)
 	if hint != "" {
 		fmt.Fprintf(os.Stderr, "Hint: %s\n", hint)
 	}
