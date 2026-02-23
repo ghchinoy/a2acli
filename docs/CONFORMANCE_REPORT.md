@@ -1,13 +1,11 @@
 # A2A Conformance Report
 
-**Date:** 2026-02-23  
-**CLI Version:** v1.0.0  
-**SDK Source:** `github.com/a2aproject/a2a-go`  
-**SDK Branch:** `release/spec-v1` (with local fix)  
+**Date:** 2026-02-23
+**CLI Version:** v0.1.9-dirty
+**SDK Source:** `github.com/ghchinoy/a2a-go`
+**SDK Branch:** `fix/tck-v1-initial-event`
 
 ## Conformance Status: **PASSING**
-
-The `a2acli` has been verified against the A2A Technology Compatibility Kit (TCK) provided by the `a2a-go` SDK.
 
 ### Test Results Summary
 
@@ -42,9 +40,4 @@ Under the A2A Spec v1.0, the `taskupdate.Manager` enforces that the first event 
 
 The upstream SUT was incorrectly emitting a `TaskStatusUpdateEvent` as the first event, causing v1.0 clients to reject the response with `invalid agent response`.
 
-### Verification Environment
-
-This report was generated using a local `go.mod` replace directive:
-`replace github.com/a2aproject/a2a-go => /Users/ghchinoy/dev/github/a2a-go`
-
-The local SDK source was checked out to `release/spec-v1` with the patch from `fix/tck-v1-initial-event` applied.
+*(Auto-generated via make conformance-report)*

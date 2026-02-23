@@ -28,11 +28,14 @@ bd sync               # Sync with git
 - **Task Management**: Use `bd todo add "<description>"` for quickly capturing tasks and feature requests as they arise during development.
 - **Documentation**: Maintain a clear `README.md` containing installation instructions, global flags, and detailed command usage examples.
 - **Cobra Commands**: Due to strict `revive` linting rules, always use the blank identifier `_` for unused parameters in Cobra command handlers.
-- **Cross-Repo Context**: The `a2acli` tests depend on the `a2a-go` SDK repository. By default, it assumes `../github/a2a-go`. Override via `A2A_GO_SRC`. When debugging e2e tests, investigate the SDK's TCK source code in `e2e/tck/sut.go`.
+- **Cross-Repo Context**: The `a2acli` tests depend on the `a2a-go` SDK repository. By default, it assumes `../github/a2a-go`. Override via `A2A_GO_SRC`. 
+  - **Zombie Process Hygiene**: When debugging e2e tests, investigate the SDK's TCK source code in `e2e/tck/sut.go`. Always verify if there are lingering SUT processes (`pgrep -f sut.go`) from previous runs and terminate them to ensure a clean state.
+  - **Branch Alignment**: Explicitly verify that the SDK repository is on the branch corresponding to the target specification version (e.g., `release/spec-v1` for Spec 1.0) before proceeding with conformance analysis.
 
 ## Testing & QA
 
 - **Conformance Testing (TCK):** Always verify core CLI logic by running `make test-e2e`. This automatically builds the binary and tests it against the local `a2a-go` SDK System Under Test (SUT) server. 
+- **Conformance Report:** Use `make conformance-report` to generate or update `docs/CONFORMANCE_REPORT.md` before significant releases. This target captures the full TCK output and environment context.
 - **Non-Interactive Modes:** When adding new features or outputs, ensure they gracefully bypass Bubble Tea (`--no-tui` or `A2ACLI_NO_TUI=true`) and emit parseable JSON/NDJSON to support the automated e2e tests.
 - **Go Tests:** Avoid `bats-core` or external bash scripting frameworks. Rely entirely on the standard Go `testing` package combined with `os/exec` for invoking compiled binaries.
 - **Code Formatting:** Rely exclusively on `go fmt ./...`. Do not assume `goimports` is installed in the local environment. If `golangci-lint` fails due to unused imports, remove them manually.
