@@ -67,6 +67,7 @@ a2acli --help
 - `-k, --task string`: Existing Task ID to continue a conversation/task (must be non-terminal)
 - `-r, --ref string`: Task ID to reference as context (works for completed tasks)
 - `-n, --no-tui`: Disables the interactive TUI and outputs JSON/NDJSON. Can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
+- `-p, --protocol string`: A2A protocol version (`1.0.0` or `0.3.0`). Defaults to `1.0.0`.
 - `--transport string`: Force a specific transport protocol (`grpc`, `jsonrpc`, `httpjson`). Defaults to auto-selection based on the agent's card.
 - `-V, --version`: Print version information.
 
@@ -192,9 +193,13 @@ For details on how to build, publish, and release new versions of `a2acli`, see 
 
 ### 🏆 Testing Conformance (TCK)
 
-To verify the CLI's v1.0 compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server. See the latest [Conformance Report](docs/CONFORMANCE_REPORT.md) for current status.
+To verify the CLI's compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server. The CLI supports both the current stable **v0.3.0** and the latest **v1.0.0** specifications.
+
+See the latest [Conformance Report](docs/CONFORMANCE_REPORT.md) for current status.
 
 The `a2acli` contains an automated end-to-end conformance test suite that will build the CLI, spin up the TCK SUT server locally, and run black-box tests asserting the machine-readable JSON output of the CLI.
+
+#### Running Tests
 
 **Requirement:** Running the end-to-end conformance tests requires the source code of the `a2a-go` SDK to be present on your local machine, as the tests dynamically spin up the TCK SUT server from that repository ([https://github.com/a2aproject/a2a-go](https://github.com/a2aproject/a2a-go)).
 
@@ -203,15 +208,24 @@ By default, the `Makefile` assumes the `a2a-go` repository is cloned at `../../g
 If you have it cloned elsewhere, you must override the `A2A_GO_SRC` variable when running `make`:
 
 ```bash
+# Run all conformance tests (v1.0 and v0.3)
 make test-e2e A2A_GO_SRC=/absolute/or/relative/path/to/a2a-go
 ```
 
 To run the SUT manually for your own testing:
 
+**For A2A 1.0.0:**
 ```bash
 # In the a2a-go repository
 cd e2e/tck
 go run sut.go sut_agent_executor.go
+```
+
+**For A2A 0.3.0:**
+```bash
+# In the a2a-go repository
+cd e2e/compat/v0_3
+go run main.go server
 ```
 
 ## 🤝 Contributing

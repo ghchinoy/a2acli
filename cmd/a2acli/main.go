@@ -28,10 +28,14 @@ import (
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2aclient"
 	"github.com/a2aproject/a2a-go/a2aclient/agentcard"
+	"github.com/a2aproject/a2a-go/a2acompat/a2av0"
+	a2agrpcv0 "github.com/a2aproject/a2a-go/a2agrpc/v0"
 	a2agrpc "github.com/a2aproject/a2a-go/a2agrpc/v1"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -46,6 +50,7 @@ var (
 	disableTUI      bool
 	wait            bool
 	transport       string
+	protocol        string
 
 	rootCmd = &cobra.Command{
 		Use:   "a2acli",
@@ -67,6 +72,10 @@ func fatalf(format string, err error, hint string) {
 }
 
 func init() {
+	// A2A SDK v0 and v1 packages both register a2a.proto which causes a panic
+	// if not ignored.
+	os.Setenv("GOLANG_PROTOBUF_REGISTRATION_CONFLICT", "ignore")
+
 	rootCmd.AddGroup(
 		&cobra.Group{ID: GroupDiscovery, Title: "Discovery & Identity:"},
 		&cobra.Group{ID: GroupMessaging, Title: "Messaging & Tasks:"},
@@ -88,6 +97,16 @@ func (i *tokenInterceptor) Before(ctx context.Context, req *a2aclient.Request) (
 		req.ServiceParams["authorization"] = []string{"Bearer " + i.token}
 	}
 	return ctx, nil, nil
+}
+
+func getResolver() *agentcard.Resolver {
+	if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
+		return &agentcard.Resolver{
+			Client:     &http.Client{Timeout: 30 * time.Second},
+			CardParser: a2av0.NewAgentCardParser(),
+		}
+	}
+	return agentcard.DefaultResolver
 }
 
 func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, error) {
@@ -125,11 +144,29 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 	var transportOpt a2aclient.FactoryOption
 	switch selectedTransport {
 	case a2a.TransportProtocolGRPC:
-		transportOpt = a2agrpc.WithGRPCTransport()
+		if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
+			transportOpt = a2aclient.WithCompatTransport("0.3.0", a2a.TransportProtocolGRPC,
+				a2aclient.TransportFactoryFn(func(_ context.Context, _ *a2a.AgentCard, iface *a2a.AgentInterface) (a2aclient.Transport, error) {
+					conn, err := grpc.NewClient(iface.URL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+					if err != nil {
+						return nil, err
+					}
+					return a2agrpcv0.NewGRPCTransport(conn), nil
+				}))
+		} else {
+			transportOpt = a2agrpc.WithGRPCTransport()
+		}
 	case a2a.TransportProtocolHTTPJSON:
+		if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
+			return nil, fmt.Errorf("A2A 0.3.0 does not support REST transport in this CLI")
+		}
 		transportOpt = a2aclient.WithRESTTransport(httpClient)
 	default:
-		transportOpt = a2aclient.WithJSONRPCTransport(httpClient)
+		if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
+			transportOpt = a2aclient.WithCompatTransport("0.3.0", a2a.TransportProtocolJSONRPC, a2av0.NewJSONRPCTransportFactory(a2av0.JSONRPCTransportConfig{Client: httpClient}))
+		} else {
+			transportOpt = a2aclient.WithJSONRPCTransport(httpClient)
+		}
 	}
 
 	if !disableTUI {
@@ -148,9 +185,9 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 }
 
 func runDescribe(_ *cobra.Command, _ []string) {
-	card, err := agentcard.DefaultResolver.Resolve(context.Background(), serviceURL)
+	card, err := getResolver().Resolve(context.Background(), serviceURL)
 	if err != nil {
-		fatalf("failed to resolve AgentCard: %v", err, "Ensure the A2A server is running at "+serviceURL)
+		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+serviceURL)
 	}
 
 	if disableTUI {
@@ -213,7 +250,7 @@ func runSend(_ *cobra.Command, args []string) {
 
 	ctx := context.Background()
 
-	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
+	card, err := getResolver().Resolve(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -315,7 +352,7 @@ func runWatch(_ *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
 
-	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
+	card, err := getResolver().Resolve(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -367,7 +404,7 @@ func runGet(cmd *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
 
-	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
+	card, err := getResolver().Resolve(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -412,7 +449,7 @@ func runCancel(_ *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
 
-	card, err := agentcard.DefaultResolver.Resolve(ctx, serviceURL)
+	card, err := getResolver().Resolve(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -451,6 +488,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference as context (works for completed tasks)")
 	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI (useful for scripting and CI)")
 	rootCmd.PersistentFlags().StringVar(&transport, "transport", "", "Force a specific transport protocol (grpc, jsonrpc, rest)")
+	rootCmd.PersistentFlags().StringVarP(&protocol, "protocol", "p", "1.0.0", "A2A protocol version (1.0.0 or 0.3.0)")
 	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
 
 	if os.Getenv("A2ACLI_NO_TUI") == "true" || os.Getenv("NO_COLOR") != "" {

@@ -60,12 +60,18 @@ func TestConformance(t *testing.T) {
 
 	cliPath := "../bin/a2acli"
 
+	runCLI := func(args ...string) *exec.Cmd {
+		cmd := exec.Command(cliPath, args...)
+		cmd.Env = append(os.Environ(), "GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore")
+		return cmd
+	}
+
 	t.Run("JSON-RPC", func(t *testing.T) {
 		sutCmd, sutURL, _ := runSUT(t, sutDir, "http")
 		defer func() { _ = sutCmd.Process.Kill() }()
 
 		t.Run("Describe", func(t *testing.T) {
-			cmd := exec.Command(cliPath, "describe", "--no-tui", "-u", sutURL)
+			cmd := runCLI("describe", "--no-tui", "-u", sutURL)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("describe failed: %v\nOutput: %s", err, out)
@@ -80,7 +86,7 @@ func TestConformance(t *testing.T) {
 		})
 
 		t.Run("SendWait", func(t *testing.T) {
-			cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "--wait", "-u", sutURL)
+			cmd := runCLI("send", "hello", "--no-tui", "--wait", "-u", sutURL)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("send --wait failed: %v\nOutput: %s", err, out)
@@ -102,7 +108,7 @@ func TestConformance(t *testing.T) {
 
 		t.Run("SendWait", func(t *testing.T) {
 			// This should auto-select gRPC because the SUT only advertises gRPC in this mode
-			cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "--wait", "-u", sutURL)
+			cmd := runCLI("send", "hello", "--no-tui", "--wait", "-u", sutURL)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("send --wait (gRPC) failed: %v\nOutput: %s", err, out)
@@ -118,10 +124,76 @@ func TestConformance(t *testing.T) {
 		})
 
 		t.Run("ForcegRPC", func(t *testing.T) {
-			cmd := exec.Command(cliPath, "send", "hello", "--no-tui", "--wait", "-u", sutURL, "--transport", "grpc")
+			cmd := runCLI("send", "hello", "--no-tui", "--wait", "-u", sutURL, "--transport", "grpc")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("send --wait --transport grpc failed: %v\nOutput: %s", err, out)
+			}
+		})
+	})
+
+	t.Run("A2A-0.3.0", func(t *testing.T) {
+		// Run the 0.3.0 compat server from the SDK
+		compatSutDir := a2aGoSrc + "/e2e/compat/v0_3"
+		if _, err := os.Stat(compatSutDir); os.IsNotExist(err) {
+			t.Skipf("0.3.0 compat SUT not found at %s", compatSutDir)
+		}
+
+		sutCmd := exec.Command("go", "run", "main.go", "server")
+		sutCmd.Dir = compatSutDir
+		var sutOut bytes.Buffer
+		sutCmd.Stdout = &sutOut
+		sutCmd.Stderr = &sutOut
+		if err := sutCmd.Start(); err != nil {
+			t.Fatalf("failed to start 0.3.0 SUT: %v", err)
+		}
+		defer func() { _ = sutCmd.Process.Kill() }()
+
+		// The server prints the port to stdout. We need to capture it.
+		// Wait a bit for it to start and print.
+		time.Sleep(2 * time.Second)
+		portStr := sutOut.String()
+		var port int
+		if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+			t.Fatalf("failed to parse 0.3.0 SUT port from %q: %v", portStr, err)
+		}
+		if port == 0 {
+			t.Fatalf("failed to capture 0.3.0 SUT port. Output:\n%s", portStr)
+		}
+
+		sutURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+		t.Run("Describe", func(t *testing.T) {
+			cmd := runCLI("describe", "--no-tui", "-u", sutURL, "--protocol", "0.3.0")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("describe 0.3.0 failed: %v\nOutput: %s", err, out)
+			}
+			var card map[string]any
+			if err := json.Unmarshal(out, &card); err != nil {
+				t.Fatalf("failed to parse JSON: %v", err)
+			}
+			if name, _ := card["name"].(string); name != "Compat Test Agent" {
+				t.Errorf("expected Compat Test Agent, got %v", name)
+			}
+		})
+
+		t.Run("SendWait", func(t *testing.T) {
+			cmd := runCLI("send", "ping", "--no-tui", "--wait", "-u", sutURL, "--protocol", "0.3.0")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("send --wait 0.3.0 failed: %v\nOutput: %s", err, out)
+			}
+			// 0.3.0 server in this mode returns a Message directly if non-blocking
+			// but SendMessage in a2acli --wait should handle it.
+			// Actually the compat server responds with a Message.
+			var result map[string]any
+			if err := json.Unmarshal(out, &result); err != nil {
+				t.Fatalf("failed to parse JSON: %v", err)
+			}
+			// Check if it's a message or task
+			if _, ok := result["messageId"]; !ok {
+				t.Errorf("expected Message response, got: %v", result)
 			}
 		})
 	})
