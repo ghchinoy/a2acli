@@ -67,7 +67,7 @@ a2acli --help
 - `-k, --task string`: Existing Task ID to continue a conversation/task (must be non-terminal)
 - `-r, --ref string`: Task ID to reference as context (works for completed tasks)
 - `-n, --no-tui`: Disables the interactive TUI and outputs JSON/NDJSON. Can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
-- `-p, --protocol string`: A2A protocol version (`1.0.0` or `0.3.0`). Defaults to `1.0.0`.
+- `-p, --protocol string`: A2A protocol version (`1.0.0` or `0.3.0`). Defaults to `1.0.0`. *(Note: `0.3.0` only supports the `jsonrpc` transport).*
 - `--transport string`: Force a specific transport protocol (`grpc`, `jsonrpc`, `httpjson`). Defaults to auto-selection based on the agent's card.
 - `-V, --version`: Print version information.
 
@@ -185,6 +185,8 @@ For specialized environments, you can override this logic:
 # Force gRPC for high-performance streaming
 a2acli send "Generate video" --transport grpc
 ```
+
+*Note: When using `--protocol 0.3.0`, only the `jsonrpc` transport is available. The gRPC transport is explicitly disabled for legacy protocol connections to prevent protobuf namespace conflicts within the compiled binary.*
 
 ## 🛠️ Development
 
