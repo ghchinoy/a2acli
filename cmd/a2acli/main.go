@@ -29,13 +29,10 @@ import (
 	"github.com/a2aproject/a2a-go/a2aclient"
 	"github.com/a2aproject/a2a-go/a2aclient/agentcard"
 	"github.com/a2aproject/a2a-go/a2acompat/a2av0"
-	a2agrpcv0 "github.com/a2aproject/a2a-go/a2agrpc/v0"
 	a2agrpc "github.com/a2aproject/a2a-go/a2agrpc/v1"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -145,14 +142,7 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 	switch selectedTransport {
 	case a2a.TransportProtocolGRPC:
 		if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
-			transportOpt = a2aclient.WithCompatTransport("0.3.0", a2a.TransportProtocolGRPC,
-				a2aclient.TransportFactoryFn(func(_ context.Context, _ *a2a.AgentCard, iface *a2a.AgentInterface) (a2aclient.Transport, error) {
-					conn, err := grpc.NewClient(iface.URL, grpc.WithTransportCredentials(insecure.NewCredentials()))
-					if err != nil {
-						return nil, err
-					}
-					return a2agrpcv0.NewGRPCTransport(conn), nil
-				}))
+			return nil, fmt.Errorf("A2A 0.3.0 gRPC transport is not supported in this CLI build to prevent protobuf conflicts")
 		} else {
 			transportOpt = a2agrpc.WithGRPCTransport()
 		}
