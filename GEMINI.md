@@ -32,6 +32,12 @@ bd sync               # Sync with git
   - **Zombie Process Hygiene**: When debugging e2e tests, investigate the SDK's TCK source code in `e2e/tck/sut.go`. Always verify if there are lingering SUT processes (`pgrep -f sut.go`) from previous runs and terminate them to ensure a clean state.
   - **Branch Alignment**: Explicitly verify that the SDK repository is on the branch corresponding to the target specification version (e.g., `release/spec-v1` for Spec 1.0) before proceeding with conformance analysis.
 
+## Protocol Versioning & Tooling
+
+- **Protobuf Conflicts**: When importing multiple versions of the A2A SDK (e.g., v0 and v1), always ensure `GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore` is set in the environment or via `os.Setenv` in `init()` to prevent panics during proto registration.
+- **SDK Path Verification**: Before running conformance tests, verify that `A2A_GO_SRC` points to a valid SDK source. If the default in the `Makefile` is incorrect, override it via environment variables.
+- **Linter Compatibility**: If `golangci-lint` fails due to a version mismatch in the config file, prioritize the local environment's version by removing the `version` field from `.golangci.yml` temporarily rather than downgrading the entire project's standards.
+
 ## Testing & QA
 
 - **Conformance Testing (TCK):** Always verify core CLI logic by running `make test-e2e`. This automatically builds the binary and tests it against the local `a2a-go` SDK System Under Test (SUT) server. 
