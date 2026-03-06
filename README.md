@@ -163,6 +163,11 @@ Using the `-n` or `--no-tui` flag ensures that all output is emitted as parseabl
 a2acli send "Write code" -n --wait
 ```
 
+### Agent Skills (`skills/`)
+This repository contains an [`agentskills.io`](https://agentskills.io/) compliant `skills/` directory. These skills are designed to explicitly teach other AI coding agents (like Claude Code, Cursor, etc.) how to correctly interact with the `a2acli` tool programmatically.
+
+By default, an agent will load these skills and understand that it must use the `--no-tui` and `--wait` flags when operating the CLI to ensure deterministic JSON outputs instead of hanging on interactive terminal UIs.
+
 ### Proactive Error Hints
 When a command fails (e.g., server down, invalid skill), the CLI provides a "Hint:" to assist with automated recovery.
 
