@@ -46,7 +46,7 @@ If a task produces multiple artifacts and you use `--file`, the CLI will append 
 The output will be a JSON object representing the `Task`. Key fields to check:
 
 - `id`: The Task ID.
-- `status.state`: The current state (e.g., "ACTIVE", "COMPLETED", "FAILED", "REJECTED").
+- `status.state`: The current state (e.g., "TASK_STATE_ACTIVE", "TASK_STATE_COMPLETED", "TASK_STATE_FAILED", "TASK_STATE_REJECTED").
 - `artifacts`: An array of artifacts produced by the task. Each artifact has a `name`, `description`, and `parts` containing the actual data or text.
 
 Example output snippet:
@@ -55,7 +55,7 @@ Example output snippet:
 {
   "id": "task-12345",
   "status": {
-    "state": "COMPLETED"
+    "state": "TASK_STATE_COMPLETED"
   },
   "artifacts": [
     {

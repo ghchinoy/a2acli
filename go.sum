@@ -1,5 +1,5 @@
-github.com/a2aproject/a2a-go v0.3.7-0.20260220161253-19294e2b5902 h1:SK/LM6DBniYf5QREzk66+qJnJ9zaSwELAJZW8uSr1iQ=
-github.com/a2aproject/a2a-go v0.3.7-0.20260220161253-19294e2b5902/go.mod h1:DIF2+l2SmdTCuK7bPH9esvSxjNFnTmA06/LmVGemLTU=
+github.com/a2aproject/a2a-go v1.0.0-alpha.3.0.20260309154536-e4af18e0d8c2 h1:ngDmlC07rq/kyFUqv2VQn409LsDlSeJDZa9sC93En6g=
+github.com/a2aproject/a2a-go v1.0.0-alpha.3.0.20260309154536-e4af18e0d8c2/go.mod h1:Tf22hPDdmrXOLBtHDdhqTIcJVdM6BpB/0ReVC5gUXnM=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/charmbracelet/bubbles v1.0.0 h1:12J8/ak/uCZEMQ6KU7pcfwceyjLlWsDLAxB5fXonfvc=

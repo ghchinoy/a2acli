@@ -74,7 +74,7 @@ func fatalf(format string, err error, hint string) {
 func init() {
 	// A2A SDK v0 and v1 packages both register a2a.proto which causes a panic
 	// if not ignored.
-	os.Setenv("GOLANG_PROTOBUF_REGISTRATION_CONFLICT", "ignore")
+	_ = os.Setenv("GOLANG_PROTOBUF_REGISTRATION_CONFLICT", "ignore")
 
 	rootCmd.AddGroup(
 		&cobra.Group{ID: GroupDiscovery, Title: "Discovery & Identity:"},

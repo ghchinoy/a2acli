@@ -63,7 +63,7 @@ a2acli send "Generate image" --out-dir ./output/ --service-url <URL> --no-tui --
 
 ## Parsing the Output
 
-With `--no-tui` and `--wait`, the output will be a JSON object representing the final `Task` state, or a `Message` object. Look at `id` (the task ID) and `status.state` (e.g., "COMPLETED", "FAILED"). You can use the ID in later commands to fetch the results or continue the conversation.
+With `--no-tui` and `--wait`, the output will be a JSON object representing the final `Task` state, or a `Message` object. Look at `id` (the task ID) and `status.state` (e.g., "TASK_STATE_COMPLETED", "TASK_STATE_FAILED"). You can use the ID in later commands to fetch the results or continue the conversation.
 
 ## When to Use This Skill
 

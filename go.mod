@@ -3,7 +3,7 @@ module github.com/ghchinoy/a2acli
 go 1.25.5
 
 require (
-	github.com/a2aproject/a2a-go v0.3.7-0.20260220161253-19294e2b5902
+	github.com/a2aproject/a2a-go v1.0.0-alpha.3.0.20260309154536-e4af18e0d8c2
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0

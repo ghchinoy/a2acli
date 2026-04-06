@@ -96,8 +96,8 @@ func TestConformance(t *testing.T) {
 				t.Fatalf("failed to parse JSON: %v", err)
 			}
 			status := task["status"].(map[string]any)
-			if status["state"] != "COMPLETED" {
-				t.Errorf("expected COMPLETED, got %v", status["state"])
+			if status["state"] != "TASK_STATE_COMPLETED" {
+				t.Errorf("expected TASK_STATE_COMPLETED, got %v", status["state"])
 			}
 		})
 	})
@@ -118,8 +118,8 @@ func TestConformance(t *testing.T) {
 				t.Fatalf("failed to parse JSON: %v", err)
 			}
 			status := task["status"].(map[string]any)
-			if status["state"] != "COMPLETED" {
-				t.Errorf("expected COMPLETED, got %v", status["state"])
+			if status["state"] != "TASK_STATE_COMPLETED" {
+				t.Errorf("expected TASK_STATE_COMPLETED, got %v", status["state"])
 			}
 		})
 
