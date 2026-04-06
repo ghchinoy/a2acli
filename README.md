@@ -198,7 +198,7 @@ For details on how to build, publish, and release new versions of `a2acli`, see 
 
 ### 🏆 Testing Conformance (TCK)
 
-To verify the CLI's compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server. The CLI supports both the current stable **v0.3.0** and the latest **v1.0.0** specifications.
+To verify the CLI's compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server. The CLI supports both the legacy **v0.3.0** and the current stable **v1.0.0** specifications.
 
 See the latest [Conformance Report](docs/CONFORMANCE_REPORT.md) for current status.
 
