@@ -3,7 +3,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/ghchinoy/a2acli)](https://github.com/ghchinoy/a2acli/releases)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-A standalone command-line client for interacting with Agent-to-Agent (A2A) services. It is fully compliant with the **A2A Specification v1.0**. It is built using the [a2a-go](https://github.com/a2aproject/a2a-go) SDK and provides both an interactive streaming terminal UI and a scriptable non-interactive JSON mode.
+A standalone command-line client for interacting with Agent-to-Agent (A2A) services. It is fully compliant with the **A2A Specification v1.0**. It is built using the [a2a-go v2](https://github.com/a2aproject/a2a-go) SDK and provides both an interactive streaming terminal UI and a scriptable non-interactive JSON mode.
 
 ## 🌟 Features
 
@@ -224,13 +224,6 @@ To run the SUT manually for your own testing:
 # In the a2a-go repository
 cd e2e/tck
 go run sut.go sut_agent_executor.go
-```
-
-**For A2A 0.3.0:**
-```bash
-# In the a2a-go repository
-cd e2e/compat/v0_3
-go run main.go server
 ```
 
 ## 🤝 Contributing
