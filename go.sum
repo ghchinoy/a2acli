@@ -1,5 +1,7 @@
 github.com/a2aproject/a2a-go v0.3.14-0.20260404065426-6a9878f8f8a8 h1:xeaMWbu6yg6V8fBJvPLvXzgsjroLVzandp8s+FrQW8Q=
 github.com/a2aproject/a2a-go v0.3.14-0.20260404065426-6a9878f8f8a8/go.mod h1:I7Cm+a1oL+UT6zMoP+roaRE5vdfUa1iQGVN8aSOuZ0I=
+github.com/a2aproject/a2a-go/v2 v2.2.0 h1:eayiNXYpyTOLVhhQrGmIHlcy8GnOdnwaNdYQPvS84Ik=
+github.com/a2aproject/a2a-go/v2 v2.2.0/go.mod h1:htTxMwicNXXXEwwfjuB/Pd1g7UHDrswhSievncmTVcE=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

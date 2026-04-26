@@ -3,7 +3,7 @@ module github.com/ghchinoy/a2acli
 go 1.25.5
 
 require (
-	github.com/a2aproject/a2a-go/v2 v2.0.0-00010101000000-000000000000
+	github.com/a2aproject/a2a-go/v2 v2.2.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -53,5 +53,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
-
-replace github.com/a2aproject/a2a-go/v2 => ../github/a2a-go
