@@ -64,6 +64,8 @@ a2acli --help
 - `-e, --env string`: Specific named environment to load from the config file
 - `-u, --service-url string`: Base URL of the A2A service (default "http://127.0.0.1:9001")
 - `-t, --token string`: Authorization token (if required by the agent)
+- `--auth strings`: Authorization headers to send (e.g. 'Bearer ...', can be specified multiple times)
+- `--svc-param strings`: Service parameters to send (e.g. 'key=value', can be specified multiple times)
 - `-k, --task string`: Existing Task ID to continue a conversation/task (must be non-terminal)
 - `-r, --ref string`: Task ID to reference as context (works for completed tasks)
 - `-n, --no-tui`: Disables the interactive TUI and outputs JSON/NDJSON. Can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
@@ -111,7 +113,7 @@ Commands are organized into three A2A-aligned groups: **Discovery & Identity**, 
 #### 1. Discovery & Identity
 
 ##### Describe Agent
-Inspect the agent's identity, registered skills, and security requirements. 
+Inspect the agent's identity, version, registered skills, and security requirements. 
 *(Fetches the AgentCard via the standard A2A discovery endpoint).*
 ```bash
 a2acli describe --service-url http://localhost:9001
