@@ -48,6 +48,8 @@ var (
 	wait            bool
 	transport       string
 	protocol        string
+	authHeaders     []string
+	svcParams       []string
 
 	rootCmd = &cobra.Command{
 		Use:   "a2acli",
@@ -81,17 +83,32 @@ func init() {
 	rootCmd.SetHelpFunc(colorizedHelpFunc)
 }
 
-type tokenInterceptor struct {
+type paramInterceptor struct {
 	a2aclient.PassthroughInterceptor
-	token string
+	token       string
+	authHeaders []string
+	svcParams   []string
 }
 
-func (i *tokenInterceptor) Before(ctx context.Context, req *a2aclient.Request) (context.Context, any, error) {
-	if i.token != "" {
+func (i *paramInterceptor) Before(ctx context.Context, req *a2aclient.Request) (context.Context, any, error) {
+	if i.token != "" || len(i.authHeaders) > 0 || len(i.svcParams) > 0 {
 		if req.ServiceParams == nil {
 			req.ServiceParams = make(a2aclient.ServiceParams)
 		}
-		req.ServiceParams["authorization"] = []string{"Bearer " + i.token}
+		if i.token != "" {
+			req.ServiceParams["authorization"] = append(req.ServiceParams["authorization"], "Bearer "+i.token)
+		}
+		if len(i.authHeaders) > 0 {
+			req.ServiceParams["authorization"] = append(req.ServiceParams["authorization"], i.authHeaders...)
+		}
+		for _, param := range i.svcParams {
+			parts := strings.SplitN(param, "=", 2)
+			if len(parts) == 2 {
+				req.ServiceParams[parts[0]] = append(req.ServiceParams[parts[0]], parts[1])
+			} else {
+				req.ServiceParams[param] = append(req.ServiceParams[param], "")
+			}
+		}
 	}
 	return ctx, nil, nil
 }
@@ -143,9 +160,8 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 	case a2a.TransportProtocolGRPC:
 		if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
 			return nil, fmt.Errorf("A2A 0.3.0 gRPC transport is not supported in this CLI build to prevent protobuf conflicts")
-		} else {
-			transportOpt = a2agrpc.WithGRPCTransport()
 		}
+		transportOpt = a2agrpc.WithGRPCTransport()
 	case a2a.TransportProtocolHTTPJSON:
 		if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
 			return nil, fmt.Errorf("A2A 0.3.0 does not support REST transport in this CLI")
@@ -168,8 +184,12 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 	}
 
 	opts := []a2aclient.FactoryOption{transportOpt}
-	if authToken != "" {
-		opts = append(opts, a2aclient.WithCallInterceptors(&tokenInterceptor{token: authToken}))
+	if authToken != "" || len(authHeaders) > 0 || len(svcParams) > 0 {
+		opts = append(opts, a2aclient.WithCallInterceptors(&paramInterceptor{
+			token:       authToken,
+			authHeaders: authHeaders,
+			svcParams:   svcParams,
+		}))
 	}
 	return a2aclient.NewFromCard(ctx, card, opts...)
 }
@@ -189,6 +209,9 @@ func runDescribe(_ *cobra.Command, _ []string) {
 	}
 
 	fmt.Printf("Agent: %s\n", card.Name)
+	if card.Version != "" {
+		fmt.Printf("Version: %s\n", card.Version)
+	}
 	if card.Description != "" {
 		fmt.Printf("Description: %s\n", card.Description)
 	}
@@ -473,6 +496,8 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&envName, "env", "e", "", "environment name to load from config")
 	rootCmd.PersistentFlags().StringVarP(&serviceURL, "service-url", "u", "http://127.0.0.1:9001", "Base URL of the A2A service")
 	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token")
+	rootCmd.PersistentFlags().StringSliceVar(&authHeaders, "auth", nil, "Authorization headers to send (e.g. 'Bearer ...')")
+	rootCmd.PersistentFlags().StringSliceVar(&svcParams, "svc-param", nil, "Service parameters to send (e.g. 'key=value')")
 	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (must be non-terminal)")
 	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference as context (works for completed tasks)")
 	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI (useful for scripting and CI)")

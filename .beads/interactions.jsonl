@@ -1,1 +1,4 @@
 {"id":"int-518ef68a","kind":"field_change","created_at":"2026-04-06T05:28:23.611321Z","actor":"implementor","issue_id":"a2ac-dj8","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
+{"id":"int-3dea339d","kind":"field_change","created_at":"2026-05-01T04:21:52.968241Z","actor":"Hussain Chinoy","issue_id":"a2acli-jd2.4","extra":{"field":"priority","new_value":"4","old_value":"2"}}
+{"id":"int-c153a412","kind":"field_change","created_at":"2026-05-01T04:36:15.822363Z","actor":"Hussain Chinoy","issue_id":"a2acli-jd2.3","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Added --auth and --svc-param flags"}}
+{"id":"int-ad418c8c","kind":"field_change","created_at":"2026-05-01T04:36:26.402289Z","actor":"Hussain Chinoy","issue_id":"a2acli-jd2.5","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Added Version to describe command output"}}
