@@ -60,6 +60,7 @@ var (
 	GroupDiscovery = "discovery"
 	GroupMessaging = "messaging"
 	GroupSystem    = "system"
+	GroupServer    = "server"
 )
 
 func fatalf(format string, err error, hint string) {
@@ -78,6 +79,7 @@ func init() {
 	rootCmd.AddGroup(
 		&cobra.Group{ID: GroupDiscovery, Title: "Discovery & Identity:"},
 		&cobra.Group{ID: GroupMessaging, Title: "Messaging & Tasks:"},
+		&cobra.Group{ID: GroupServer, Title: "Server & Mocking:"},
 		&cobra.Group{ID: GroupSystem, Title: "Client Configuration:"},
 	)
 	rootCmd.SetHelpFunc(colorizedHelpFunc)
@@ -653,7 +655,7 @@ and can be overridden by environment variables and command-line flags.`,
 		_ = cmd.Help()
 	}
 
-	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd)
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd, setupServeCmd(), setupListCmd())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
