@@ -34,8 +34,9 @@ bd sync               # Sync with git
 
 ## Protocol Versioning & Tooling
 
+- **Strict v2 Imports**: The `a2a-go` SDK uses Go Modules v2. When importing packages from the SDK, you MUST ensure the `/v2` suffix is present in the import path (e.g., `"github.com/a2aproject/a2a-go/v2/a2a"`). Failing to do so will result in build errors.
 - **Protobuf Conflicts**: When importing multiple versions of the A2A SDK (e.g., v0 and v1), always ensure `GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore` is set in the environment or via `os.Setenv` in `init()` to prevent panics during proto registration.
-- **SDK Path Verification**: Before running conformance tests, verify that `A2A_GO_SRC` points to a valid SDK source. If the default in the `Makefile` is incorrect, override it via environment variables.
+- **SDK Path Verification**: Before running conformance tests (`make test-e2e` or `make conformance-report`), verify that `A2A_GO_SRC` points to a valid SDK source. If the default `../../github/a2a-go` does not exist, automatically clone the `a2a-go` repository (e.g., to `/tmp/a2a-go`, checking out the appropriate release tag like `v2.2.0`) and override the environment variable when running `make`.
 - **Linter Compatibility**: If `golangci-lint` fails due to a version mismatch in the config file, prioritize the local environment's version by removing the `version` field from `.golangci.yml` temporarily rather than downgrading the entire project's standards.
 
 ## Testing & QA

@@ -116,7 +116,7 @@ Environment variables are also supported (e.g., `A2ACLI_SERVICE_URL`). The prece
 
 ### Commands
 
-Commands are organized into three A2A-aligned groups: **Discovery & Identity**, **Messaging & Tasks**, and **Client Configuration**.
+Commands are organized into four A2A-aligned groups: **Discovery & Identity**, **Messaging & Tasks**, **Server & Mocking**, and **Client Configuration**.
 
 #### 1. Discovery & Identity
 
@@ -154,6 +154,13 @@ Retrieve the state and artifacts of a specific task.
 a2acli get <task_id>
 ```
 
+##### List Tasks
+Query an agent for a list of historical tasks it has processed.
+*(Maps to the A2A Protocol's `ListTasks` RPC. Note: The server must support history).*
+```bash
+a2acli list tasks --limit 10
+```
+
 ##### Cancel a Task
 Cancel an active task.
 *(Maps to the A2A Protocol's `CancelTask` RPC).*
@@ -167,7 +174,15 @@ Download artifacts produced by a task to a local directory.
 a2acli download <task_id> --out-dir ./downloads
 ```
 
-#### 3. Client Configuration
+#### 3. Server & Mocking
+
+##### Start a Mock Server
+Spin up an A2A-compliant mock agent locally for testing and development.
+```bash
+a2acli serve --echo --port 9001
+```
+
+#### 4. Client Configuration
 
 View the active environment settings and config file location.
 ```bash
