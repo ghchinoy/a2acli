@@ -73,6 +73,14 @@ a2acli --help
 - `--transport string`: Force a specific transport protocol (`grpc`, `jsonrpc`, `httpjson`). Defaults to auto-selection based on the agent's card.
 - `-V, --version`: Print version information.
 
+**Example: Passing Auth and Service Parameters**
+```bash
+a2acli send "Generate report" --service-url http://localhost:9001 \
+  --auth "ApiKey secret-key-here" \
+  --svc-param "tenant_id=123" \
+  --svc-param "debug=true"
+```
+
 ### Configuration Management
 
 `a2acli` supports managing multiple servers using an XDG Base Directory compliant configuration file. By default, it looks for `~/.config/a2acli/config.yaml`.
@@ -144,6 +152,19 @@ Retrieve the state and artifacts of a specific task.
 *(Maps to the A2A Protocol's `GetTask` RPC).*
 ```bash
 a2acli get <task_id>
+```
+
+##### Cancel a Task
+Cancel an active task.
+*(Maps to the A2A Protocol's `CancelTask` RPC).*
+```bash
+a2acli cancel <task_id>
+```
+
+##### Download Artifacts
+Download artifacts produced by a task to a local directory.
+```bash
+a2acli download <task_id> --out-dir ./downloads
 ```
 
 #### 3. Client Configuration
