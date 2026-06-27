@@ -66,6 +66,33 @@ make build
 
 The binary is written to `bin/a2acli`.
 
+## Command Grammar
+
+```
+a2acli <verb> [noun] [positional-args] [flags]
+```
+
+**Verbs** map directly to A2A Protocol RPCs. **Nouns** are used where a verb spans multiple resource types (`list tasks`). **Positional args** are required IDs or message text. **Flags** are optional modifiers.
+
+| Pattern | Example | Notes |
+|---|---|---|
+| `verb` | `a2acli discover` | Verb only — single resource type |
+| `verb message` | `a2acli send "Hello"` | Positional message text |
+| `verb id` | `a2acli get <taskID>` | Positional task ID |
+| `verb noun` | `a2acli list tasks` | Noun disambiguates resource |
+
+The agent URL is always a flag (`--service-url / -u`) rather than a positional argument. This enables named environment profiles in config — you rarely need to type a URL at all once configured.
+
+**Output modes** are controlled by `--output`:
+
+| Mode | Flag | Use when |
+|---|---|---|
+| `tui` | default | Interactive terminal with streaming UI |
+| `text` | `--output text` | Non-interactive, human-readable (CI logs, piped output) |
+| `json` | `--output json` | Machine-readable NDJSON (scripts, agents) |
+
+`-n` / `--no-tui` is a backwards-compatible shorthand for `--output json`.
+
 ## Commands
 
 Commands are organized into four A2A-aligned groups: **Discovery & Identity**, **Messaging & Tasks**, **Server & Mocking**, and **Client Configuration**.
