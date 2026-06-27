@@ -1,33 +1,51 @@
-# How to contribute
+# Contributing to a2acli
 
-We'd love to accept your patches and contributions to this project.
+Contributions are welcome. Before starting work on a new feature or significant change, please open an issue to discuss your approach. This prevents duplicate effort and ensures alignment with the project's goals.
 
-Before starting work on a new feature or significant change, please open an
-issue to discuss your proposed approach with the maintainers. This helps ensure
-your contribution aligns with the project's goals and prevents duplicated effort
-or wasted work.
+## Setup
 
-## Contribution process
+```bash
+git clone https://github.com/ghchinoy/a2acli.git
+cd a2acli
+go mod tidy
+make build
+```
 
-### Code reviews
+You'll need [Go 1.25+](https://go.dev/) installed.
 
-All submissions, including submissions by project members, require review. We
-use GitHub pull requests for this purpose. Consult
-[GitHub Help](https://help.github.com/articles/about-pull-requests/) for more
-information on using pull requests.
+## Development workflow
 
-### Contributor Guide
+```bash
+make build      # Compile to bin/a2acli
+make lint       # Run golangci-lint (fix all warnings before submitting a PR)
+make test-e2e   # Run end-to-end conformance tests (see below)
+make clean      # Remove build artifacts
+```
 
-You may follow these steps to contribute:
+## Conformance tests
 
-1. **Fork the official repository.** This will create a copy of the official repository in your own account.
-2. **Sync the branches.** This will ensure that your copy of the repository is up-to-date with the latest changes from the official repository.
-3. **Work on your forked repository's feature branch.** This is where you will make your changes to the code.
-4. **Commit your updates on your forked repository's feature branch.** This will save your changes to your copy of the repository.
-5. **Submit a pull request to the official repository's main branch.** This will request that your changes be merged into the official repository.
-6. **Resolve any linting errors.** This will ensure that your changes are formatted correctly.
+The end-to-end test suite spins up the official A2A TCK SUT server and runs black-box tests against the compiled CLI. It requires the [`a2a-go`](https://github.com/a2aproject/a2a-go) SDK source locally:
 
-Here are some additional things to keep in mind during the process:
+```bash
+git clone https://github.com/a2aproject/a2a-go.git /path/to/a2a-go
+make test-e2e A2A_GO_SRC=/path/to/a2a-go
+```
 
-- **Test your changes.** Before you submit a pull request, make sure that your changes work as expected.
-- **Be patient.** It may take some time for your pull request to be reviewed and merged.
+All conformance tests must pass before a PR will be merged.
+
+## Design conventions
+
+Before adding or modifying commands, read [docs/CLI_DESIGN_BEST_PRACTICES.md](docs/CLI_DESIGN_BEST_PRACTICES.md). Key rules:
+
+- Every command must have a `Short`, `Long`, and `Example` string
+- All data-producing commands must support `-n` / `--no-tui` for JSON output
+- Failures must include a `Hint:` line pointing toward resolution
+- Flag short-names must be consistent with existing commands
+
+## Pull request process
+
+1. Fork the repository and create a feature branch
+2. Make your changes and ensure `make lint` passes cleanly
+3. Run `make test-e2e` and confirm all tests pass
+4. Open a pull request against `main` with a clear description of what changed and why
+5. Be patient — reviews may take a few days

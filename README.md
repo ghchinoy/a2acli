@@ -181,6 +181,44 @@ a2acli config    # Show active environment and config file location
 a2acli version   # Print version information
 ```
 
+## Shell Completion
+
+`a2acli` can generate completion scripts for bash, zsh, fish, and PowerShell.
+
+### zsh
+
+```bash
+a2acli completion zsh > "${fpath[1]}/_a2acli"
+```
+
+Or for a single session:
+```bash
+source <(a2acli completion zsh)
+```
+
+### bash
+
+```bash
+a2acli completion bash > /etc/bash_completion.d/a2acli
+```
+
+Or for a single session:
+```bash
+source <(a2acli completion bash)
+```
+
+### fish
+
+```bash
+a2acli completion fish > ~/.config/fish/completions/a2acli.fish
+```
+
+### PowerShell
+
+```powershell
+a2acli completion powershell | Out-String | Invoke-Expression
+```
+
 ## Configuration
 
 `a2acli` supports named environments via an XDG Base Directory compliant config file at `~/.config/a2acli/config.yaml`. This lets you switch between local, staging, and production agents without repeating URLs and tokens.
