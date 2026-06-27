@@ -20,16 +20,39 @@ A standalone command-line client for interacting with Agent-to-Agent (A2A) servi
 
 ```bash
 brew tap ghchinoy/tap
+brew trust ghchinoy/tap
 brew install a2acli
 ```
 
-### 2. Via Install Script (Linux and macOS)
+### 2. Via winget (Windows)
+
+```powershell
+winget install ghchinoy.a2acli
+```
+
+### 3. Via apt (Debian / Ubuntu)
+
+Download the `.deb` from the [latest release](https://github.com/ghchinoy/a2acli/releases/latest) and install:
+
+```bash
+sudo dpkg -i a2acli_*.deb
+```
+
+### 4. Via rpm (Fedora / RHEL)
+
+Download the `.rpm` from the [latest release](https://github.com/ghchinoy/a2acli/releases/latest) and install:
+
+```bash
+sudo rpm -i a2acli_*.rpm
+```
+
+### 5. Via Install Script (Linux and macOS)
 
 ```bash
 curl -sL https://raw.githubusercontent.com/ghchinoy/a2acli/main/scripts/install.sh | bash
 ```
 
-### 3. Via Go Install
+### 6. Via Go Install
 
 If you have [Go 1.25+](https://go.dev/) installed:
 
@@ -37,7 +60,7 @@ If you have [Go 1.25+](https://go.dev/) installed:
 go install github.com/ghchinoy/a2acli/cmd/a2acli@latest
 ```
 
-### 4. Via Source
+### 7. Via Source
 
 Ensure you have [Go 1.25+](https://go.dev/) installed.
 
