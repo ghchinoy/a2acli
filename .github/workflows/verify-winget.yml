@@ -1,0 +1,17 @@
+name: Verify winget install
+
+on:
+  workflow_dispatch:
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    steps:
+      - name: Install via winget
+        run: winget install ghchinoy.a2acli --accept-source-agreements --accept-package-agreements
+
+      - name: Verify version
+        run: a2acli --version
+
+      - name: Verify describe (smoke test)
+        run: a2acli --help
