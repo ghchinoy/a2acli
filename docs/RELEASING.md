@@ -1,59 +1,81 @@
 # Releasing and Publishing `a2acli`
 
-This project uses [GoReleaser](https://goreleaser.com/) via GitHub Actions to completely automate the building, packaging, and publishing of `a2acli` binaries.
+This project uses [GoReleaser](https://goreleaser.com/) via GitHub Actions to automate building, packaging, and publishing across all distribution channels.
 
-## How it works
+## What happens on release
 
-When you push a Git tag starting with `v` (e.g., `v1.0.0`), a GitHub Action is triggered (defined in `.github/workflows/release.yaml`).
+When you push a Git tag starting with `v` (e.g. `v1.2.0`), the release workflow (`.github/workflows/release.yaml`) runs GoReleaser, which:
 
-This workflow spins up a runner that:
-1. Compiles the Go code across multiple Operating Systems (macOS, Linux, Windows) and Architectures (amd64, arm64).
-2. Uses Go Linker Flags (`-ldflags`) to dynamically inject the Git Tag, Commit SHA, and Build Date into the `a2acli version` command. (You do not need to manually edit `version.go`).
-3. Packages the binaries into `.tar.gz` and `.zip` archives.
-4. Auto-generates a Changelog based on the git commit history since the last tag.
-5. Publishes all artifacts to a new release on the GitHub Repository Releases page.
+1. Compiles binaries for macOS, Linux, and Windows on amd64 and arm64.
+2. Injects the Git tag, commit SHA, and build date into `a2acli version` via linker flags.
+3. Packages binaries into `.tar.gz` (Linux/macOS) and `.zip` (Windows) archives.
+4. Generates `.deb` and `.rpm` packages for Linux.
+5. Publishes all artifacts to a new GitHub Release with an auto-generated changelog.
+6. Pushes an updated Homebrew formula to [`ghchinoy/homebrew-tap`](https://github.com/ghchinoy/homebrew-tap).
+7. Opens a PR against [`microsoft/winget-pkgs`](https://github.com/microsoft/winget-pkgs) with updated manifests.
 
-Once the release is published, users can instantly use the curl installation script:
-```bash
-curl -sL https://raw.githubusercontent.com/ghchinoy/a2acli/main/scripts/install.sh | bash
-```
+## Required secrets
 
-## Step-by-Step Release Guide
+| Secret | Used for |
+|---|---|
+| `GITHUB_TOKEN` | GitHub Release publishing (automatic) |
+| `HOMEBREW_TAP_GITHUB_TOKEN` | Pushing formula to `ghchinoy/homebrew-tap` |
+| `WINGET_GITHUB_TOKEN` | Pushing manifests to `ghchinoy/winget-pkgs` fork |
 
-Follow these steps to publish a new version of `a2acli`:
+## Step-by-step release guide
 
-### 1. Ensure `main` is up to date and clean
-Make sure all your code is pushed and your working directory is clean.
+### 1. Ensure `main` is clean and up to date
+
 ```bash
 git checkout main
 git pull
-git status
+git status   # must be clean
 ```
 
-### 2. Create a Semantic Version Tag
-Create an annotated tag (or lightweight tag) with the new version number. It **must** start with a lowercase `v`.
+### 2. Run conformance tests
+
 ```bash
-git tag v1.0.0
+make test-e2e A2A_GO_SRC=/path/to/a2a-go
 ```
 
-### 3. Push the Tag to GitHub
-Pushing the tag triggers the GoReleaser GitHub Action.
+### 3. Update the conformance report
+
 ```bash
-git push origin v1.0.0
+make conformance-report A2A_GO_SRC=/path/to/a2a-go
+git add docs/CONFORMANCE_REPORT.md
+git commit -m "docs: update conformance report for vX.Y.Z"
+git push
 ```
 
-### 4. Verify the Release
-Navigate to your GitHub repository's **Releases** page or click the **Actions** tab to watch the GoReleaser workflow run.
-
-Within ~2 minutes, the workflow will finish and the new binaries will be available for download.
-
-## Local Testing (Optional)
-
-If you want to test the release process locally *without* publishing to GitHub, you can run GoReleaser in snapshot mode:
+### 4. Tag and push
 
 ```bash
-# Requires goreleaser to be installed locally (brew install goreleaser)
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+GoReleaser triggers automatically. Watch progress at the [Actions tab](https://github.com/ghchinoy/a2acli/actions).
+
+### 5. Verify distribution channels
+
+After the workflow completes (~2 min), verify each channel:
+
+| Channel | Check |
+|---|---|
+| GitHub Release | New release appears at `/releases` with all artifacts |
+| Homebrew | `brew update && brew upgrade a2acli` works |
+| Linux deb/rpm | `.deb` and `.rpm` files present on the release page |
+| winget | PR opened at `microsoft/winget-pkgs` (auto-merged within hours for updates) |
+
+## Local testing (snapshot mode)
+
+Test the GoReleaser config locally without publishing:
+
+```bash
+# Requires goreleaser installed locally
+brew install goreleaser
+
 goreleaser release --snapshot --clean
 ```
 
-This will build all cross-platform binaries and place them in the local `dist/` directory for your inspection.
+Artifacts are written to `dist/` for inspection.

@@ -92,21 +92,39 @@ a2acli send "Generate a project plan" --out-dir ./output/
 
 By default, `send` streams real-time updates. Use `--wait` (`-w`) for a blocking call that returns the final result only.
 
+| Flag | Short | Description |
+|---|---|---|
+| `--skill` | `-s` | Target a specific skill on the agent |
+| `--wait` / `--sync` | `-w` | Block until task completes (returns final JSON) |
+| `--out-dir` | `-o` | Save artifacts to a directory |
+| `--file` | `-f` | Save artifact to a specific filename |
+| `--instruction-file` | `-i` | Path to a file with supplemental instructions |
+
 #### `watch` — Subscribe to a Task
 Subscribe to an active task's event stream.
 *(Maps to the A2A Protocol's `SubscribeToTask` RPC.)*
 
 ```bash
-a2acli watch <task_id>
+a2acli watch <task_id> --out-dir ./output/
 ```
+
+| Flag | Short | Description |
+|---|---|---|
+| `--out-dir` | `-o` | Save artifacts to a directory as they arrive |
+| `--file` | `-f` | Save artifact to a specific filename |
 
 #### `get` — Get Task Status
 Retrieve the state and artifacts of a specific task.
 *(Maps to the A2A Protocol's `GetTask` RPC.)*
 
 ```bash
-a2acli get <task_id>
+a2acli get <task_id> --out-dir ./output/
 ```
+
+| Flag | Short | Description |
+|---|---|---|
+| `--out-dir` | `-o` | Save artifacts to a directory |
+| `--file` | `-f` | Save artifact to a specific filename |
 
 #### `list` — List Tasks
 Query an agent for historical tasks.
@@ -115,6 +133,11 @@ Query an agent for historical tasks.
 ```bash
 a2acli list tasks --limit 10
 ```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--limit` | `10` | Maximum number of tasks to return |
+| `--page-token` | — | Pagination token for the next page |
 
 #### `cancel` — Cancel a Task
 Cancel an active task.
@@ -131,6 +154,11 @@ Download artifacts produced by a task to a local directory.
 a2acli download <task_id> --out-dir ./downloads
 ```
 
+| Flag | Short | Description |
+|---|---|---|
+| `--out-dir` | `-o` | Directory to save artifacts to |
+| `--file` | `-f` | Save artifact to a specific filename |
+
 ### Server & Mocking
 
 #### `serve` — Run a Mock Agent
@@ -139,6 +167,12 @@ Spin up an A2A-compliant echo agent locally for testing and development.
 ```bash
 a2acli serve --echo --port 9001
 ```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port` | `9001` | Listen port |
+| `--host` | `127.0.0.1` | Bind address |
+| `--echo` | — | Return the user's message as the response |
 
 ### Client Configuration
 
@@ -188,7 +222,7 @@ Environment variables follow the pattern `A2ACLI_<FLAG>` (e.g. `A2ACLI_SERVICE_U
 | `-r, --ref` | Task ID to reference as context |
 | `-n, --no-tui` | Output JSON/NDJSON instead of the interactive TUI |
 | `-p, --protocol` | A2A protocol version: `1.0.0` or `0.3.0` (default: `1.0.0`) |
-| `--transport` | Force transport: `grpc`, `jsonrpc`, or `httpjson` |
+| `--transport` | Force transport: `grpc`, `jsonrpc`, or `rest` |
 | `-e, --env` | Named environment from config file |
 | `-c, --config` | Path to config file |
 | `-V, --version` | Print version information |
@@ -216,7 +250,7 @@ a2acli send "Write code" -n --wait
 
 ### Transport Selection
 
-`a2acli` auto-selects the best available transport based on the agent's advertised capabilities, in priority order: **gRPC > JSON-RPC > HTTP+JSON**. Override when needed:
+`a2acli` auto-selects the best available transport based on the agent's advertised capabilities, in priority order: **gRPC > JSON-RPC > REST**. Override when needed:
 
 ```bash
 a2acli send "Generate video" --transport grpc

@@ -1,9 +1,9 @@
 # A2A Conformance Report
 
-**Date:** 2026-05-01
-**CLI Version:** v1.3.0-3-g5da5634-dirty
+**Date:** 2026-06-27
+**CLI Version:** v1.4.3-1-g69d992e-dirty
 **SDK Source:** `github.com/a2aproject/a2a-go`
-**SDK Branch:** ``
+**SDK Branch:** `main`
 
 ## Conformance Status
 
@@ -21,17 +21,17 @@
 === RUN   TestConformance/gRPC/SendWait
 === RUN   TestConformance/gRPC/ForcegRPC
 === RUN   TestConformance/A2A-0.3.0
-    conformance_test.go:139: 0.3.0 compat SUT not found at /tmp/a2a-go/e2e/compat/v0_3
---- PASS: TestConformance (7.86s)
-    --- PASS: TestConformance/JSON-RPC (2.97s)
-        --- PASS: TestConformance/JSON-RPC/Describe (0.69s)
-        --- PASS: TestConformance/JSON-RPC/SendWait (2.08s)
-    --- PASS: TestConformance/gRPC (4.13s)
-        --- PASS: TestConformance/gRPC/SendWait (2.06s)
-        --- PASS: TestConformance/gRPC/ForcegRPC (2.06s)
+    conformance_test.go:139: 0.3.0 compat SUT not found at /Users/ghchinoy/projects/github/a2a-go/e2e/compat/v0_3
+--- PASS: TestConformance (6.42s)
+    --- PASS: TestConformance/JSON-RPC (2.19s)
+        --- PASS: TestConformance/JSON-RPC/Describe (0.17s)
+        --- PASS: TestConformance/JSON-RPC/SendWait (2.01s)
+    --- PASS: TestConformance/gRPC (4.05s)
+        --- PASS: TestConformance/gRPC/SendWait (2.02s)
+        --- PASS: TestConformance/gRPC/ForcegRPC (2.02s)
     --- SKIP: TestConformance/A2A-0.3.0 (0.00s)
 PASS
-ok  	github.com/ghchinoy/a2acli/e2e	(cached)
+ok  	github.com/ghchinoy/a2acli/e2e	6.721s
 ```
 
 *(Auto-generated via make conformance-report)*
