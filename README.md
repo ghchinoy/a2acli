@@ -3,20 +3,24 @@
 [![GitHub Release](https://img.shields.io/github/v/release/ghchinoy/a2acli)](https://github.com/ghchinoy/a2acli/releases)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-A standalone command-line client for interacting with Agent-to-Agent (A2A) services. It is fully compliant with the **A2A Specification v1.0**. It is built using the [a2a-go v2](https://github.com/a2aproject/a2a-go) SDK and provides both an interactive streaming terminal UI and a scriptable non-interactive JSON mode.
+A standalone, A2A Specification v1.0 compliant command-line client for discovering, messaging, and managing agents. Built on the [a2a-go](https://github.com/a2aproject/a2a-go) SDK with an interactive streaming TUI and a scriptable JSON mode.
 
-## 🌟 Features
+## Quick Start
 
-- **A2A-Aligned Discovery**: Inspect an agent's `AgentCard`, skills, and capabilities using protocol-native terminology (`describe`).
-- **Structured Messaging**: Full lifecycle support for A2A tasks, including `send` (initiate), `watch` (subscribe), and `get` (retrieve).
-- **Agent-First Design**: Built-in support for non-interactive JSON output, deterministic exit codes, and proactive "Hint" guidance for automated agents.
-- **Dynamic Transport Selection**: Automatically selects the best available protocol (gRPC, JSON-RPC, or HTTP+JSON) based on advertised agent capabilities.
-- **Interactive TUI**: A beautiful [Bubble Tea](https://github.com/charmbracelet/bubbletea) interface for real-time streaming updates and artifact previews.
-- **Configuration Management**: First-class support for XDG-compliant multi-environment configurations and auth token interception.
+```bash
+# Describe an agent — fetch its AgentCard, skills, and capabilities
+a2acli describe --service-url http://localhost:9001
 
-## 📦 Installation
+# Send a message and stream responses in real time
+a2acli send "Generate a project plan" --service-url http://localhost:9001
 
-### 1. Via Homebrew (macOS and Linux)
+# Send a message and get a single JSON result (for scripting and agents)
+a2acli send "Generate a project plan" --service-url http://localhost:9001 -n --wait
+```
+
+## Installation
+
+### macOS and Linux — Homebrew
 
 ```bash
 brew tap ghchinoy/tap
@@ -24,45 +28,35 @@ brew trust ghchinoy/tap
 brew install a2acli
 ```
 
-### 2. Via winget (Windows)
-
-```powershell
-winget install ghchinoy.a2acli
-```
-
-### 3. Via apt (Debian / Ubuntu)
-
-Download the `.deb` from the [latest release](https://github.com/ghchinoy/a2acli/releases/latest) and install:
-
-```bash
-sudo dpkg -i a2acli_*.deb
-```
-
-### 4. Via rpm (Fedora / RHEL)
-
-Download the `.rpm` from the [latest release](https://github.com/ghchinoy/a2acli/releases/latest) and install:
-
-```bash
-sudo rpm -i a2acli_*.rpm
-```
-
-### 5. Via Install Script (Linux and macOS)
+### Linux — Install Script
 
 ```bash
 curl -sL https://raw.githubusercontent.com/ghchinoy/a2acli/main/scripts/install.sh | bash
 ```
 
-### 6. Via Go Install
+### Linux — apt (Debian / Ubuntu)
 
-If you have [Go 1.25+](https://go.dev/) installed:
+Download the `.deb` from the [latest release](https://github.com/ghchinoy/a2acli/releases/latest):
+
+```bash
+sudo dpkg -i a2acli_*.deb
+```
+
+### Linux — rpm (Fedora / RHEL)
+
+Download the `.rpm` from the [latest release](https://github.com/ghchinoy/a2acli/releases/latest):
+
+```bash
+sudo rpm -i a2acli_*.rpm
+```
+
+### Any platform — Go Install
 
 ```bash
 go install github.com/ghchinoy/a2acli/cmd/a2acli@latest
 ```
 
-### 7. Via Source
-
-Ensure you have [Go 1.25+](https://go.dev/) installed.
+### From Source
 
 ```bash
 git clone https://github.com/ghchinoy/a2acli.git
@@ -70,50 +64,92 @@ cd a2acli
 make build
 ```
 
-This will produce the `a2acli` binary in the `bin/` directory.
+The binary is written to `bin/a2acli`.
 
-Alternatively, you can run it directly:
+## Commands
+
+Commands are organized into four A2A-aligned groups: **Discovery & Identity**, **Messaging & Tasks**, **Server & Mocking**, and **Client Configuration**.
+
+### Discovery & Identity
+
+#### `describe` — Inspect an Agent
+Fetch and display an agent's `AgentCard`, registered skills, and security requirements.
+*(Fetches via the standard A2A discovery endpoint.)*
 
 ```bash
-make run
+a2acli describe --service-url http://localhost:9001
 ```
 
-## 🚀 Usage
+### Messaging & Tasks
 
-Use the `--help` flag on any command to see the available options and A2A-aligned command groups.
+#### `send` — Send a Message
+Send a message to initiate or continue a task.
+*(Maps to the A2A Protocol's `SendMessage` RPC.)*
 
 ```bash
-a2acli --help
+a2acli send "Generate a project plan" --out-dir ./output/
 ```
 
-### Global Flags
+By default, `send` streams real-time updates. Use `--wait` (`-w`) for a blocking call that returns the final result only.
 
-- `-c, --config string`: Path to a specific config file (default is `~/.config/a2acli/config.yaml`)
-- `-e, --env string`: Specific named environment to load from the config file
-- `-u, --service-url string`: Base URL of the A2A service (default "http://127.0.0.1:9001")
-- `-t, --token string`: Authorization token (if required by the agent)
-- `--auth strings`: Authorization headers to send (e.g. 'Bearer ...', can be specified multiple times)
-- `--svc-param strings`: Service parameters to send (e.g. 'key=value', can be specified multiple times)
-- `-k, --task string`: Existing Task ID to continue a conversation/task (must be non-terminal)
-- `-r, --ref string`: Task ID to reference as context (works for completed tasks)
-- `-n, --no-tui`: Disables the interactive TUI and outputs JSON/NDJSON. Can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
-- `-p, --protocol string`: A2A protocol version (`1.0.0` or `0.3.0`). Defaults to `1.0.0`. *(Note: `0.3.0` only supports the `jsonrpc` transport).*
-- `--transport string`: Force a specific transport protocol (`grpc`, `jsonrpc`, `httpjson`). Defaults to auto-selection based on the agent's card.
-- `-V, --version`: Print version information.
+#### `watch` — Subscribe to a Task
+Subscribe to an active task's event stream.
+*(Maps to the A2A Protocol's `SubscribeToTask` RPC.)*
 
-**Example: Passing Auth and Service Parameters**
 ```bash
-a2acli send "Generate report" --service-url http://localhost:9001 \
-  --auth "ApiKey secret-key-here" \
-  --svc-param "tenant_id=123" \
-  --svc-param "debug=true"
+a2acli watch <task_id>
 ```
 
-### Configuration Management
+#### `get` — Get Task Status
+Retrieve the state and artifacts of a specific task.
+*(Maps to the A2A Protocol's `GetTask` RPC.)*
 
-`a2acli` supports managing multiple servers using an XDG Base Directory compliant configuration file. By default, it looks for `~/.config/a2acli/config.yaml`.
+```bash
+a2acli get <task_id>
+```
 
-You can define multiple named environments to easily switch between local, staging, and production agents without typing URLs and tokens repeatedly:
+#### `list` — List Tasks
+Query an agent for historical tasks.
+*(Maps to the A2A Protocol's `ListTasks` RPC. The server must support history.)*
+
+```bash
+a2acli list tasks --limit 10
+```
+
+#### `cancel` — Cancel a Task
+Cancel an active task.
+*(Maps to the A2A Protocol's `CancelTask` RPC.)*
+
+```bash
+a2acli cancel <task_id>
+```
+
+#### `download` — Download Artifacts
+Download artifacts produced by a task to a local directory.
+
+```bash
+a2acli download <task_id> --out-dir ./downloads
+```
+
+### Server & Mocking
+
+#### `serve` — Run a Mock Agent
+Spin up an A2A-compliant echo agent locally for testing and development.
+
+```bash
+a2acli serve --echo --port 9001
+```
+
+### Client Configuration
+
+```bash
+a2acli config    # Show active environment and config file location
+a2acli version   # Print version information
+```
+
+## Configuration
+
+`a2acli` supports named environments via an XDG Base Directory compliant config file at `~/.config/a2acli/config.yaml`. This lets you switch between local, staging, and production agents without repeating URLs and tokens.
 
 ```yaml
 # ~/.config/a2acli/config.yaml
@@ -130,178 +166,115 @@ envs:
     token: "my-secure-prod-token"
 ```
 
-To view your currently active configuration context, run:
-```bash
-a2acli config
-```
+Use the `--env` (`-e`) flag to select an environment:
 
-To run a command using a specific environment from your config file, use the `--env` (`-e`) flag:
 ```bash
 a2acli send "Generate report" --env staging
 ```
 
-Environment variables are also supported (e.g., `A2ACLI_SERVICE_URL`). The precedence is: *CLI Flags > Environment Variables > Config File > Defaults.*
+Precedence: **CLI Flags > Environment Variables > Config File > Defaults.**
 
-### Commands
+Environment variables follow the pattern `A2ACLI_<FLAG>` (e.g. `A2ACLI_SERVICE_URL`).
 
-Commands are organized into four A2A-aligned groups: **Discovery & Identity**, **Messaging & Tasks**, **Server & Mocking**, and **Client Configuration**.
+### Global Flags
 
-#### 1. Discovery & Identity
+| Flag | Description |
+|---|---|
+| `-u, --service-url` | Base URL of the A2A service (default: `http://127.0.0.1:9001`) |
+| `-t, --token` | Authorization token |
+| `--auth` | Authorization headers, e.g. `Bearer …` (repeatable) |
+| `--svc-param` | Service parameters, e.g. `key=value` (repeatable) |
+| `-k, --task` | Existing Task ID to continue (must be non-terminal) |
+| `-r, --ref` | Task ID to reference as context |
+| `-n, --no-tui` | Output JSON/NDJSON instead of the interactive TUI |
+| `-p, --protocol` | A2A protocol version: `1.0.0` or `0.3.0` (default: `1.0.0`) |
+| `--transport` | Force transport: `grpc`, `jsonrpc`, or `httpjson` |
+| `-e, --env` | Named environment from config file |
+| `-c, --config` | Path to config file |
+| `-V, --version` | Print version information |
 
-##### Describe Agent
-Inspect the agent's identity, version, registered skills, and security requirements. 
-*(Fetches the AgentCard via the standard A2A discovery endpoint).*
+**Example: auth and service parameters**
+
 ```bash
-a2acli describe --service-url http://localhost:9001
+a2acli send "Generate report" --service-url http://localhost:9001 \
+  --auth "ApiKey secret-key-here" \
+  --svc-param "tenant_id=123" \
+  --svc-param "debug=true"
 ```
 
-#### 2. Messaging & Tasks
+## Agent & Automation
 
-##### Send a Message
-Send a message to an agent to initiate or continue a task.
-*(Maps to the A2A Protocol's `SendMessage` RPC).*
-
-```bash
-a2acli send "Generate a project plan" --out-dir ./output/
-```
-
-**Synchronous vs. Streaming:**
-By default, `send` streams real-time updates. Use `--wait` (or `-w`) to perform a blocking call that waits for the final result.
-
-##### Watch a Task
-Subscribe to an active task's event stream.
-*(Maps to the A2A Protocol's `SubscribeToTask` RPC).*
-```bash
-a2acli watch <task_id>
-```
-
-##### Get Task Status
-Retrieve the state and artifacts of a specific task.
-*(Maps to the A2A Protocol's `GetTask` RPC).*
-```bash
-a2acli get <task_id>
-```
-
-##### List Tasks
-Query an agent for a list of historical tasks it has processed.
-*(Maps to the A2A Protocol's `ListTasks` RPC. Note: The server must support history).*
-```bash
-a2acli list tasks --limit 10
-```
-
-##### Cancel a Task
-Cancel an active task.
-*(Maps to the A2A Protocol's `CancelTask` RPC).*
-```bash
-a2acli cancel <task_id>
-```
-
-##### Download Artifacts
-Download artifacts produced by a task to a local directory.
-```bash
-a2acli download <task_id> --out-dir ./downloads
-```
-
-#### 3. Server & Mocking
-
-##### Start a Mock Server
-Spin up an A2A-compliant mock agent locally for testing and development.
-```bash
-a2acli serve --echo --port 9001
-```
-
-#### 4. Client Configuration
-
-View the active environment settings and config file location.
-```bash
-a2acli config
-a2acli version
-```
-
-## 🤖 Agent & Automation
-
-`a2acli` is designed with coding agents and automation in mind.
+`a2acli` is designed to be driven by AI coding agents (Claude Code, Cursor, GitHub Copilot CLI) as well as shell scripts.
 
 ### Non-Interactive Mode (`-n`)
-Using the `-n` or `--no-tui` flag ensures that all output is emitted as parseable JSON/NDJSON. This is ideal for scripts and agents that need to consume A2A data programmatically.
+
+The `-n` / `--no-tui` flag switches all output to newline-delimited JSON (NDJSON), giving scripts and agents a stable, parseable stream. It can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
 
 ```bash
 a2acli send "Write code" -n --wait
 ```
 
-### Agent Skills (`skills/`)
-This repository contains an [`agentskills.io`](https://agentskills.io/) compliant `skills/` directory. These skills are designed to explicitly teach other AI coding agents (like Claude Code, Cursor, etc.) how to correctly interact with the `a2acli` tool programmatically.
+### Transport Selection
 
-By default, an agent will load these skills and understand that it must use the `--no-tui` and `--wait` flags when operating the CLI to ensure deterministic JSON outputs instead of hanging on interactive terminal UIs.
+`a2acli` auto-selects the best available transport based on the agent's advertised capabilities, in priority order: **gRPC > JSON-RPC > HTTP+JSON**. Override when needed:
+
+```bash
+a2acli send "Generate video" --transport grpc
+```
+
+> When using `--protocol 0.3.0`, only `jsonrpc` is available. gRPC is disabled for legacy connections to prevent protobuf namespace conflicts.
 
 ### Proactive Error Hints
-When a command fails (e.g., server down, invalid skill), the CLI provides a "Hint:" to assist with automated recovery.
 
-Example Error:
-```text
+On failure, the CLI emits a `Hint:` to assist automated recovery:
+
+```
 Error: failed to resolve AgentCard: connection refused
 Hint: Ensure the A2A server is running at http://localhost:9001
 ```
 
-### Dynamic Transport Selection
-Agents can automatically negotiate the most efficient transport protocol without manual intervention. By default, `a2acli` prioritizes protocols in the order: **gRPC > JSON-RPC > HTTP+JSON**.
+### Agent Skills
 
-For specialized environments, you can override this logic:
-```bash
-# Force gRPC for high-performance streaming
-a2acli send "Generate video" --transport grpc
-```
+This repository ships an [`agentskills.io`](https://agentskills.io/) compliant `skills/` directory. AI coding agents load these skills automatically and learn to use `--no-tui` and `--wait` for deterministic JSON output.
 
-*Note: When using `--protocol 0.3.0`, only the `jsonrpc` transport is available. The gRPC transport is explicitly disabled for legacy protocol connections to prevent protobuf namespace conflicts within the compiled binary.*
-
-## 🛠️ Development
-
-- `make build`: Compiles the binary to `bin/a2acli`.
-- `make run`: Builds and runs the CLI.
-- `make lint`: Runs `golangci-lint` configured for Google Go standards.
-- `make test-e2e`: Runs the end-to-end conformance tests.
-- `make clean`: Removes the `bin/` directory.
-
-For details on how to build, publish, and release new versions of `a2acli`, see the [Releasing Guide](docs/RELEASING.md).
-
-### 🏆 Testing Conformance (TCK)
-
-To verify the CLI's compliance, you can test it against the official A2A Technology Compatibility Kit (TCK) System Under Test (SUT) server. The CLI supports both the legacy **v0.3.0** and the current stable **v1.0.0** specifications.
-
-See the latest [Conformance Report](docs/CONFORMANCE_REPORT.md) for current status.
-
-The `a2acli` contains an automated end-to-end conformance test suite that will build the CLI, spin up the TCK SUT server locally, and run black-box tests asserting the machine-readable JSON output of the CLI.
-
-#### Running Tests
-
-**Requirement:** Running the end-to-end conformance tests requires the source code of the `a2a-go` SDK to be present on your local machine, as the tests dynamically spin up the TCK SUT server from that repository ([https://github.com/a2aproject/a2a-go](https://github.com/a2aproject/a2a-go)).
-
-By default, the `Makefile` assumes the `a2a-go` repository is cloned at `../../github/a2a-go` relative to the root of this project. 
-
-If you have it cloned elsewhere, you must override the `A2A_GO_SRC` variable when running `make`:
+## Development
 
 ```bash
-# Run all conformance tests (v1.0 and v0.3)
-make test-e2e A2A_GO_SRC=/absolute/or/relative/path/to/a2a-go
+make build      # Compile to bin/a2acli
+make run        # Build and run
+make lint       # Run golangci-lint
+make test-e2e   # Run end-to-end conformance tests
+make clean      # Remove bin/
 ```
 
-To run the SUT manually for your own testing:
+For release instructions see [docs/RELEASING.md](docs/RELEASING.md).
 
-**For A2A 1.0.0:**
+### Conformance (TCK)
+
+`a2acli` is tested against the official A2A Technology Compatibility Kit for both **v0.3.0** and **v1.0.0**. See the [Conformance Report](docs/CONFORMANCE_REPORT.md) for current status.
+
+Running the tests requires the [a2a-go](https://github.com/a2aproject/a2a-go) SDK source locally, as the suite spins up the TCK SUT server dynamically:
+
+```bash
+# Default path: ../../github/a2a-go
+make test-e2e
+
+# Custom path
+make test-e2e A2A_GO_SRC=/path/to/a2a-go
+```
+
+To run the SUT manually:
+
 ```bash
 # In the a2a-go repository
 cd e2e/tck
 go run sut.go sut_agent_executor.go
 ```
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on how to get involved. 
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [docs/CLI_DESIGN_BEST_PRACTICES.md](docs/CLI_DESIGN_BEST_PRACTICES.md) for design conventions to follow before adding or modifying commands.
 
-We follow a set of [CLI Design Best Practices](docs/CLI_DESIGN_BEST_PRACTICES.md) to ensure the tool remains usable for both humans and agents. Please review these before submitting a PR that adds or modifies commands.
+## License
 
----
-
-## 📄 License
-
-This project is licensed under the Apache 2.0 License. See the [LICENSE](LICENSE) file for more details.
+Apache 2.0. See [LICENSE](LICENSE).
