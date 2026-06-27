@@ -16,23 +16,28 @@ A standalone command-line client for interacting with Agent-to-Agent (A2A) servi
 
 ## 📦 Installation
 
-### 1. Via Go Install (Recommended)
-
-If you have [Go 1.25+](https://go.dev/) installed, you can easily install the CLI globally via `go install`:
+### 1. Via Homebrew (macOS and Linux)
 
 ```bash
-go install github.com/ghchinoy/a2acli/cmd/a2acli@latest
+brew tap ghchinoy/tap
+brew install a2acli
 ```
 
-### 2. Via Install Script
-
-Alternatively, you can run the provided install script to download and install the latest pre-compiled binary:
+### 2. Via Install Script (Linux and macOS)
 
 ```bash
 curl -sL https://raw.githubusercontent.com/ghchinoy/a2acli/main/scripts/install.sh | bash
 ```
 
-### 3. Via Source
+### 3. Via Go Install
+
+If you have [Go 1.25+](https://go.dev/) installed:
+
+```bash
+go install github.com/ghchinoy/a2acli/cmd/a2acli@latest
+```
+
+### 4. Via Source
 
 Ensure you have [Go 1.25+](https://go.dev/) installed.
 

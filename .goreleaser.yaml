@@ -33,6 +33,20 @@ archives:
       - goos: windows
         format: zip
 
+brews:
+  - name: a2acli
+    repository:
+      owner: ghchinoy
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/ghchinoy/a2acli"
+    description: "A standalone A2A v1.0 compliant command-line client"
+    license: "Apache-2.0"
+    install: |
+      bin.install "a2acli"
+    test: |
+      system "#{bin}/a2acli", "--version"
+
 changelog:
   sort: asc
   filters:
