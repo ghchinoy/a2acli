@@ -11,7 +11,7 @@ compatibility: Requires the a2acli binary. Install via brew, curl, or go install
 
 ## Critical Rules for Agents
 
-1. **Always pass `-n` / `--no-tui`** — disables the interactive TUI and emits JSON/NDJSON instead. Without this flag the CLI will hang waiting for terminal input.
+1. **Always pass `-n` / `--output json`** — disables the interactive TUI and emits JSON/NDJSON instead. Without this flag the CLI will hang waiting for terminal input.
 2. **Always pass `-w` / `--wait` with `send`** — makes the call blocking and returns the final task result. Without `--wait`, `send` streams indefinitely.
 3. **Check `status.state`** in the JSON output to determine success (`TASK_STATE_COMPLETED`) or failure (`TASK_STATE_FAILED`).
 
@@ -33,7 +33,7 @@ compatibility: Requires the a2acli binary. Install via brew, curl, or go install
 | Flag | Short | Default | Description |
 |---|---|---|---|
 | `--service-url` | `-u` | `http://127.0.0.1:9001` | Base URL of the A2A service |
-| `--no-tui` | `-n` | false | **Required for agents.** Emit JSON instead of interactive UI |
+| `--output json` | `-n` | false | **Required for agents.** Emit JSON instead of interactive UI |
 | `--token` | `-t` | — | Bearer token for auth |
 | `--auth` | — | — | Raw auth header, e.g. `ApiKey secret` (repeatable) |
 | `--task` | `-k` | — | Existing Task ID to continue (must be non-terminal) |
@@ -46,10 +46,10 @@ compatibility: Requires the a2acli binary. Install via brew, curl, or go install
 
 ```bash
 # Discover what an agent can do
-a2acli describe --service-url http://localhost:9001 -n
+a2acli discover --service-url http://localhost:9001 -n
 
 # Send a task and get JSON result
-a2acli send "Summarize this document" --service-url http://localhost:9001 -n --wait
+a2acli send "Summarize this document" --service-url http://localhost:9001 --output json --wait
 
 # Check status of a running task
 a2acli get <task_id> --service-url http://localhost:9001 -n

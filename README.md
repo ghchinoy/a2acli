@@ -9,7 +9,7 @@ A standalone, A2A Specification v1.0 compliant command-line client for discoveri
 
 ```bash
 # Describe an agent — fetch its AgentCard, skills, and capabilities
-a2acli describe --service-url http://localhost:9001
+a2acli discover --service-url http://localhost:9001
 
 # Send a message and stream responses in real time
 a2acli send "Generate a project plan" --service-url http://localhost:9001
@@ -77,7 +77,7 @@ Fetch and display an agent's `AgentCard`, registered skills, and security requir
 *(Fetches via the standard A2A discovery endpoint.)*
 
 ```bash
-a2acli describe --service-url http://localhost:9001
+a2acli discover --service-url http://localhost:9001
 ```
 
 ### Messaging & Tasks
@@ -105,7 +105,7 @@ Subscribe to an active task's event stream.
 *(Maps to the A2A Protocol's `SubscribeToTask` RPC.)*
 
 ```bash
-a2acli watch <task_id> --out-dir ./output/
+a2acli subscribe <task_id> --out-dir ./output/
 ```
 
 | Flag | Short | Description |

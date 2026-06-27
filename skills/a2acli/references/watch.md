@@ -13,10 +13,10 @@ Maps to the A2A Protocol's `SubscribeToTask` RPC. Streams live status updates an
 
 ```bash
 # Stream updates from a running task
-a2acli watch <task_id> --service-url http://localhost:9001 -n
+a2acli subscribe <task_id> --service-url http://localhost:9001 --output json
 
 # Stream and save artifacts as they arrive
-a2acli watch <task_id> --out-dir ./output/ --service-url http://localhost:9001 -n
+a2acli subscribe <task_id> --out-dir ./output/ --service-url http://localhost:9001 --output json
 ```
 
 ## Output

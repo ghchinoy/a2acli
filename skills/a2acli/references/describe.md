@@ -6,10 +6,10 @@ Fetches the AgentCard from the A2A discovery endpoint (`/.well-known/agent.json`
 
 ```bash
 # Basic discovery
-a2acli describe --service-url http://localhost:9001 -n
+a2acli discover --service-url http://localhost:9001 --output json
 
 # With auth (if the agent requires a token to expose its card)
-a2acli describe --service-url http://localhost:9001 --token "<TOKEN>" -n
+a2acli discover --service-url http://localhost:9001 --token "<TOKEN>" --output json
 ```
 
 ## Output Schema

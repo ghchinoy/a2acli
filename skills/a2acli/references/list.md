@@ -13,13 +13,13 @@ Maps to the A2A Protocol's `ListTasks` RPC. Returns a paginated list of tasks th
 
 ```bash
 # List the 10 most recent tasks
-a2acli list tasks --service-url http://localhost:9001 -n
+a2acli list tasks --service-url http://localhost:9001 --output json
 
 # Increase the page size
-a2acli list tasks --limit 50 --service-url http://localhost:9001 -n
+a2acli list tasks --limit 50 --service-url http://localhost:9001 --output json
 
 # Paginate using a token from the previous response
-a2acli list tasks --page-token <token> --service-url http://localhost:9001 -n
+a2acli list tasks --page-token <token> --service-url http://localhost:9001 --output json
 ```
 
 ## Output Schema

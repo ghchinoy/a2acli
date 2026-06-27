@@ -5,7 +5,7 @@ Maps to the A2A Protocol's `CancelTask` RPC. Requests cancellation of a task tha
 ## Usage
 
 ```bash
-a2acli cancel <task_id> --service-url http://localhost:9001 -n
+a2acli cancel <task_id> --service-url http://localhost:9001 --output json
 ```
 
 ## Output

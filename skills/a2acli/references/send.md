@@ -17,28 +17,28 @@ Maps to the A2A Protocol's `SendMessage` RPC. Initiates a new task or continues 
 ```bash
 # Basic: initiate a task and wait for completion
 a2acli send "Generate a project plan" \
-  --service-url http://localhost:9001 -n --wait
+  --service-url http://localhost:9001 --output json --wait
 
 # Target a specific skill
 a2acli send "Generate report" --skill reports \
-  --service-url http://localhost:9001 -n --wait
+  --service-url http://localhost:9001 --output json --wait
 
 # Continue an existing task
 a2acli send "Add more detail to section 2" \
-  --task <TaskID> --service-url http://localhost:9001 -n --wait
+  --task <TaskID> --service-url http://localhost:9001 --output json --wait
 
 # Reference a completed task as context
 a2acli send "Summarize the previous result" \
-  --ref <TaskID> --service-url http://localhost:9001 -n --wait
+  --ref <TaskID> --service-url http://localhost:9001 --output json --wait
 
 # Pass a large instruction file
 a2acli send "Fix the bugs" \
   --instruction-file ./instructions.txt \
-  --service-url http://localhost:9001 -n --wait
+  --service-url http://localhost:9001 --output json --wait
 
 # Save artifacts to disk
 a2acli send "Generate image" \
-  --out-dir ./output/ --service-url http://localhost:9001 -n --wait
+  --out-dir ./output/ --service-url http://localhost:9001 --output json --wait
 ```
 
 ## Output Schema

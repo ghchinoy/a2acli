@@ -13,13 +13,13 @@ Maps to the A2A Protocol's `GetTask` RPC. Retrieves the current state and any ar
 
 ```bash
 # Check task status
-a2acli get <task_id> --service-url http://localhost:9001 -n
+a2acli get <task_id> --service-url http://localhost:9001 --output json
 
 # Retrieve and save artifacts
-a2acli get <task_id> --out-dir ./output/ --service-url http://localhost:9001 -n
+a2acli get <task_id> --out-dir ./output/ --service-url http://localhost:9001 --output json
 
 # Save to a specific file
-a2acli get <task_id> --file result.txt --service-url http://localhost:9001 -n
+a2acli get <task_id> --file result.txt --service-url http://localhost:9001 --output json
 ```
 
 ## Output Schema

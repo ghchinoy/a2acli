@@ -45,7 +45,10 @@ var (
 	outFile         string
 	instructionFile string
 	disableTUI      bool
+	outputMode      string
+	requestTimeout  time.Duration
 	wait            bool
+	immediate       bool
 	transport       string
 	protocol        string
 	authHeaders     []string
@@ -116,13 +119,17 @@ func (i *paramInterceptor) Before(ctx context.Context, req *a2aclient.Request) (
 }
 
 func getResolver() *agentcard.Resolver {
+	t := requestTimeout
+	if t == 0 {
+		t = 30 * time.Second
+	}
 	if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
 		return &agentcard.Resolver{
-			Client:     &http.Client{Timeout: 30 * time.Second},
+			Client:     &http.Client{Timeout: t},
 			CardParser: a2av0.NewAgentCardParser(),
 		}
 	}
-	return agentcard.DefaultResolver
+	return &agentcard.Resolver{Client: &http.Client{Timeout: t}}
 }
 
 func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, error) {
@@ -194,6 +201,57 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 		}))
 	}
 	return a2aclient.NewFromCard(ctx, card, opts...)
+}
+
+// resolveOutputMode determines the effective output mode from flags and env vars.
+// Priority: --output flag > -n/--no-tui > A2ACLI_NO_TUI env > NO_COLOR env > default (tui)
+func resolveOutputMode() {
+	switch outputMode {
+	case "tui", "text", "json":
+		// explicit --output value is valid, use it
+	case "":
+		// not explicitly set — derive from other signals
+		if disableTUI {
+			outputMode = "json"
+		} else if os.Getenv("A2ACLI_NO_TUI") == "true" {
+			outputMode = "json"
+		} else if os.Getenv("NO_COLOR") != "" {
+			outputMode = "text"
+		} else {
+			outputMode = "tui"
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "Error: invalid --output value %q (must be tui, text, or json)\n", outputMode)
+		os.Exit(1)
+	}
+	// Sync disableTUI for any existing code that checks it directly.
+	// text mode and tui mode both leave disableTUI=false; only json sets it true.
+	disableTUI = (outputMode == "json")
+}
+
+// runText prints a human-readable stream of events to stdout without the Bubble Tea TUI.
+// Used when --output text is set.
+func runText(stream chan streamMsg, outDir string) {
+	for msg := range stream {
+		if msg.Err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", msg.Err)
+			os.Exit(1)
+		}
+		switch e := msg.Event.(type) {
+		case *a2a.TaskStatusUpdateEvent:
+			fmt.Printf("Status: %s\n", e.Status.State)
+		case *a2a.TaskArtifactUpdateEvent:
+			fmt.Printf("Artifact: %s\n", e.Artifact.Name)
+			for _, p := range e.Artifact.Parts {
+				if tp, ok := p.Content.(a2a.Text); ok {
+					fmt.Println(string(tp))
+				}
+			}
+			if outDir != "" || outFile != "" {
+				_, _ = saveArtifact(outDir, outFile, *e.Artifact, 0)
+			}
+		}
+	}
 }
 
 func runDescribe(_ *cobra.Command, _ []string) {
@@ -296,25 +354,36 @@ func runSend(_ *cobra.Command, args []string) {
 		params.Metadata = map[string]any{"skillId": skillID}
 	}
 
-	if wait {
-		params.Config = &a2a.SendMessageConfig{
-			ReturnImmediately: false,
-		}
-
-		if !disableTUI {
-			fmt.Printf("Invoking A2A Service (Blocking)...\n\n")
-		}
-
+	// --immediate: fire-and-forget — return the task ID without waiting or streaming
+	if immediate {
+		params.Config = &a2a.SendMessageConfig{ReturnImmediately: true}
 		result, err := client.SendMessage(ctx, params)
 		if err != nil {
 			fatalf("SendMessage failed", err, "Check service connectivity or skill availability")
 		}
+		if outputMode == "json" {
+			b, _ := json.MarshalIndent(result, "", "  ")
+			fmt.Println(string(b))
+		} else if task, ok := result.(*a2a.Task); ok {
+			fmt.Printf("Task submitted: %s\n", task.ID)
+			fmt.Printf("Use 'a2acli subscribe %s' to follow progress\n", task.ID)
+		}
+		return
+	}
 
-		if disableTUI {
-			b, err := json.MarshalIndent(result, "", "  ")
-			if err == nil {
-				fmt.Println(string(b))
-			}
+	// --wait: blocking call
+	if wait {
+		params.Config = &a2a.SendMessageConfig{ReturnImmediately: false}
+		if outputMode == "tui" {
+			fmt.Printf("Invoking A2A Service (Blocking)...\n\n")
+		}
+		result, err := client.SendMessage(ctx, params)
+		if err != nil {
+			fatalf("SendMessage failed", err, "Check service connectivity or skill availability")
+		}
+		if outputMode == "json" {
+			b, _ := json.MarshalIndent(result, "", "  ")
+			fmt.Println(string(b))
 			if task, ok := result.(*a2a.Task); ok && (outDir != "" || outFile != "") {
 				for i, art := range task.Artifacts {
 					_, _ = saveArtifact(outDir, outFile, *art, i)
@@ -322,7 +391,6 @@ func runSend(_ *cobra.Command, args []string) {
 			}
 			return
 		}
-
 		if task, ok := result.(*a2a.Task); ok {
 			displayTaskResult(task, outDir)
 			fmt.Printf("\nTask ID: %s (use --task %s to continue, or --ref %s to reference)\n", task.ID, task.ID, task.ID)
@@ -336,11 +404,11 @@ func runSend(_ *cobra.Command, args []string) {
 		} else {
 			fmt.Printf("Unknown result type received: %T\n", result)
 		}
-
 		return
 	}
 
-	if !disableTUI {
+	// Default: streaming
+	if outputMode == "tui" {
 		fmt.Printf("Invoking A2A Service (Streaming)...\n\n")
 	}
 
@@ -355,9 +423,12 @@ func runSend(_ *cobra.Command, args []string) {
 		}
 	}()
 
-	if disableTUI {
+	switch outputMode {
+	case "json":
 		runRaw(stream, outDir)
-	} else {
+	case "text":
+		runText(stream, outDir)
+	default:
 		runTUI(stream)
 	}
 }
@@ -376,8 +447,8 @@ func runWatch(_ *cobra.Command, args []string) {
 		fatalf("failed to create client", err, "Verify your --token or configuration settings")
 	}
 
-	if !disableTUI {
-		fmt.Printf("Watching Task %s ...\n\n", taskID)
+	if outputMode == "tui" {
+		fmt.Printf("Subscribing to Task %s ...\n\n", taskID)
 	}
 
 	tid := a2a.TaskID(taskID)
@@ -392,7 +463,7 @@ func runWatch(_ *cobra.Command, args []string) {
 		return
 	}
 
-	if !disableTUI {
+	if outputMode == "tui" {
 		fmt.Println("Task is active. Connecting to stream...")
 	}
 
@@ -407,9 +478,12 @@ func runWatch(_ *cobra.Command, args []string) {
 		}
 	}()
 
-	if disableTUI {
+	switch outputMode {
+	case "json":
 		runRaw(stream, outDir)
-	} else {
+	case "text":
+		runText(stream, outDir)
+	default:
 		runTUI(stream)
 	}
 }
@@ -492,7 +566,7 @@ func runCancel(_ *cobra.Command, args []string) {
 }
 
 func main() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(initConfig, resolveOutputMode)
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.config/a2acli/config.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&envName, "env", "e", "", "environment name to load from config")
@@ -502,27 +576,28 @@ func main() {
 	rootCmd.PersistentFlags().StringSliceVar(&svcParams, "svc-param", nil, "Service parameters to send (e.g. 'key=value')")
 	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (must be non-terminal)")
 	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference as context (works for completed tasks)")
-	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI (useful for scripting and CI)")
+	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI — alias for --output json (backwards compat)")
+	rootCmd.PersistentFlags().StringVar(&outputMode, "output", "", "Output mode: tui (default), text (plain, no animations), json (NDJSON for scripting)")
+	rootCmd.PersistentFlags().DurationVar(&requestTimeout, "timeout", 0, "Request timeout, e.g. 30s, 2m (0 = no timeout)")
 	rootCmd.PersistentFlags().StringVar(&transport, "transport", "", "Force a specific transport protocol (grpc, jsonrpc, rest)")
 	rootCmd.PersistentFlags().StringVarP(&protocol, "protocol", "p", "1.0.0", "A2A protocol version (1.0.0 or 0.3.0)")
 	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
 
-	if os.Getenv("A2ACLI_NO_TUI") == "true" || os.Getenv("NO_COLOR") != "" {
-		disableTUI = true
-	}
-
 	var describeCmd = &cobra.Command{
-		Use:     "describe",
+		Use:     "discover",
+		Aliases: []string{"describe"},
 		GroupID: GroupDiscovery,
-		Short:   "Describe the agent card",
+		Short:   "Discover and display the agent card",
 		Long: `Retrieve and display the A2A AgentCard for the target service.
 
 The AgentCard contains the agent's identity, description, supported 
 interface protocols (e.g., JSON-RPC), and available skills. It also 
-lists any security requirements for each skill.`,
-		Example: `  a2acli describe
-  a2acli describe --service-url http://localhost:9001
-  a2acli describe --no-tui --token "my-auth-token"`,
+lists any security requirements for each skill.
+
+'describe' is accepted as a backwards-compatible alias.`,
+		Example: `  a2acli discover
+  a2acli discover --service-url http://localhost:9001
+  a2acli discover --output json --token "my-auth-token"`,
 		Run: runDescribe,
 	}
 
@@ -546,18 +621,20 @@ You can save artifacts produced by the task using the --out-dir flag.`,
 	}
 
 	var watchCmd = &cobra.Command{
-		Use:     "watch [taskID]",
+		Use:     "subscribe [taskID]",
 		GroupID: GroupMessaging,
-		Aliases: []string{"resume", "SubscribeToTask"},
-		Short:   "Watch an existing task's streaming updates",
+		Aliases: []string{"watch", "resume", "SubscribeToTask"},
+		Short:   "Subscribe to an active task's streaming updates",
 		Long: `Connect to an active task's event stream to receive real-time updates.
 
 This is useful for resuming observation of a long-running task or 
 watching a task initiated by another client. If the task is 
-already completed, the command will display the final results.`,
-		Example: `  a2acli watch <taskID>
-  a2acli watch <taskID> --no-tui
-  a2acli watch <taskID> --out-dir ./artifacts`,
+already completed, the command will display the final results.
+
+'watch' is accepted as a backwards-compatible alias.`,
+		Example: `  a2acli subscribe <taskID>
+  a2acli subscribe <taskID> --output json
+  a2acli subscribe <taskID> --out-dir ./artifacts`,
 		Args: cobra.ExactArgs(1),
 		Run:  runWatch,
 	}
@@ -592,6 +669,7 @@ download artifacts to a directory.`,
 	sendCmd.Flags().StringVarP(&instructionFile, "instruction-file", "i", "", "Path to a file with supplemental instructions")
 	sendCmd.Flags().BoolVarP(&wait, "wait", "w", false, "Block and wait for task completion instead of streaming (maps to A2A Blocking:true)")
 	sendCmd.Flags().BoolVar(&wait, "sync", false, "Alias for --wait")
+	sendCmd.Flags().BoolVar(&immediate, "immediate", false, "Fire-and-forget: submit task and return ID immediately without waiting or streaming")
 
 	watchCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	watchCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")

@@ -71,10 +71,10 @@ func TestConformance(t *testing.T) {
 		defer func() { _ = sutCmd.Process.Kill() }()
 
 		t.Run("Describe", func(t *testing.T) {
-			cmd := runCLI("describe", "--no-tui", "-u", sutURL)
+			cmd := runCLI("discover", "--output", "json", "-u", sutURL)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				t.Fatalf("describe failed: %v\nOutput: %s", err, out)
+				t.Fatalf("discover failed: %v\nOutput: %s", err, out)
 			}
 			var card map[string]any
 			if err := json.Unmarshal(out, &card); err != nil {
@@ -164,10 +164,10 @@ func TestConformance(t *testing.T) {
 		sutURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 
 		t.Run("Describe", func(t *testing.T) {
-			cmd := runCLI("describe", "--no-tui", "-u", sutURL, "--protocol", "0.3.0")
+			cmd := runCLI("discover", "--output", "json", "-u", sutURL, "--protocol", "0.3.0")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				t.Fatalf("describe 0.3.0 failed: %v\nOutput: %s", err, out)
+				t.Fatalf("discover 0.3.0 failed: %v\nOutput: %s", err, out)
 			}
 			var card map[string]any
 			if err := json.Unmarshal(out, &card); err != nil {
