@@ -75,6 +75,7 @@ winget:
       owner: ghchinoy
       name: winget-pkgs
       token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
+      branch: "automated-ghchinoy.a2acli-{{.Version}}"
       pull_request:
         enabled: true
         draft: false
