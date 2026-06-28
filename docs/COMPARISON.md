@@ -23,6 +23,9 @@ on an official canonical CLI:
 | Cancel task | `task cancel` | `cancel` | `cancel` | Aligned. |
 | Subscribe | `task subscribe` | `subscribe` | `subscribe` | Aligned. `watch` kept as alias. |
 | Download artifacts | — | — | `download` | a2acli addition. |
+| stdin piping on send | — | — | `echo msg \| a2acli send` | a2acli addition; ericabouaf/a2a-cli also supports this. |
+| Push-notification configs | — | — | `push-config create/list/get/delete` | a2acli addition; full A2A push RPC surface. |
+| Conformance smoke check | — | — | `conformance` | a2acli addition; PASS/SKIP/FAIL per check, JSON mode for CI. |
 | Mock echo server | — | `serve --echo` | `serve --echo` | Aligned. |
 | Proxy server | — | `serve --proxy` | planned (`a2ac-6x6`) | Stub exists, not yet implemented. |
 | Exec wrapping | — | `serve --exec` | planned (`a2ac-7n2`) | Stub exists, not yet implemented. |
@@ -110,9 +113,24 @@ or structured context that exceeds comfortable shell quoting.
 (top-level SKILL.md + per-command `references/` files). AI coding agents load these
 to learn correct `--output json` and `--wait` usage without manual configuration.
 
-**TCK conformance testing**
-An automated end-to-end conformance suite against the official A2A TCK SUT.
-Conformance is verified on every release. See [docs/CONFORMANCE_REPORT.md](CONFORMANCE_REPORT.md).
+**TCK conformance testing + live smoke check**
+Two conformance layers: an automated e2e suite against the official A2A TCK SUT
+(run via `make test-e2e`, verified on every release), and a `conformance` command
+for quick smoke-testing any live A2A server — AgentCard validation, auth gating check,
+round-trip send. The smoke check supports `--output json` for CI integration and exits
+non-zero on any failure. See [docs/CONFORMANCE_REPORT.md](CONFORMANCE_REPORT.md).
+
+**Push notification config management**
+`push-config create/list/get/delete` covers the full A2A push notification RPC surface
+— a spec area no other community CLI exposes. Useful for testing agents that support
+asynchronous webhook callbacks.
+
+**stdin piping on send**
+```bash
+echo "Summarize Q3" | a2acli send --skill summarize --wait
+cat prompt.txt | a2acli send --wait --output json
+```
+Auto-detected when stdout is not a TTY (same TTY-detection logic as the output mode).
 
 **Artifact management**
 `--out-dir` and `--file` flags on `send`, `get`, `subscribe`, and `download` provide
@@ -129,8 +147,7 @@ These items from the proposals are tracked in the issue tracker and not yet impl
 | `discover --extended` (authenticated card) | `a2ac-o2i` | 2 |
 | `send` multi-modal input (`--parts`, `--json`, `--file`, `--data`) | `a2ac-79d` | 2 |
 | `list tasks` filters (`--context`, `--status`, `--since`, `--with-artifacts`) | `a2ac-mvu` | 2 |
-| push-notification config commands (`push-config create/list/get/delete`) | `a2ac-bir` | 1 |
-| stdin piping on `send` | `a2ac-8r7` | 1 |
+| `discover --extended` (authenticated card) | `a2ac-o2i` | 2 |
 | `serve --proxy` | `a2ac-6x6` | 3 |
 | `serve --exec` | `a2ac-7n2` | 3 |
 | `--tenant` global flag | — | — |

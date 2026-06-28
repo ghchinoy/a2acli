@@ -100,6 +100,53 @@ func TestConformance(t *testing.T) {
 				t.Errorf("expected TASK_STATE_COMPLETED, got %v", status["state"])
 			}
 		})
+
+		t.Run("SendStdin", func(t *testing.T) {
+			// Pipe message via stdin — no positional arg.
+			cmd := exec.Command(cliPath, "send", "--output", "json", "--wait", "-u", sutURL)
+			cmd.Env = append(os.Environ(), "GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore")
+			cmd.Stdin = bytes.NewBufferString("hello from stdin")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("send via stdin failed: %v\nOutput: %s", err, out)
+			}
+			var task map[string]any
+			if err := json.Unmarshal(out, &task); err != nil {
+				t.Fatalf("failed to parse JSON from stdin send: %v\nOutput: %s", err, out)
+			}
+			status := task["status"].(map[string]any)
+			if status["state"] != "TASK_STATE_COMPLETED" {
+				t.Errorf("expected TASK_STATE_COMPLETED, got %v", status["state"])
+			}
+		})
+
+		t.Run("ConformanceSmoke", func(t *testing.T) {
+			// Run the conformance command in JSON mode and assert all checks passed.
+			cmd := runCLI("conformance", "--output", "json", "-u", sutURL)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("conformance command failed: %v\nOutput: %s", err, out)
+			}
+			var result struct {
+				Passed  bool `json:"passed"`
+				Results []struct {
+					Name    string `json:"name"`
+					Passed  bool   `json:"passed"`
+					Skipped bool   `json:"skipped"`
+					Message string `json:"message"`
+				} `json:"results"`
+			}
+			if err := json.Unmarshal(out, &result); err != nil {
+				t.Fatalf("failed to parse conformance JSON: %v\nOutput: %s", err, out)
+			}
+			if !result.Passed {
+				for _, r := range result.Results {
+					if !r.Passed && !r.Skipped {
+						t.Errorf("conformance check %q failed: %s", r.Name, r.Message)
+					}
+				}
+			}
+		})
 	})
 
 	t.Run("gRPC", func(t *testing.T) {

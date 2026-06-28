@@ -117,7 +117,12 @@ Send a message to initiate or continue a task.
 a2acli send "Generate a project plan" --out-dir ./output/
 ```
 
-By default, `send` streams real-time updates. Use `--wait` (`-w`) for a blocking call that returns the final result only.
+By default, `send` streams real-time updates. Use `--wait` (`-w`) for a blocking call that returns the final result only. When stdin is not a terminal, the message is read from stdin:
+
+```bash
+echo "Summarize Q3 results" | a2acli send --skill summarize --wait --output json
+cat prompt.txt | a2acli send --wait
+```
 
 | Flag | Short | Description |
 |---|---|---|
@@ -174,6 +179,19 @@ Cancel an active task.
 a2acli cancel <task_id>
 ```
 
+#### `push-config` — Push Notification Configs
+Register, list, retrieve, and delete push-notification callbacks for a task.
+*(Maps to the A2A Protocol's `CreateTaskPushNotificationConfig` and related RPCs.)*
+
+```bash
+a2acli push-config create <task_id> https://myserver.example.com/notify
+a2acli push-config create <task_id> https://cb.example.com/notify \
+  --auth-scheme Bearer --auth-credentials mytoken --id my-config
+a2acli push-config list <task_id>
+a2acli push-config get <task_id> <config_id>
+a2acli push-config delete <task_id> <config_id>
+```
+
 #### `download` — Download Artifacts
 Download artifacts produced by a task to a local directory.
 
@@ -187,6 +205,15 @@ a2acli download <task_id> --out-dir ./downloads
 | `--file` | `-f` | Save artifact to a specific filename |
 
 ### Server & Mocking
+
+#### `conformance` — A2A Conformance Smoke Check
+Run a quick sequence of checks against a live A2A server: AgentCard well-formed,
+auth gating (if applicable), and a round-trip send. Non-zero exit code on failure.
+
+```bash
+a2acli conformance --service-url http://localhost:9001
+a2acli conformance --service-url https://agent.example.com --token mytoken --output json
+```
 
 #### `serve` — Run a Mock Agent
 Spin up an A2A-compliant echo agent locally for testing and development.
