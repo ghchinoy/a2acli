@@ -46,6 +46,7 @@ conformance-report: ## Run conformance tests and update docs/CONFORMANCE_REPORT.
 	@echo "" >> docs/CONFORMANCE_REPORT.md
 	@echo "- A2A v1.0.0: **PASSING**" >> docs/CONFORMANCE_REPORT.md
 	@echo "- A2A v0.3.0: **PASSING**" >> docs/CONFORMANCE_REPORT.md
+	@echo "- A2UI Extension v1.0: **PARTIAL** (harness passing; SUT has schema issue)" >> docs/CONFORMANCE_REPORT.md
 	@echo "" >> docs/CONFORMANCE_REPORT.md
 	@echo "### Test Results Summary" >> docs/CONFORMANCE_REPORT.md
 	@echo "" >> docs/CONFORMANCE_REPORT.md

@@ -244,4 +244,86 @@ func TestConformance(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("A2UI-Extension-v1.0", func(t *testing.T) {
+		// Run the apex A2UI sample server from the sibling directory
+		apexSutDir := "../../../apex/tools/sample_servers/a2a_a2ui"
+		// If running from workspace root ~/projects/a2acli/e2e
+		if _, err := os.Stat(apexSutDir); os.IsNotExist(err) {
+			// Try absolute path under /Users/ghchinoy or home
+			home, _ := os.UserHomeDir()
+			apexSutDir = home + "/projects/apex/tools/sample_servers/a2a_a2ui"
+			if _, err := os.Stat(apexSutDir); os.IsNotExist(err) {
+				t.Skipf("apex A2UI sample server not found at %s", apexSutDir)
+			}
+		}
+
+		sutCmd := exec.Command("go", "run", ".")
+		sutCmd.Dir = apexSutDir
+		var sutOut bytes.Buffer
+		sutCmd.Stdout = &sutOut
+		sutCmd.Stderr = &sutOut
+		if err := sutCmd.Start(); err != nil {
+			t.Fatalf("failed to start apex A2UI SUT: %v", err)
+		}
+		defer func() { _ = sutCmd.Process.Kill() }()
+
+		sutURL := "http://127.0.0.1:9002"
+		if err := waitForServer(sutURL+"/a2a", 10*time.Second); err != nil {
+			t.Fatalf("apex A2UI SUT failed to start. Logs:\n%s", sutOut.String())
+		}
+
+		t.Run("Validate", func(t *testing.T) {
+			// Currently, the apex server is known to emit a non-conformant "h1" variant
+			// (v1.0 spec only allows caption/body). Assert that 'a2ui validate' correctly
+			// exits non-zero, but parses successfully and flags the schema failure.
+			cmd := runCLI("a2ui", "validate", "--output", "json", "-u", sutURL, "--probe", "show me a showcase card about cats")
+			out, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("expected validation to fail on non-conformant payload, but it exited 0!\nOutput: %s", out)
+			}
+
+			var report struct {
+				Passed  bool `json:"passed"`
+				Results []struct {
+					Name    string `json:"name"`
+					Passed  bool   `json:"passed"`
+					Skipped bool   `json:"skipped"`
+					Message string `json:"message"`
+				} `json:"results"`
+			}
+			if err := json.Unmarshal(out, &report); err != nil {
+				t.Fatalf("failed to parse validation JSON: %v\nOutput: %s", err, out)
+			}
+
+			if report.Passed {
+				t.Error("expected report.passed to be false")
+			}
+
+			// Verify that the AgentCard extension, MIME, shape, and versions pass,
+			// but schema validation fails. This proves the precision of the validator.
+			checks := make(map[string]bool)
+			for _, r := range report.Results {
+				checks[r.Name] = r.Passed
+				if r.Name == "DataPart 1: schema validation" && r.Passed {
+					t.Error("expected 'DataPart 1: schema validation' to FAIL, but it passed")
+				}
+			}
+
+			expectedPass := []string{
+				"AgentCard A2UI extension",
+				"A2UI DataParts present",
+				"DataPart 1: MIME type",
+				"DataPart 1: payload shape",
+				"DataPart 1: envelope versions",
+			}
+			for _, name := range expectedPass {
+				if passed, ok := checks[name]; !ok {
+					t.Errorf("expected check %q not found in results", name)
+				} else if !passed {
+					t.Errorf("expected check %q to PASS, but it failed", name)
+				}
+			}
+		})
+	})
 }
