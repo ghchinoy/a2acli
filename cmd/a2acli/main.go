@@ -49,6 +49,7 @@ var (
 	requestTimeout  time.Duration
 	wait            bool
 	immediate       bool
+	verbose         bool
 	transport       string
 	protocol        string
 	authHeaders     []string
@@ -72,6 +73,15 @@ func fatalf(format string, err error, hint string) {
 		fmt.Fprintf(os.Stderr, "Hint: %s\n", hint)
 	}
 	os.Exit(1)
+}
+
+// verboseLog writes a diagnostic line to stderr when --verbose is active.
+// Output always goes to stderr so it never pollutes --output json stdout.
+func verboseLog(format string, args ...any) {
+	if !verbose {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[verbose] "+format+"\n", args...)
 }
 
 func init() {
@@ -123,6 +133,7 @@ func getResolver() *agentcard.Resolver {
 	if t == 0 {
 		t = 30 * time.Second
 	}
+	verboseLog("resolving agent card from %s (timeout: %s)", serviceURL, t)
 	if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
 		return &agentcard.Resolver{
 			Client:     &http.Client{Timeout: t},
@@ -184,10 +195,14 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 		}
 	}
 
-	if !disableTUI {
-		if transport == "" {
+	if transport == "" {
+		verboseLog("auto-selected transport: %s", selectedTransport)
+		if outputMode == "tui" {
 			fmt.Printf("Auto-selected transport: %s\n", StyleAccent.Render(string(selectedTransport)))
-		} else {
+		}
+	} else {
+		verboseLog("forcing transport: %s", selectedTransport)
+		if outputMode == "tui" {
 			fmt.Printf("Forcing transport: %s\n", StyleAccent.Render(string(selectedTransport)))
 		}
 	}
@@ -227,6 +242,12 @@ func resolveOutputMode() {
 	// Sync disableTUI for any existing code that checks it directly.
 	// text mode and tui mode both leave disableTUI=false; only json sets it true.
 	disableTUI = (outputMode == "json")
+	// Also honour A2ACLI_VERBOSE env var.
+	if os.Getenv("A2ACLI_VERBOSE") == "true" {
+		verbose = true
+	}
+	verboseLog("output mode: %s, protocol: %s, transport: %q, timeout: %s",
+		outputMode, protocol, transport, requestTimeout)
 }
 
 // runText prints a human-readable stream of events to stdout without the Bubble Tea TUI.
@@ -239,8 +260,11 @@ func runText(stream chan streamMsg, outDir string) {
 		}
 		switch e := msg.Event.(type) {
 		case *a2a.TaskStatusUpdateEvent:
+			verboseLog("event: TaskStatusUpdate state=%s", e.Status.State)
 			fmt.Printf("Status: %s\n", e.Status.State)
 		case *a2a.TaskArtifactUpdateEvent:
+			verboseLog("event: TaskArtifactUpdate artifact=%q append=%v lastChunk=%v",
+				e.Artifact.Name, e.Append, e.LastChunk)
 			fmt.Printf("Artifact: %s\n", e.Artifact.Name)
 			for _, p := range e.Artifact.Parts {
 				if tp, ok := p.Content.(a2a.Text); ok {
@@ -259,6 +283,8 @@ func runDescribe(_ *cobra.Command, _ []string) {
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+serviceURL)
 	}
+	verboseLog("resolved AgentCard: name=%q version=%q skills=%d interfaces=%d",
+		card.Name, card.Version, len(card.Skills), len(card.SupportedInterfaces))
 
 	if disableTUI {
 		b, err := json.MarshalIndent(card, "", "  ")
@@ -285,13 +311,44 @@ func runDescribe(_ *cobra.Command, _ []string) {
 			formats = append(formats, b)
 		}
 	}
-	formatStr := strings.Join(formats, ", ")
-
-	if formatStr != "" {
-		fmt.Printf("Supported Bindings: %s\n", formatStr)
+	if len(formats) > 0 {
+		fmt.Printf("Supported Bindings: %s\n", strings.Join(formats, ", "))
 	}
 
 	fmt.Printf("Capabilities: [Streaming: %v]\n", card.Capabilities.Streaming)
+
+	// Security schemes defined at the agent level.
+	if len(card.SecuritySchemes) > 0 {
+		fmt.Printf("\nSecurity Schemes:\n")
+		for name, scheme := range card.SecuritySchemes {
+			switch s := scheme.(type) {
+			case *a2a.HTTPAuthSecurityScheme:
+				fmt.Printf("  %s (http/%s)\n", name, s.Scheme)
+				if s.BearerFormat != "" {
+					fmt.Printf("    Format: %s\n", s.BearerFormat)
+				}
+				verboseLog("security scheme %q: http scheme=%s bearerFormat=%s", name, s.Scheme, s.BearerFormat)
+			case *a2a.OAuth2SecurityScheme:
+				fmt.Printf("  %s (oauth2)\n", name)
+				if s.Oauth2MetadataURL != "" {
+					fmt.Printf("    Metadata: %s\n", s.Oauth2MetadataURL)
+				}
+				verboseLog("security scheme %q: oauth2 metadataURL=%s", name, s.Oauth2MetadataURL)
+			case *a2a.APIKeySecurityScheme:
+				fmt.Printf("  %s (apiKey: %s %s)\n", name, s.Location, s.Name)
+				verboseLog("security scheme %q: apiKey location=%s name=%s", name, s.Location, s.Name)
+			case *a2a.OpenIDConnectSecurityScheme:
+				fmt.Printf("  %s (openIdConnect)\n", name)
+				verboseLog("security scheme %q: openIdConnect url=%s", name, s.OpenIDConnectURL)
+			case *a2a.MutualTLSSecurityScheme:
+				fmt.Printf("  %s (mutualTLS)\n", name)
+				verboseLog("security scheme %q: mutualTLS", name)
+			default:
+				fmt.Printf("  %s (unknown)\n", name)
+			}
+		}
+	}
+
 	fmt.Printf("\nSkills:\n")
 	for _, s := range card.Skills {
 		fmt.Printf("  - [%s] %s\n", s.ID, s.Name)
@@ -336,12 +393,14 @@ func runSend(_ *cobra.Command, args []string) {
 	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(messageText))
 	if targetTaskID != "" {
 		msg.TaskID = a2a.TaskID(targetTaskID)
+		verboseLog("continuing task: %s", targetTaskID)
 		if !disableTUI {
 			fmt.Printf("Continuing Task: %s\n", targetTaskID)
 		}
 	}
 	if refTaskID != "" {
 		msg.ReferenceTasks = []a2a.TaskID{a2a.TaskID(refTaskID)}
+		verboseLog("referencing task: %s", refTaskID)
 		if !disableTUI {
 			fmt.Printf("Referencing Task: %s\n", refTaskID)
 		}
@@ -352,7 +411,10 @@ func runSend(_ *cobra.Command, args []string) {
 	}
 	if skillID != "" {
 		params.Metadata = map[string]any{"skillId": skillID}
+		verboseLog("targeting skill: %s", skillID)
 	}
+	verboseLog("sending message: text_len=%d task=%q ref=%q immediate=%v wait=%v",
+		len(messageText), targetTaskID, refTaskID, immediate, wait)
 
 	// --immediate: fire-and-forget — return the task ID without waiting or streaming
 	if immediate {
@@ -491,6 +553,7 @@ func runWatch(_ *cobra.Command, args []string) {
 func runGet(cmd *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
+	verboseLog("GetTask: %s", taskID)
 
 	card, err := getResolver().Resolve(ctx, serviceURL)
 	if err != nil {
@@ -515,6 +578,7 @@ func runGet(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fatalf("failed to retrieve task", err, "Check the task ID or verify the server state")
 	}
+	verboseLog("GetTask response: state=%s artifacts=%d", task.Status.State, len(task.Artifacts))
 
 	if disableTUI {
 		b, err := json.MarshalIndent(task, "", "  ")
@@ -536,6 +600,7 @@ func runGet(cmd *cobra.Command, args []string) {
 func runCancel(_ *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
+	verboseLog("CancelTask: %s", taskID)
 
 	card, err := getResolver().Resolve(ctx, serviceURL)
 	if err != nil {
@@ -553,6 +618,7 @@ func runCancel(_ *cobra.Command, args []string) {
 	if err != nil {
 		fatalf("failed to cancel task", err, "Check the task ID or verify the server state")
 	}
+	verboseLog("CancelTask response: state=%s", task.Status.State)
 
 	if disableTUI {
 		b, err := json.MarshalIndent(task, "", "  ")
@@ -579,6 +645,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI — alias for --output json (backwards compat)")
 	rootCmd.PersistentFlags().StringVar(&outputMode, "output", "", "Output mode: tui (default), text (plain, no animations), json (NDJSON for scripting)")
 	rootCmd.PersistentFlags().DurationVar(&requestTimeout, "timeout", 0, "Request timeout, e.g. 30s, 2m (0 = no timeout)")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Print diagnostic info to stderr (also: A2ACLI_VERBOSE=true)")
 	rootCmd.PersistentFlags().StringVar(&transport, "transport", "", "Force a specific transport protocol (grpc, jsonrpc, rest)")
 	rootCmd.PersistentFlags().StringVarP(&protocol, "protocol", "p", "1.0.0", "A2A protocol version (1.0.0 or 0.3.0)")
 	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
@@ -759,16 +826,23 @@ func runRaw(stream chan streamMsg, outDir string) {
 			os.Exit(1)
 		}
 
+		switch e := msg.Event.(type) {
+		case *a2a.TaskStatusUpdateEvent:
+			verboseLog("event: TaskStatusUpdate state=%s", e.Status.State)
+		case *a2a.TaskArtifactUpdateEvent:
+			verboseLog("event: TaskArtifactUpdate artifact=%q append=%v lastChunk=%v",
+				e.Artifact.Name, e.Append, e.LastChunk)
+			if outDir != "" || outFile != "" {
+				_, _ = saveArtifact(outDir, outFile, *e.Artifact, 0)
+			}
+		}
+
 		b, err := json.Marshal(msg.Event)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "{\"error\": \"failed to encode event to json\"}\n")
 			continue
 		}
 		fmt.Println(string(b))
-
-		if v, ok := msg.Event.(*a2a.TaskArtifactUpdateEvent); ok && (outDir != "" || outFile != "") {
-			_, _ = saveArtifact(outDir, outFile, *v.Artifact, 0)
-		}
 	}
 }
 
