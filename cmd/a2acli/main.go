@@ -719,7 +719,7 @@ You can save artifacts produced by the task using the --out-dir flag.`,
 			}
 			return nil
 		},
-		Run:  runSend,
+		Run: runSend,
 	}
 
 	var watchCmd = &cobra.Command{
@@ -835,7 +835,7 @@ and can be overridden by environment variables and command-line flags.`,
 		_ = cmd.Help()
 	}
 
-	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd())
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd(), setupA2UICmd())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)

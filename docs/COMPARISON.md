@@ -26,6 +26,7 @@ on an official canonical CLI:
 | stdin piping on send | — | — | `echo msg \| a2acli send` | a2acli addition; ericabouaf/a2a-cli also supports this. |
 | Push-notification configs | — | — | `push-config create/list/get/delete` | a2acli addition; full A2A push RPC surface. |
 | Conformance smoke check | — | — | `conformance` | a2acli addition; PASS/SKIP/FAIL per check, JSON mode for CI. |
+| A2UI extension conformance | — | — | `a2ui validate` | a2acli addition; renderer-free wire validation vs official A2UI v1.0 schemas. |
 | Mock echo server | — | `serve --echo` | `serve --echo` | Aligned. |
 | Proxy server | — | `serve --proxy` | planned (`a2ac-6x6`) | Stub exists, not yet implemented. |
 | Exec wrapping | — | `serve --exec` | planned (`a2ac-7n2`) | Stub exists, not yet implemented. |
@@ -119,6 +120,14 @@ Two conformance layers: an automated e2e suite against the official A2A TCK SUT
 for quick smoke-testing any live A2A server — AgentCard validation, auth gating check,
 round-trip send. The smoke check supports `--output json` for CI integration and exits
 non-zero on any failure. See [docs/CONFORMANCE_REPORT.md](CONFORMANCE_REPORT.md).
+
+**A2UI extension conformance — renderer-free**
+`a2ui validate` certifies that a server emits a conformant A2UI v1.0 extension stream
+by validating the DataPart wire format against the official, vendored A2UI JSON Schemas
+— no Flutter/UI renderer needed. This makes a2acli a conformance harness for an A2A
+*extension*, not just the base protocol, and positions it as a reusable checker for the
+whole A2UI ecosystem. The validation engine (`internal/conformance`) is schema-driven
+and shared, so future extensions (and ARD) plug in without bespoke validators.
 
 **Push notification config management**
 `push-config create/list/get/delete` covers the full A2A push notification RPC surface

@@ -204,7 +204,7 @@ func printConformanceResults(results []conformanceResult, overallPass bool) {
 	if disableTUI {
 		type jsonOut struct {
 			Results []conformanceResult `json:"results"`
-			Passed  bool               `json:"passed"`
+			Passed  bool                `json:"passed"`
 		}
 		b, _ := json.MarshalIndent(jsonOut{Results: results, Passed: overallPass}, "", "  ")
 		fmt.Println(string(b))

@@ -215,6 +215,23 @@ a2acli conformance --service-url http://localhost:9001
 a2acli conformance --service-url https://agent.example.com --token mytoken --output json
 ```
 
+#### `a2ui validate` — A2UI Extension Conformance
+Validate that a server emits a conformant **A2UI v1.0** extension stream — at the
+wire level, against the official A2UI JSON Schemas, with no UI renderer required.
+A2UI rides inside A2A DataParts, so a2acli can certify both the base protocol and
+the A2UI extension in one tool. Schemas are vendored and embedded for reproducible,
+offline validation.
+
+```bash
+a2acli a2ui validate --service-url http://localhost:9002
+a2acli a2ui validate -u http://localhost:9002 --probe "show me the showcase card"
+a2acli a2ui validate -u http://localhost:9002 --output json
+```
+
+Checks: AgentCard declares the A2UI extension → DataParts use `metadata.mimeType:
+application/a2ui+json` → each payload is an array of `v1.0` envelopes → each list
+validates against `server_to_client_list.json`. Non-zero exit on any failure.
+
 #### `serve` — Run a Mock Agent
 Spin up an A2A-compliant echo agent locally for testing and development.
 
