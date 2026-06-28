@@ -32,6 +32,7 @@ import (
 	a2agrpc "github.com/a2aproject/a2a-go/v2/a2agrpc/v1"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
 
@@ -218,20 +219,34 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 	return a2aclient.NewFromCard(ctx, card, opts...)
 }
 
+// isTTY reports whether stdout is an interactive terminal.
+func isTTY() bool {
+	return isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+}
+
 // resolveOutputMode determines the effective output mode from flags and env vars.
-// Priority: --output flag > -n/--no-tui > A2ACLI_NO_TUI env > NO_COLOR env > default (tui)
+// Priority: --output flag > -n/--no-tui > A2ACLI_NO_TUI env > NO_COLOR env > no-TTY > default (tui)
 func resolveOutputMode() {
 	switch outputMode {
 	case "tui", "text", "json":
-		// explicit --output value is valid, use it
+		// explicit --output value is valid; honour it even in a non-TTY context
+		// (the user knows what they asked for)
 	case "":
-		// not explicitly set — derive from other signals
+		// not explicitly set — derive from signals, most-specific first
 		if disableTUI {
 			outputMode = "json"
 		} else if os.Getenv("A2ACLI_NO_TUI") == "true" {
 			outputMode = "json"
 		} else if os.Getenv("NO_COLOR") != "" {
 			outputMode = "text"
+		} else if os.Getenv("CI") != "" {
+			// Standard CI env var: degrade to text so streaming still works
+			outputMode = "text"
+		} else if !isTTY() {
+			// No interactive terminal: degrade to text so streaming events
+			// print line-by-line rather than aborting with "could not open a new TTY"
+			outputMode = "text"
+			verboseLog("no TTY detected — degrading from tui to text mode")
 		} else {
 			outputMode = "tui"
 		}
