@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -383,7 +384,18 @@ func runDescribe(_ *cobra.Command, _ []string) {
 }
 
 func runSend(_ *cobra.Command, args []string) {
-	messageText := args[0]
+	var messageText string
+	if len(args) == 0 {
+		// No positional arg — read from stdin (only reachable when stdin is not a TTY)
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fatalf("failed to read message from stdin", err, "Ensure stdin is readable or provide the message as an argument")
+		}
+		messageText = strings.TrimRight(string(data), "\r\n")
+		verboseLog("read message from stdin: %d bytes", len(messageText))
+	} else {
+		messageText = args[0]
+	}
 
 	if instructionFile != "" {
 		content, err := os.ReadFile(instructionFile)
@@ -698,7 +710,15 @@ You can save artifacts produced by the task using the --out-dir flag.`,
   a2acli send "Add error handling to that CLI" --task <taskID>
   a2acli send "Summarize this task" --ref <taskID>
   a2acli send "Generate report" --skill reports --wait --out-dir ./reports`,
-		Args: cobra.MinimumNArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 && isTTY() {
+				return fmt.Errorf("message text required as argument or via stdin pipe")
+			}
+			if len(args) > 1 {
+				return fmt.Errorf("accepts at most 1 arg, received %d", len(args))
+			}
+			return nil
+		},
 		Run:  runSend,
 	}
 
@@ -815,7 +835,7 @@ and can be overridden by environment variables and command-line flags.`,
 		_ = cmd.Help()
 	}
 
-	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd, setupServeCmd(), setupListCmd())
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
