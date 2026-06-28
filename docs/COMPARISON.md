@@ -15,7 +15,7 @@ on an official canonical CLI:
 |---|---|---|---|---|
 | Agent discovery | `discover` | `discover` | `discover` | Aligned. `describe` kept as alias. |
 | Send message | `send` | `send` | `send` | Aligned. |
-| Stream response | — | `send --stream` | default | a2acli streams by default. |
+| Stream response | — | `send --stream` | default | a2acli streams by default; auto-degrades to text when no TTY. |
 | Fire-and-forget | `send --return-immediately` | `send --immediate` | `send --immediate` | Aligned with #306. |
 | Blocking send | — | — | `send --wait` | a2acli addition. |
 | Get task | `task get` | `get task` | `get` | Same operation; a2acli drops the noun (only gets tasks). |
@@ -39,8 +39,8 @@ on an official canonical CLI:
 | Service params | — | `--svc-param` | `--svc-param` | Aligned. |
 | Transport | — | `--transport` | `--transport` | Aligned. |
 | Timeout | — | `--timeout 30s` | `--timeout` | Aligned. Default is 0 (no timeout); 30s applied to agent card resolution. |
+| Verbose | — | `--verbose / -v` | `--verbose / -v` | Aligned. Also: `A2ACLI_VERBOSE=true` env var. |
 | Tenant | — | `--tenant` | planned | Not yet implemented. |
-| Verbose | — | `--verbose / -v` | — | Not yet implemented. |
 | Protocol version | — | — | `--protocol` | a2acli addition for v0.3.0 backward compat. |
 | Named environment | — | — | `--env / -e` | a2acli addition. |
 | Config file | — | — | `--config / -c` | a2acli addition. |
@@ -58,10 +58,10 @@ on an official canonical CLI:
 | `--context` | `--context` | `--ref / -r` | Different semantics: `--ref` references a *completed* task, not a context ID. |
 | `--skill` | — | `--skill / -s` | a2acli addition. |
 | `--instruction-file` | `-f file` | `--instruction-file / -i` | Similar. #306 reads a full JSON Message; a2acli appends plain text. |
-| `--parts` / `--json` | ✓ | planned (`a2ac-79d`) | Structured multi-modal input not yet implemented. |
+| `--parts` / `--json` / `--file` | ✓ | planned (`a2ac-79d`) | Multi-modal input not yet implemented. |
 | `--history` | ✓ | — | Not yet implemented. |
 | `--out-dir` | — | `--out-dir / -o` | a2acli addition for artifact saving. |
-| `--file` | — | `--file / -f` | a2acli addition. |
+| `--file` (output) | — | `--file / -f` | a2acli addition. |
 
 ---
 
@@ -75,13 +75,23 @@ Switch between local, staging, and production agents without re-typing URLs and 
 a2acli send "Generate report" --env staging
 ```
 
-**`--output text` mode**
-A third output mode between TUI and JSON — human-readable plain text with no animations.
-Useful for CI log output where JSON is too noisy but the TUI won't render.
+**Three-tier output mode with automatic TTY detection**
+`--output tui` (default interactive), `--output text` (plain, for CI/pipes), `--output json`
+(NDJSON for scripting). Critically, when stdout is not a terminal, a2acli automatically
+degrades from `tui` to `text` — streaming works correctly in pipes, CI environments, and
+agent contexts without any flags. Also degrades on `CI=true` and `NO_COLOR` env vars.
+The proposals offer `tui` or `json` only; the `text` middle ground and auto-detection are a2acli additions.
 
-**`--output` mode integration with `NO_COLOR`**
-`NO_COLOR=true` maps to `--output text` (plain human-readable), not `--output json`.
-Most CLIs treat `NO_COLOR` as "disable ANSI codes" without switching to machine output.
+**`--verbose / -v` to stderr, composable with `--output json`**
+Diagnostic output always goes to stderr, never contaminating stdout. Scripts get clean
+JSON on stdout while humans see `[verbose]` context on stderr. `A2ACLI_VERBOSE=true`
+also activates it.
+
+**Type-aware security scheme display in `discover`**
+`discover` parses `SecuritySchemes` from the AgentCard and shows scheme type
+(`http/bearer`, `oauth2`, `apiKey`, `openIdConnect`, `mutualTLS`) with relevant metadata
+(bearer format, OAuth2 metadata URL, API key location+name). Most CLIs show only the
+scheme name. Verbose mode shows additional OAuth2 flow details.
 
 **Multi-environment config file**
 XDG-compliant `~/.config/a2acli/config.yaml` with named environments, precedence chain
@@ -102,10 +112,10 @@ to learn correct `--output json` and `--wait` usage without manual configuration
 
 **TCK conformance testing**
 An automated end-to-end conformance suite against the official A2A TCK SUT.
-Conformance is verified on every release.
+Conformance is verified on every release. See [docs/CONFORMANCE_REPORT.md](CONFORMANCE_REPORT.md).
 
 **Artifact management**
-`--out-dir` and `--file` flags on `send`, `get`, `watch`, and `download` provide
+`--out-dir` and `--file` flags on `send`, `get`, `subscribe`, and `download` provide
 first-class artifact saving without requiring a separate pipeline step.
 
 ---
@@ -116,12 +126,14 @@ These items from the proposals are tracked in the issue tracker and not yet impl
 
 | Item | Issue | Priority |
 |---|---|---|
-| `serve --proxy` | `a2ac-6x6` | 2 |
-| `serve --exec` | `a2ac-7n2` | 2 |
-| `send --parts` / `--json` structured input | `a2ac-79d` | 3 |
-| `list tasks` filters (`--context`, `--status`, `--since`) | `a2ac-mvu` | 3 |
+| `discover --extended` (authenticated card) | `a2ac-o2i` | 2 |
+| `send` multi-modal input (`--parts`, `--json`, `--file`, `--data`) | `a2ac-79d` | 2 |
+| `list tasks` filters (`--context`, `--status`, `--since`, `--with-artifacts`) | `a2ac-mvu` | 2 |
+| push-notification config commands (`push-config create/list/get/delete`) | `a2ac-bir` | 1 |
+| stdin piping on `send` | `a2ac-8r7` | 1 |
+| `serve --proxy` | `a2ac-6x6` | 3 |
+| `serve --exec` | `a2ac-7n2` | 3 |
 | `--tenant` global flag | — | — |
-| `--verbose / -v` global flag | — | — |
 
 ---
 
