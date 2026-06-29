@@ -82,19 +82,18 @@ func initConfig() {
 	envPrefix := fmt.Sprintf("envs.%s.", targetEnv)
 	envURL := viper.GetString(envPrefix + "service_url")
 	envToken := viper.GetString(envPrefix + "token")
+	envTransport := viper.GetString(envPrefix + "transport")
 
-	// 3. Override global variables if they were NOT set by explicitly passed CLI flags
-	// (Cobra/Viper integration handles this cleanly if we ask Viper, but since we are binding
-	// directly to vars in root.PersistentFlags, we manually check if the user left them as defaults).
+	// 3. Override global variables if they were NOT set by explicitly passed CLI flags.
 
-	// If the user didn't explicitly pass a URL via the command line (-u), use the config URL
 	if !rootCmd.Flag("service-url").Changed && envURL != "" {
 		serviceURL = envURL
 	}
-
-	// If the user didn't explicitly pass a token (-t), use the config token
 	if !rootCmd.Flag("token").Changed && envToken != "" {
 		authToken = envToken
+	}
+	if !rootCmd.Flag("transport").Changed && envTransport != "" {
+		transport = envTransport
 	}
 }
 func runConfig(_ *cobra.Command, _ []string) {
@@ -115,4 +114,7 @@ func runConfig(_ *cobra.Command, _ []string) {
 		tokenStr = "<set>"
 	}
 	fmt.Printf("Auth Token: %s\n", tokenStr)
+	if transport != "" {
+		fmt.Printf("Transport: %s\n", transport)
+	}
 }

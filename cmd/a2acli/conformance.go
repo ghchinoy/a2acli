@@ -24,6 +24,7 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/ghchinoy/a2acli/internal/oauth"
 	"github.com/spf13/cobra"
 )
 
@@ -116,11 +117,20 @@ func runConformance(_ *cobra.Command, _ []string) {
 		}
 	}
 
+	// Resolve effective token: explicit --token flag, then the token store.
+	effectiveToken := authToken
+	if effectiveToken == "" {
+		if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil && !stored.IsExpired() {
+			effectiveToken = stored.AccessToken
+			verboseLog("conformance: using stored token for %s", serviceURL)
+		}
+	}
+
 	if !requiresAuth {
 		results = append(results, skip("Auth gating", "AgentCard declares no security requirements"))
-	} else if authToken == "" && len(authHeaders) == 0 {
+	} else if effectiveToken == "" && len(authHeaders) == 0 {
 		results = append(results, skip("Auth gating",
-			"server requires auth but no --token provided; pass --token to test rejection + acceptance"))
+			"server requires auth but no token available; run 'a2acli auth login' or pass --token"))
 	} else {
 		// Test that the well-known endpoint exists (card fetch already passed).
 		// Test that an unauthenticated direct HTTP request is rejected.
@@ -158,9 +168,9 @@ func runConformance(_ *cobra.Command, _ []string) {
 
 	// Pick the first skill that doesn't require auth (or any skill if auth is provided).
 	testSkill := ""
-	for _, s := range card.Skills {
-		needsAuth := len(s.SecurityRequirements) > 0
-		if !needsAuth || authToken != "" || len(authHeaders) > 0 {
+		for _, s := range card.Skills {
+			needsAuth := len(s.SecurityRequirements) > 0
+			if !needsAuth || effectiveToken != "" || len(authHeaders) > 0 {
 			testSkill = s.ID
 			break
 		}

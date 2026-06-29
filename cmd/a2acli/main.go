@@ -383,7 +383,7 @@ func runDescribe(_ *cobra.Command, _ []string) {
 						fmt.Printf("    Token URL:    %s\n", f.TokenURL)
 					}
 				}
-				fmt.Printf("    Hint: pass via --token <jwt>  (or 'a2acli auth login' once available)\n")
+				fmt.Printf("    Hint: run 'a2acli auth login -u %s' or pass via --token <jwt>\n", serviceURL)
 				verboseLog("security scheme %q: oauth2 metadataURL=%s flows=%T", name, s.Oauth2MetadataURL, s.Flows)
 			case a2a.APIKeySecurityScheme:
 				fmt.Printf("  %s: apiKey in %s (header: %s)\n", name, s.Location, s.Name)
