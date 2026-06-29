@@ -22,6 +22,18 @@ When you push a Git tag starting with `v` (e.g. `v1.2.0`), the release workflow 
 | `HOMEBREW_TAP_GITHUB_TOKEN` | Pushing formula to `ghchinoy/homebrew-tap` |
 | `WINGET_GITHUB_TOKEN` | Pushing manifests to `ghchinoy/winget-pkgs` fork |
 
+## SDK version alignment
+
+a2acli and its sister projects (a2a-simple, syntaxis, …) all depend on
+`github.com/a2aproject/a2a-go/v2`. Keep versions in sync across repos — the SDK
+has had breaking API changes between minor versions (e.g. v2.2.0 → v2.3.1 changed
+the push-notification config API: `CreateTaskPushConfigRequest` was replaced by
+passing `*a2a.PushConfig` directly with `TaskID` embedded). A version skew between
+a2acli and a test-target server will produce confusing errors at the transport or
+JSON-RPC layer, not obvious compile errors.
+
+Check before releasing: `grep a2a-go go.mod` and compare with sister projects.
+
 ## CIMD document stability
 
 `docs/metadata.json` is served via GitHub Pages at

@@ -165,18 +165,53 @@ func (e *echoExecutor) Execute(_ context.Context, execCtx *a2asrv.ExecutorContex
 			return
 		}
 
-		var text string
-		for _, part := range execCtx.Message.Parts {
-			if tp, ok := part.Content.(a2a.Text); ok {
-				text += string(tp)
+		// Reflect every received part back as a named artifact, preserving
+		// part type and mediaType. This makes serve --echo a self-contained
+		// test target for multi-modal message construction (a2ac-79d).
+		parts := execCtx.Message.Parts
+		for i, part := range parts {
+			var outPart *a2a.Part
+			var name string
+			switch content := part.Content.(type) {
+			case a2a.Text:
+				outPart = a2a.NewTextPart(string(content))
+				name = fmt.Sprintf("part-%d-text", i)
+			case a2a.Data:
+				dp := a2a.NewDataPart(content.Value)
+				dp.MediaType = part.MediaType
+				outPart = dp
+				name = fmt.Sprintf("part-%d-data", i)
+			case a2a.Raw:
+				rp := a2a.NewRawPart([]byte(content))
+				rp.MediaType = part.MediaType
+				outPart = rp
+				name = fmt.Sprintf("part-%d-raw", i)
+			case a2a.URL:
+				outPart = a2a.NewFileURLPart(content, part.MediaType)
+				name = fmt.Sprintf("part-%d-url", i)
+			default:
+				outPart = a2a.NewTextPart(fmt.Sprintf("[unknown part type %T]", content))
+				name = fmt.Sprintf("part-%d-unknown", i)
+			}
+			evt := a2a.NewArtifactEvent(execCtx, outPart)
+			evt.Artifact.Name = name
+			if i == len(parts)-1 {
+				evt.LastChunk = true
+			}
+			if !yield(evt, nil) {
+				return
 			}
 		}
 
-		evt := a2a.NewArtifactEvent(execCtx, a2a.NewTextPart(text))
-		evt.LastChunk = true
-		if !yield(evt, nil) {
-			return
+		// If no parts were received, emit an empty text artifact.
+		if len(parts) == 0 {
+			evt := a2a.NewArtifactEvent(execCtx, a2a.NewTextPart(""))
+			evt.LastChunk = true
+			if !yield(evt, nil) {
+				return
+			}
 		}
+
 		yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCompleted, nil), nil)
 	}
 }
