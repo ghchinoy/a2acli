@@ -22,6 +22,15 @@ When you push a Git tag starting with `v` (e.g. `v1.2.0`), the release workflow 
 | `HOMEBREW_TAP_GITHUB_TOKEN` | Pushing formula to `ghchinoy/homebrew-tap` |
 | `WINGET_GITHUB_TOKEN` | Pushing manifests to `ghchinoy/winget-pkgs` fork |
 
+## CIMD document stability
+
+`docs/metadata.json` is served via GitHub Pages at
+`https://ghchinoy.github.io/a2acli/metadata.json` and is a2acli's OAuth 2.1
+client identity document (`client_id`). **Do not change the `client_id` URL** —
+it is registered with OAuth consent SPAs that display the client name and logo.
+If you need to change its content (e.g. add a redirect URI), update the JSON and
+redeploy via a normal commit; the URL itself must remain stable across releases.
+
 ## Step-by-step release guide
 
 ### 1. Ensure `main` is clean and up to date

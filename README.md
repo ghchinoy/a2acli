@@ -8,14 +8,21 @@ A standalone, A2A Specification v1.0 compliant command-line client for discoveri
 ## Quick Start
 
 ```bash
-# Describe an agent — fetch its AgentCard, skills, and capabilities
+# Describe an agent — fetch its AgentCard, skills, and security requirements
 a2acli discover --service-url http://localhost:9001
 
 # Send a message and stream responses in real time
 a2acli send "Generate a project plan" --service-url http://localhost:9001
 
 # Send a message and get a single JSON result (for scripting and agents)
-a2acli send "Generate a project plan" --service-url http://localhost:9001 -n --wait
+a2acli send "Generate a project plan" --service-url http://localhost:9001 --output json --wait
+```
+
+**With an OAuth 2.1-protected agent** (one-time setup, then no `--token` needed):
+
+```bash
+a2acli auth login --service-url https://agent.example.com   # browser opens once
+a2acli send "hello" --service-url https://agent.example.com --wait   # auto-authenticated
 ```
 
 ## Installation
@@ -206,32 +213,6 @@ a2acli download <task_id> --out-dir ./downloads
 
 ### Server & Mocking
 
-#### `conformance` — A2A Conformance Smoke Check
-Run a quick sequence of checks against a live A2A server: AgentCard well-formed,
-auth gating (if applicable), and a round-trip send. Non-zero exit code on failure.
-
-```bash
-a2acli conformance --service-url http://localhost:9001
-a2acli conformance --service-url https://agent.example.com --token mytoken --output json
-```
-
-#### `a2ui validate` — A2UI Extension Conformance
-Validate that a server emits a conformant **A2UI v1.0** extension stream — at the
-wire level, against the official A2UI JSON Schemas, with no UI renderer required.
-A2UI rides inside A2A DataParts, so a2acli can certify both the base protocol and
-the A2UI extension in one tool. Schemas are vendored and embedded for reproducible,
-offline validation.
-
-```bash
-a2acli a2ui validate --service-url http://localhost:9002
-a2acli a2ui validate -u http://localhost:9002 --probe "show me the showcase card"
-a2acli a2ui validate -u http://localhost:9002 --output json
-```
-
-Checks: AgentCard declares the A2UI extension → DataParts use `metadata.mimeType:
-application/a2ui+json` → each payload is an array of `v1.0` envelopes → each list
-validates against `server_to_client_list.json`. Non-zero exit on any failure.
-
 #### `serve` — Run a Mock Agent
 Spin up an A2A-compliant echo agent locally for testing and development.
 
@@ -245,10 +226,62 @@ a2acli serve --echo --port 9001
 | `--host` | `127.0.0.1` | Bind address |
 | `--echo` | — | Return the user's message as the response |
 
+### Authentication — `auth`
+
+Obtain, inspect, and revoke OAuth 2.1 tokens for agents that require authentication.
+Tokens are stored in `~/.config/a2acli/tokens/` (0600 permissions) and used
+automatically — no `--token` flag needed once logged in.
+
+```bash
+# Log in once — browser opens for OAuth 2.1 auth-code + PKCE flow
+a2acli auth login --service-url https://agent.example.com
+
+# Or log in using a named environment
+a2acli auth login --env mithlond
+
+# Check stored token validity
+a2acli auth status --service-url https://agent.example.com
+
+# Print the raw JWT (useful for scripts that need the token explicitly)
+TOKEN=$(a2acli auth token --service-url https://agent.example.com)
+
+# Remove the stored token
+a2acli auth logout --service-url https://agent.example.com
+```
+
+After `auth login`, all commands (`send`, `discover`, `conformance`, etc.) use the
+stored token automatically. The `auth token` subcommand is the `--token $(make token)`
+equivalent for scripts.
+
+> **Note for non-interactive contexts (CI, agents):** `auth login` requires a browser.
+> Use `auth token` to retrieve a previously stored token for `--token` in automated
+> contexts, or pass the JWT directly via `--token`.
+
+### `conformance` — A2A Conformance Smoke Check
+
+Run a quick sequence of checks against a live A2A server: AgentCard well-formed,
+auth gating (auto-uses stored token if available), and a round-trip send.
+Non-zero exit code on failure.
+
+```bash
+a2acli conformance --service-url http://localhost:9001
+a2acli conformance --env mithlond --output json   # uses stored token automatically
+```
+
+### `a2ui validate` — A2UI Extension Conformance
+
+Validate that a server emits a conformant **A2UI v1.0** extension stream — at the
+wire level, against the official A2UI JSON Schemas, with no UI renderer required.
+
+```bash
+a2acli a2ui validate --service-url http://localhost:9002
+a2acli a2ui validate -u http://localhost:9002 --output json
+```
+
 ### Client Configuration
 
 ```bash
-a2acli config    # Show active environment and config file location
+a2acli config    # Show active environment, URL, transport, and token status
 a2acli version   # Print version information
 ```
 
@@ -301,19 +334,26 @@ default_env: "local"
 envs:
   local:
     service_url: "http://127.0.0.1:9001"
+
   staging:
     service_url: "https://staging-agent.internal.corp"
-    token: "my-staging-auth-token"
-  prod:
-    service_url: "https://agent.example.com"
-    token: "my-secure-prod-token"
+    token: "my-staging-auth-token"         # static token; or omit and use auth login
+
+  mithlond:
+    service_url: "https://candir.mithlond.com"
+    # token omitted — stored automatically by 'a2acli auth login --env mithlond'
+    # transport omitted — auto-selected from AgentCard (JSONRPC in this case)
 ```
 
 Use the `--env` (`-e`) flag to select an environment:
 
 ```bash
-a2acli send "Generate report" --env staging
+a2acli auth login --env mithlond           # one-time browser login
+a2acli send "name star silver quenya" --env mithlond --skill name-generate --wait
+a2acli conformance --env mithlond          # auth gating auto-resolved from token store
 ```
+
+Supported fields per environment: `service_url`, `token` (static, takes precedence over token store), `transport` (pin a specific transport, e.g. `jsonrpc`).
 
 Precedence: **CLI Flags > Environment Variables > Config File > Defaults.**
 
@@ -324,14 +364,17 @@ Environment variables follow the pattern `A2ACLI_<FLAG>` (e.g. `A2ACLI_SERVICE_U
 | Flag | Description |
 |---|---|
 | `-u, --service-url` | Base URL of the A2A service (default: `http://127.0.0.1:9001`) |
-| `-t, --token` | Authorization token |
+| `-t, --token` | Authorization token (if omitted, stored token from `auth login` is used automatically) |
 | `--auth` | Authorization headers, e.g. `Bearer …` (repeatable) |
 | `--svc-param` | Service parameters, e.g. `key=value` (repeatable) |
 | `-k, --task` | Existing Task ID to continue (must be non-terminal) |
 | `-r, --ref` | Task ID to reference as context |
 | `-n, --no-tui` | Output JSON/NDJSON instead of the interactive TUI |
+| `--output` | Output mode: `tui` (default), `text` (plain/CI), `json` (NDJSON for scripting) |
+| `-v, --verbose` | Print diagnostic info to stderr (transport, token resolution, events) |
 | `-p, --protocol` | A2A protocol version: `1.0.0` or `0.3.0` (default: `1.0.0`) |
 | `--transport` | Force transport: `grpc`, `jsonrpc`, or `rest` |
+| `--timeout` | Request timeout, e.g. `30s`, `2m` (default: no timeout) |
 | `-e, --env` | Named environment from config file |
 | `-c, --config` | Path to config file |
 | `-V, --version` | Print version information |

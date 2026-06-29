@@ -121,6 +121,17 @@ for quick smoke-testing any live A2A server — AgentCard validation, auth gatin
 round-trip send. The smoke check supports `--output json` for CI integration and exits
 non-zero on any failure. See [docs/CONFORMANCE_REPORT.md](CONFORMANCE_REPORT.md).
 
+**OAuth 2.1 auth-code + PKCE + CIMD**
+`auth login` drives a full OAuth 2.1 PKCE flow from the AgentCard's advertised
+`OAuth2SecurityScheme` — no pre-registration required. a2acli identifies itself
+using a **CIMD** (Client Instance Metadata Document) at a stable HTTPS URL; the
+consent SPA fetches it at runtime for dynamic client identity. Tokens are stored
+at `~/.config/a2acli/tokens/` (0600) and auto-used by all subsequent commands.
+`auth token` prints the raw JWT for shell scripting. Live-tested against
+`candir.mithlond.com`. The only comparable CLI is spec-works/a2a-ask (also has
+OAuth2 with token storage), but a2acli adds CIMD — no static client registration
+is needed on the server side.
+
 **A2UI extension conformance — renderer-free**
 `a2ui validate` certifies that a server emits a conformant A2UI v1.0 extension stream
 by validating the DataPart wire format against the official, vendored A2UI JSON Schemas
