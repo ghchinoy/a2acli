@@ -33,6 +33,7 @@ import (
 	a2agrpc "github.com/a2aproject/a2a-go/v2/a2agrpc/v1"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/ghchinoy/a2acli/internal/oauth"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
@@ -209,10 +210,19 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 		}
 	}
 
+	// Auto-use stored OAuth token when no explicit --token is given.
+	resolvedToken := authToken
+	if resolvedToken == "" {
+		if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil && !stored.IsExpired() {
+			resolvedToken = stored.AccessToken
+			verboseLog("using stored OAuth token for %s (expires %s)", serviceURL, stored.ExpiresAt.Format("15:04:05"))
+		}
+	}
+
 	opts := []a2aclient.FactoryOption{transportOpt}
-	if authToken != "" || len(authHeaders) > 0 || len(svcParams) > 0 {
+	if resolvedToken != "" || len(authHeaders) > 0 || len(svcParams) > 0 {
 		opts = append(opts, a2aclient.WithCallInterceptors(&paramInterceptor{
-			token:       authToken,
+			token:       resolvedToken,
 			authHeaders: authHeaders,
 			svcParams:   svcParams,
 		}))
@@ -866,7 +876,7 @@ and can be overridden by environment variables and command-line flags.`,
 		_ = cmd.Help()
 	}
 
-	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd(), setupA2UICmd())
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd(), setupA2UICmd(), setupAuthCmd())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
