@@ -125,9 +125,10 @@ func runPushConfigCreate(_ *cobra.Command, args []string) {
 	}
 
 	cfg := a2a.PushConfig{
-		ID:    pushConfigID,
-		URL:   callbackURL,
-		Token: pushToken,
+		TaskID: a2a.TaskID(taskID),
+		ID:     pushConfigID,
+		URL:    callbackURL,
+		Token:  pushToken,
 	}
 	if pushAuthScheme != "" {
 		cfg.Auth = &a2a.PushAuthInfo{
@@ -136,14 +137,11 @@ func runPushConfigCreate(_ *cobra.Command, args []string) {
 		}
 	}
 
-	result, err := client.CreateTaskPushConfig(ctx, &a2a.CreateTaskPushConfigRequest{
-		TaskID: a2a.TaskID(taskID),
-		Config: cfg,
-	})
+	result, err := client.CreateTaskPushConfig(ctx, &cfg)
 	if err != nil {
 		fatalf("CreateTaskPushConfig failed", err, "Ensure the task exists and the server supports push notifications")
 	}
-	verboseLog("push-config created: id=%s", result.Config.ID)
+	verboseLog("push-config created: id=%s", result.ID)
 
 	if disableTUI {
 		b, _ := json.MarshalIndent(result, "", "  ")
@@ -151,8 +149,8 @@ func runPushConfigCreate(_ *cobra.Command, args []string) {
 		return
 	}
 	fmt.Printf("Push config created for task %s\n", result.TaskID)
-	fmt.Printf("  Config ID: %s\n", result.Config.ID)
-	fmt.Printf("  URL:       %s\n", result.Config.URL)
+	fmt.Printf("  Config ID: %s\n", result.ID)
+	fmt.Printf("  URL:       %s\n", result.URL)
 }
 
 func runPushConfigList(_ *cobra.Command, args []string) {
@@ -192,7 +190,7 @@ func runPushConfigList(_ *cobra.Command, args []string) {
 	}
 	fmt.Printf("Push configs for task %s (%d):\n", taskID, len(result))
 	for _, cfg := range result {
-		fmt.Printf("  - %s  url=%s\n", cfg.Config.ID, cfg.Config.URL)
+		fmt.Printf("  - %s  url=%s\n", cfg.ID, cfg.URL)
 	}
 }
 
@@ -218,20 +216,20 @@ func runPushConfigGet(_ *cobra.Command, args []string) {
 	if err != nil {
 		fatalf("GetTaskPushConfig failed", err, "Check the task ID and config ID")
 	}
-	verboseLog("push-config get: url=%s", result.Config.URL)
+	verboseLog("push-config get: url=%s", result.URL)
 
 	if disableTUI {
 		b, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(b))
 		return
 	}
-	fmt.Printf("Push config %s (task %s):\n", result.Config.ID, result.TaskID)
-	fmt.Printf("  URL:   %s\n", result.Config.URL)
-	if result.Config.Auth != nil {
-		fmt.Printf("  Auth:  %s\n", result.Config.Auth.Scheme)
+	fmt.Printf("Push config %s (task %s):\n", result.ID, result.TaskID)
+	fmt.Printf("  URL:   %s\n", result.URL)
+	if result.Auth != nil {
+		fmt.Printf("  Auth:  %s\n", result.Auth.Scheme)
 	}
-	if result.Config.Token != "" {
-		fmt.Printf("  Token: %s\n", result.Config.Token)
+	if result.Token != "" {
+		fmt.Printf("  Token: %s\n", result.Token)
 	}
 }
 
