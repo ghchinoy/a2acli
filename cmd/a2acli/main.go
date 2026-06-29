@@ -501,7 +501,10 @@ func runSend(_ *cobra.Command, args []string) {
 		fatalf("failed to create client", err, "Verify your --token or configuration settings")
 	}
 
-	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(messageText))
+	msg, err := buildMessage(messageText)
+	if err != nil {
+		fatalf("failed to build message", err, "Check --json/--parts/--attach/--data flags for valid input")
+	}
 	if targetTaskID != "" {
 		msg.TaskID = a2a.TaskID(targetTaskID)
 		verboseLog("continuing task: %s", targetTaskID)
@@ -811,8 +814,8 @@ You can save artifacts produced by the task using the --out-dir flag.`,
   a2acli send "Summarize this task" --ref <taskID>
   a2acli send "Generate report" --skill reports --wait --out-dir ./reports`,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 && !isStdinPiped() {
-				return fmt.Errorf("message text required as argument or via stdin pipe")
+			if len(args) == 0 && !isStdinPiped() && !hasMultimodalInput() {
+				return fmt.Errorf("message text required: provide as argument, pipe via stdin, or use --json/--parts/--attach/--data")
 			}
 			if len(args) > 1 {
 				return fmt.Errorf("accepts at most 1 arg, received %d", len(args))
@@ -873,6 +876,10 @@ download artifacts to a directory.`,
 	sendCmd.Flags().BoolVar(&wait, "sync", false, "Alias for --wait")
 	sendCmd.Flags().BoolVar(&immediate, "immediate", false, "Fire-and-forget: submit task and return ID immediately without waiting or streaming")
 	sendCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating (default preview is 500 chars)")
+	sendCmd.Flags().StringVar(&messagePartsJSON, "parts", "", "Message parts as a JSON array, e.g. '[{\"text\":\"hello\"},{\"data\":{\"k\":\"v\"}}]'")
+	sendCmd.Flags().StringVar(&messageBodyJSON, "json", "", "Complete Message as a JSON object (overrides text arg and other input flags)")
+	sendCmd.Flags().StringArrayVar(&attachFiles, "attach", nil, "Attach a file as a message part (repeatable; MIME type auto-detected)")
+	sendCmd.Flags().StringArrayVar(&dataArgs, "data", nil, "Add a JSON value as a DataPart (repeatable)")
 
 	watchCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	watchCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")

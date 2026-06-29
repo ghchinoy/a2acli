@@ -106,7 +106,7 @@ Commands are organized into four A2A-aligned groups: **Discovery & Identity**, *
 
 ### Discovery & Identity
 
-#### `describe` — Inspect an Agent
+#### `discover` — Inspect an Agent
 Fetch and display an agent's `AgentCard`, registered skills, and security requirements.
 *(Fetches via the standard A2A discovery endpoint.)*
 
@@ -135,6 +135,7 @@ cat prompt.txt | a2acli send --wait
 |---|---|---|
 | `--skill` | `-s` | Target a specific skill on the agent |
 | `--wait` / `--sync` | `-w` | Block until task completes (returns final JSON) |
+| `--full` | — | Show complete artifact content without truncation (default: 500 char preview) |
 | `--out-dir` | `-o` | Save artifacts to a directory |
 | `--file` | `-f` | Save artifact to a specific filename |
 | `--instruction-file` | `-i` | Path to a file with supplemental instructions |
@@ -164,6 +165,7 @@ a2acli get <task_id> --out-dir ./output/
 |---|---|---|
 | `--out-dir` | `-o` | Save artifacts to a directory |
 | `--file` | `-f` | Save artifact to a specific filename |
+| `--full` | — | Show complete artifact content without truncation |
 
 #### `list` — List Tasks
 Query an agent for historical tasks.
