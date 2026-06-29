@@ -231,8 +231,18 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 }
 
 // isTTY reports whether stdout is an interactive terminal.
+// Used to decide whether to render the Bubble Tea TUI.
 func isTTY() bool {
 	return isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+}
+
+// isStdinPiped reports whether stdin is being piped (not a terminal).
+// Used to decide whether 'send' can read its message from stdin.
+// This is intentionally separate from isTTY: when running
+//   echo "msg" | a2acli send --env mithlond --wait
+// stdout is still a terminal (isTTY returns true) but stdin is a pipe.
+func isStdinPiped() bool {
+	return !isatty.IsTerminal(os.Stdin.Fd()) && !isatty.IsCygwinTerminal(os.Stdin.Fd())
 }
 
 // resolveOutputMode determines the effective output mode from flags and env vars.
@@ -752,7 +762,7 @@ You can save artifacts produced by the task using the --out-dir flag.`,
   a2acli send "Summarize this task" --ref <taskID>
   a2acli send "Generate report" --skill reports --wait --out-dir ./reports`,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 && isTTY() {
+			if len(args) == 0 && !isStdinPiped() {
 				return fmt.Errorf("message text required as argument or via stdin pipe")
 			}
 			if len(args) > 1 {
