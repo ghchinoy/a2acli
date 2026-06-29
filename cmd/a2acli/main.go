@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -1033,11 +1034,12 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 
 		truncated := false
 		for _, p := range art.Parts {
-			if dp, ok := p.Content.(a2a.Data); ok {
-				prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
+			switch v := p.Content.(type) {
+			case a2a.Data:
+				prettyJSON, _ := json.MarshalIndent(v.Value, "", "  ")
 				fmt.Printf("%s\n%s\n", StyleMuted.Render("Data (Preview):"), string(prettyJSON))
-			} else if tp, ok := p.Content.(a2a.Text); ok {
-				content := string(tp)
+			case a2a.Text:
+				content := string(v)
 				if !showFull && len(content) > 500 {
 					fmt.Printf("%s\n%s\n", StyleMuted.Render("Content (Preview):"), content[:500]+"... (truncated)")
 					truncated = true
@@ -1048,6 +1050,24 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 					}
 					fmt.Printf("%s\n%s\n", StyleMuted.Render(label), content)
 				}
+			case a2a.Raw:
+				mediaType := p.MediaType
+				if mediaType == "" {
+					mediaType = "application/octet-stream"
+				}
+				fname := p.Filename
+				if fname == "" {
+					fname = art.Name + mimeToExt(mediaType)
+				}
+				fmt.Printf("%s %s (%d bytes)\n",
+					StyleMuted.Render("Binary:"), StyleArtifact.Render(fname), len(v))
+				truncated = true
+			case a2a.URL:
+				fmt.Printf("%s %s\n", StyleMuted.Render("URL:"), StyleArtifact.Render(string(v)))
+				if p.MediaType != "" {
+					fmt.Printf("%s %s\n", StyleMuted.Render("Type:"), p.MediaType)
+				}
+				truncated = true
 			}
 		}
 
@@ -1055,54 +1075,210 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 			path, err := saveArtifact(outDir, outFile, *art, i)
 			if err != nil {
 				fmt.Printf("%s %v\n", StyleFail.Render("Error saving artifact:"), err)
+			} else if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+				// URL fallback — download failed or --out-dir not set
+				fmt.Printf("%s %s\n", StyleMuted.Render("URL (use --out-dir to download):"), StyleArtifact.Render(path))
 			} else {
 				fmt.Printf("%s %s\n", StyleAccent.Render(">> Saved to:"), StyleArtifact.Render(path))
 			}
 		} else if truncated {
-			fmt.Printf("%s\n", StyleMuted.Render("(Hint: Use --full to show complete content, or --out-dir <path> to save it)"))
+			fmt.Printf("%s\n", StyleMuted.Render("(Hint: Use --full to show complete content, or --out-dir <path> to save binary/URL artifacts)"))
 		}
 	}
 	fmt.Printf("\n%s\n", StyleAccent.Render("------------------------------"))
 }
+// mimeToExt returns a file extension for a MIME type, e.g. "audio/mpeg" → ".mp3".
+// Falls back to ".bin" for unknown binary types.
+func mimeToExt(mediaType string) string {
+	// Strip parameters ("audio/mpeg; charset=..." → "audio/mpeg")
+	if idx := strings.Index(mediaType, ";"); idx >= 0 {
+		mediaType = strings.TrimSpace(mediaType[:idx])
+	}
+	switch strings.ToLower(mediaType) {
+	case "audio/mpeg", "audio/mp3":
+		return ".mp3"
+	case "audio/wav", "audio/x-wav":
+		return ".wav"
+	case "audio/ogg":
+		return ".ogg"
+	case "audio/flac":
+		return ".flac"
+	case "audio/aac":
+		return ".aac"
+	case "audio/mp4":
+		return ".m4a"
+	case "image/png":
+		return ".png"
+	case "image/jpeg":
+		return ".jpg"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	case "image/svg+xml":
+		return ".svg"
+	case "application/pdf":
+		return ".pdf"
+	case "application/json":
+		return ".json"
+	case "text/plain":
+		return ".txt"
+	case "text/html":
+		return ".html"
+	case "text/csv":
+		return ".csv"
+	case "application/zip":
+		return ".zip"
+	}
+	// Try stdlib mime package for anything else.
+	exts, _ := mime.ExtensionsByType(mediaType)
+	if len(exts) > 0 {
+		return exts[0]
+	}
+	return ".bin"
+}
+
+// downloadURL fetches content from a URL, forwarding auth headers if set.
+// On failure it returns the URL string and a nil error so callers can
+// surface the URL as a fallback rather than treating it as an error.
+func downloadURL(rawURL string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Forward auth if configured — note: pre-signed GCS URLs reject an
+	// Authorization header, so only add it for non-GCS hosts.
+	if authToken != "" && !strings.Contains(rawURL, "storage.googleapis.com") {
+		req.Header.Set("Authorization", "Bearer "+authToken)
+	}
+	client := &http.Client{Timeout: 2 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download returned HTTP %d", resp.StatusCode)
+	}
+	buf := make([]byte, 0, resp.ContentLength)
+	tmp := make([]byte, 32*1024)
+	for {
+		n, err := resp.Body.Read(tmp)
+		if n > 0 {
+			buf = append(buf, tmp[:n]...)
+		}
+		if err != nil {
+			break
+		}
+	}
+	return buf, nil
+}
+
 func saveArtifact(outDir, outFile string, artifact a2a.Artifact, index int) (string, error) {
-	var path string
-	if outFile != "" {
-		fName := outFile
-		if index > 0 {
-			ext := filepath.Ext(outFile)
-			base := strings.TrimSuffix(outFile, ext)
-			fName = fmt.Sprintf("%s_%d%s", base, index, ext)
+	// Determine the base path (before we know the extension from content type).
+	basePath := func(ext string) string {
+		if outFile != "" {
+			fName := outFile
+			if index > 0 {
+				e := filepath.Ext(outFile)
+				base := strings.TrimSuffix(outFile, e)
+				fName = fmt.Sprintf("%s_%d%s", base, index, e)
+			}
+			if outDir != "" {
+				return filepath.Join(outDir, fName)
+			}
+			return fName
 		}
-		if outDir != "" {
-			path = filepath.Join(outDir, fName)
-		} else {
-			path = fName
+		dir := outDir
+		if dir == "" {
+			dir = "."
 		}
-	} else {
-		if outDir == "" {
-			outDir = "."
+		name := artifact.Name
+		if name == "" {
+			name = fmt.Sprintf("artifact_%d_%d", time.Now().Unix(), index)
 		}
-		filename := artifact.Name
-		if filename == "" {
-			filename = fmt.Sprintf("artifact_%d_%d.txt", time.Now().Unix(), index)
+		// Append ext if not already present.
+		if ext != "" && !strings.HasSuffix(strings.ToLower(name), strings.ToLower(ext)) {
+			name += ext
 		}
-		path = filepath.Join(outDir, filename)
+		return filepath.Join(dir, name)
+	}
+
+	var (
+		path         string
+		contentBytes []byte
+		urlFallback  string // set when URL download was requested but --out-dir not given
+	)
+
+	for _, p := range artifact.Parts {
+		switch v := p.Content.(type) {
+		case a2a.Text:
+			contentBytes = []byte(string(v))
+			path = basePath("")
+
+		case a2a.Data:
+			prettyJSON, _ := json.MarshalIndent(v.Value, "", "  ")
+			contentBytes = prettyJSON
+			ext := ".json"
+			if p.MediaType != "" {
+				ext = mimeToExt(p.MediaType)
+			}
+			path = basePath(ext)
+
+		case a2a.Raw:
+			contentBytes = []byte(v)
+			ext := ".bin"
+			if p.Filename != "" {
+				if e := filepath.Ext(p.Filename); e != "" {
+					ext = e
+				}
+			}
+			if p.MediaType != "" {
+				ext = mimeToExt(p.MediaType)
+			}
+			verboseLog("saveArtifact: Raw part %d bytes mediaType=%q ext=%s", len(contentBytes), p.MediaType, ext)
+			path = basePath(ext)
+
+		case a2a.URL:
+			rawURL := string(v)
+			verboseLog("saveArtifact: URL part %s mediaType=%q", rawURL, p.MediaType)
+			if outDir != "" || outFile != "" {
+				// Attempt download.
+				data, err := downloadURL(rawURL)
+				if err != nil {
+					verboseLog("saveArtifact: URL download failed: %v — printing URL instead", err)
+					urlFallback = rawURL
+				} else {
+					contentBytes = data
+					ext := ".bin"
+					if p.MediaType != "" {
+						ext = mimeToExt(p.MediaType)
+					} else if p.Filename != "" {
+						if e := filepath.Ext(p.Filename); e != "" {
+							ext = e
+						}
+					}
+					path = basePath(ext)
+				}
+			} else {
+				urlFallback = rawURL
+			}
+		}
+	}
+
+	// If we only have a URL fallback (no --out-dir, or download failed), return
+	// it as a "path" so callers can surface it.
+	if urlFallback != "" && contentBytes == nil {
+		return urlFallback, nil
+	}
+
+	if len(contentBytes) == 0 || path == "" {
+		return "", fmt.Errorf("no saveable content in artifact")
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return "", err
 	}
-
-	var contentBytes []byte
-	for _, p := range artifact.Parts {
-		if dp, ok := p.Content.(a2a.Data); ok {
-			prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
-			contentBytes = prettyJSON
-		} else if tp, ok := p.Content.(a2a.Text); ok {
-			contentBytes = []byte(string(tp))
-		}
-	}
-
 	if err := os.WriteFile(path, contentBytes, 0644); err != nil {
 		return "", err
 	}
