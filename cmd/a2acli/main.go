@@ -53,6 +53,7 @@ var (
 	wait            bool
 	immediate       bool
 	verbose         bool
+	showFull        bool
 	transport       string
 	protocol        string
 	authHeaders     []string
@@ -76,6 +77,38 @@ func fatalf(format string, err error, hint string) {
 		fmt.Fprintf(os.Stderr, "Hint: %s\n", hint)
 	}
 	os.Exit(1)
+}
+
+// is401 reports whether an error is an HTTP 401 Unauthorized response.
+func is401(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "401")
+}
+
+// authHintFromCard generates an actionable authentication hint based on the
+// AgentCard's declared security schemes. Called when a protocol call returns 401.
+func authHintFromCard(card *a2a.AgentCard) string {
+	if card == nil || len(card.SecuritySchemes) == 0 {
+		return "Check your --token or --auth flags"
+	}
+	for name, scheme := range card.SecuritySchemes {
+		switch s := scheme.(type) {
+		case a2a.OAuth2SecurityScheme:
+			_ = s
+			// Check if a stored token exists but may be expired.
+			if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil {
+				if stored.IsExpired() {
+					return fmt.Sprintf("Stored token for %s is expired. Run: a2acli auth login -u %s", serviceURL, serviceURL)
+				}
+				return fmt.Sprintf("OAuth token present but rejected (%s). Run: a2acli auth login -u %s to re-authenticate", name, serviceURL)
+			}
+			return fmt.Sprintf("This agent requires OAuth 2.1 authentication (%s). Run: a2acli auth login -u %s", name, serviceURL)
+		case a2a.HTTPAuthSecurityScheme:
+			return fmt.Sprintf("This agent requires %s authentication (%s). Pass via --token <value>", s.Scheme, name)
+		case a2a.APIKeySecurityScheme:
+			return fmt.Sprintf("This agent requires an API key (%s). Pass via --auth \"%s: <key>\"", name, s.Name)
+		}
+	}
+	return "Check your --token or --auth flags"
 }
 
 // verboseLog writes a diagnostic line to stderr when --verbose is active.
@@ -499,7 +532,11 @@ func runSend(_ *cobra.Command, args []string) {
 		params.Config = &a2a.SendMessageConfig{ReturnImmediately: true}
 		result, err := client.SendMessage(ctx, params)
 		if err != nil {
-			fatalf("SendMessage failed", err, "Check service connectivity or skill availability")
+			hint := "Check service connectivity or skill availability"
+			if is401(err) {
+				hint = authHintFromCard(card)
+			}
+			fatalf("SendMessage failed", err, hint)
 		}
 		if outputMode == "json" {
 			b, _ := json.MarshalIndent(result, "", "  ")
@@ -519,7 +556,11 @@ func runSend(_ *cobra.Command, args []string) {
 		}
 		result, err := client.SendMessage(ctx, params)
 		if err != nil {
-			fatalf("SendMessage failed", err, "Check service connectivity or skill availability")
+			hint := "Check service connectivity or skill availability"
+			if is401(err) {
+				hint = authHintFromCard(card)
+			}
+			fatalf("SendMessage failed", err, hint)
 		}
 		if outputMode == "json" {
 			b, _ := json.MarshalIndent(result, "", "  ")
@@ -654,7 +695,11 @@ func runGet(cmd *cobra.Command, args []string) {
 
 	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: tid})
 	if err != nil {
-		fatalf("failed to retrieve task", err, "Check the task ID or verify the server state")
+		hint := "Check the task ID or verify the server state"
+		if is401(err) {
+			hint = authHintFromCard(card)
+		}
+		fatalf("failed to retrieve task", err, hint)
 	}
 	verboseLog("GetTask response: state=%s artifacts=%d", task.Status.State, len(task.Artifacts))
 
@@ -694,7 +739,11 @@ func runCancel(_ *cobra.Command, args []string) {
 
 	task, err := client.CancelTask(ctx, &a2a.CancelTaskRequest{ID: tid})
 	if err != nil {
-		fatalf("failed to cancel task", err, "Check the task ID or verify the server state")
+		hint := "Check the task ID or verify the server state"
+		if is401(err) {
+			hint = authHintFromCard(card)
+		}
+		fatalf("failed to cancel task", err, hint)
 	}
 	verboseLog("CancelTask response: state=%s", task.Status.State)
 
@@ -823,12 +872,14 @@ download artifacts to a directory.`,
 	sendCmd.Flags().BoolVarP(&wait, "wait", "w", false, "Block and wait for task completion instead of streaming (maps to A2A Blocking:true)")
 	sendCmd.Flags().BoolVar(&wait, "sync", false, "Alias for --wait")
 	sendCmd.Flags().BoolVar(&immediate, "immediate", false, "Fire-and-forget: submit task and return ID immediately without waiting or streaming")
+	sendCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating (default preview is 500 chars)")
 
 	watchCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	watchCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 
 	getCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	getCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
+	getCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating")
 
 	var downloadCmd = &cobra.Command{
 		Use:     "download [taskID]",
@@ -847,6 +898,7 @@ artifacts to the current directory or a specified output directory.`,
 	}
 	downloadCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
 	downloadCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
+	downloadCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating")
 
 	var cancelCmd = &cobra.Command{
 		Use:     "cancel [taskID]",
@@ -978,12 +1030,17 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 				prettyJSON, _ := json.MarshalIndent(dp, "", "  ")
 				fmt.Printf("%s\n%s\n", StyleMuted.Render("Data (Preview):"), string(prettyJSON))
 			} else if tp, ok := p.Content.(a2a.Text); ok {
-				preview := string(tp)
-				if len(preview) > 500 {
-					preview = preview[:500] + "... (truncated)"
+				content := string(tp)
+				if !showFull && len(content) > 500 {
+					fmt.Printf("%s\n%s\n", StyleMuted.Render("Content (Preview):"), content[:500]+"... (truncated)")
 					truncated = true
+				} else {
+					label := "Content:"
+					if !showFull {
+						label = "Content (Preview):"
+					}
+					fmt.Printf("%s\n%s\n", StyleMuted.Render(label), content)
 				}
-				fmt.Printf("%s\n%s\n", StyleMuted.Render("Content (Preview):"), preview)
 			}
 		}
 
@@ -995,7 +1052,7 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 				fmt.Printf("%s %s\n", StyleAccent.Render(">> Saved to:"), StyleArtifact.Render(path))
 			}
 		} else if truncated {
-			fmt.Printf("%s\n", StyleMuted.Render("(Hint: Use --out-dir <path> or --file <name> to save the full artifact content)"))
+			fmt.Printf("%s\n", StyleMuted.Render("(Hint: Use --full to show complete content, or --out-dir <path> to save it)"))
 		}
 	}
 	fmt.Printf("\n%s\n", StyleAccent.Render("------------------------------"))
