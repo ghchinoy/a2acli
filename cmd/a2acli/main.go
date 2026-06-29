@@ -334,33 +334,62 @@ func runDescribe(_ *cobra.Command, _ []string) {
 	fmt.Printf("Capabilities: [Streaming: %v]\n", card.Capabilities.Streaming)
 
 	// Security schemes defined at the agent level.
+	// SDK unmarshals into value types (not pointers), so the switch uses value cases.
 	if len(card.SecuritySchemes) > 0 {
 		fmt.Printf("\nSecurity Schemes:\n")
 		for name, scheme := range card.SecuritySchemes {
 			switch s := scheme.(type) {
-			case *a2a.HTTPAuthSecurityScheme:
-				fmt.Printf("  %s (http/%s)\n", name, s.Scheme)
+			case a2a.HTTPAuthSecurityScheme:
+				label := s.Scheme
 				if s.BearerFormat != "" {
-					fmt.Printf("    Format: %s\n", s.BearerFormat)
+					label += " (" + s.BearerFormat + ")"
 				}
+				fmt.Printf("  %s: http/%s\n", name, label)
+				fmt.Printf("    Hint: pass via --token <value>\n")
 				verboseLog("security scheme %q: http scheme=%s bearerFormat=%s", name, s.Scheme, s.BearerFormat)
-			case *a2a.OAuth2SecurityScheme:
-				fmt.Printf("  %s (oauth2)\n", name)
+			case a2a.OAuth2SecurityScheme:
+				fmt.Printf("  %s: oauth2\n", name)
 				if s.Oauth2MetadataURL != "" {
-					fmt.Printf("    Metadata: %s\n", s.Oauth2MetadataURL)
+					fmt.Printf("    Metadata URL: %s\n", s.Oauth2MetadataURL)
 				}
-				verboseLog("security scheme %q: oauth2 metadataURL=%s", name, s.Oauth2MetadataURL)
-			case *a2a.APIKeySecurityScheme:
-				fmt.Printf("  %s (apiKey: %s %s)\n", name, s.Location, s.Name)
+				// Show flow-specific URLs via type switch on the OAuthFlows interface.
+				switch f := s.Flows.(type) {
+				case a2a.AuthorizationCodeOAuthFlow:
+					fmt.Printf("    Flow:         authorization_code\n")
+					if f.TokenURL != "" {
+						fmt.Printf("    Token URL:    %s\n", f.TokenURL)
+					}
+					if f.AuthorizationURL != "" {
+						fmt.Printf("    Auth URL:     %s\n", f.AuthorizationURL)
+					}
+				case a2a.ClientCredentialsOAuthFlow:
+					fmt.Printf("    Flow:         client_credentials\n")
+					if f.TokenURL != "" {
+						fmt.Printf("    Token URL:    %s\n", f.TokenURL)
+					}
+				case a2a.DeviceCodeOAuthFlow:
+					fmt.Printf("    Flow:         device_code\n")
+					if f.TokenURL != "" {
+						fmt.Printf("    Token URL:    %s\n", f.TokenURL)
+					}
+				}
+				fmt.Printf("    Hint: pass via --token <jwt>  (or 'a2acli auth login' once available)\n")
+				verboseLog("security scheme %q: oauth2 metadataURL=%s flows=%T", name, s.Oauth2MetadataURL, s.Flows)
+			case a2a.APIKeySecurityScheme:
+				fmt.Printf("  %s: apiKey in %s (header: %s)\n", name, s.Location, s.Name)
+				fmt.Printf("    Hint: pass via --auth \"%s: <key>\"\n", s.Name)
 				verboseLog("security scheme %q: apiKey location=%s name=%s", name, s.Location, s.Name)
-			case *a2a.OpenIDConnectSecurityScheme:
-				fmt.Printf("  %s (openIdConnect)\n", name)
+			case a2a.OpenIDConnectSecurityScheme:
+				fmt.Printf("  %s: openIdConnect\n", name)
+				if s.OpenIDConnectURL != "" {
+					fmt.Printf("    Discovery: %s\n", s.OpenIDConnectURL)
+				}
 				verboseLog("security scheme %q: openIdConnect url=%s", name, s.OpenIDConnectURL)
-			case *a2a.MutualTLSSecurityScheme:
-				fmt.Printf("  %s (mutualTLS)\n", name)
+			case a2a.MutualTLSSecurityScheme:
+				fmt.Printf("  %s: mutualTLS\n", name)
 				verboseLog("security scheme %q: mutualTLS", name)
 			default:
-				fmt.Printf("  %s (unknown)\n", name)
+				fmt.Printf("  %s: (unrecognised scheme type %T)\n", name, scheme)
 			}
 		}
 	}
@@ -372,13 +401,15 @@ func runDescribe(_ *cobra.Command, _ []string) {
 			fmt.Printf("    Description: %s\n", s.Description)
 		}
 		if len(s.SecurityRequirements) > 0 {
-			var schemes []string
 			for _, req := range s.SecurityRequirements {
-				for name := range req {
-					schemes = append(schemes, string(name))
+				for schemeName, scopes := range req {
+					if len(scopes) > 0 {
+						fmt.Printf("    Security: %s [scopes: %s]\n", schemeName, strings.Join(scopes, ", "))
+					} else {
+						fmt.Printf("    Security: %s\n", schemeName)
+					}
 				}
 			}
-			fmt.Printf("    Security: %s\n", strings.Join(schemes, ", "))
 		}
 	}
 }
