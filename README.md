@@ -112,7 +112,14 @@ Fetch and display an agent's `AgentCard`, registered skills, and security requir
 
 ```bash
 a2acli discover --service-url http://localhost:9001
+
+# Fetch the richer, authenticated extended card (requires auth)
+a2acli discover --service-url https://agent.example.com --extended
 ```
+
+| Flag | Description |
+|---|---|
+| `--extended` | Fetch the authenticated extended AgentCard via `GetExtendedAgentCard` (requires a token; the agent must advertise `extendedAgentCard: true`) |
 
 ### Messaging & Tasks
 
@@ -173,12 +180,16 @@ Query an agent for historical tasks.
 
 ```bash
 a2acli list tasks --limit 10
+a2acli list tasks --status completed
+a2acli list tasks --context ctx-123
 ```
 
 | Flag | Default | Description |
 |---|---|---|
 | `--limit` | `10` | Maximum number of tasks to return |
 | `--page-token` | — | Pagination token for the next page |
+| `--context` | — | Filter by context ID |
+| `--status` | — | Filter by task state (`submitted`, `working`, `completed`, `failed`, `canceled`, `rejected`) |
 
 #### `cancel` — Cancel a Task
 Cancel an active task.

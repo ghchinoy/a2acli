@@ -19,7 +19,10 @@ on an official canonical CLI:
 | Fire-and-forget | `send --return-immediately` | `send --immediate` | `send --immediate` | Aligned with #306. |
 | Blocking send | — | — | `send --wait` | a2acli addition. |
 | Get task | `task get` | `get task` | `get` | Same operation; a2acli drops the noun (only gets tasks). |
-| List tasks | `task list` | `list tasks` | `list tasks` | Aligned. |
+| List tasks | `task list` | `list tasks` | `list tasks` | Aligned. Supports `--context`, `--status` filters. |
+| Extended agent card | — | — | `discover --extended` | a2acli addition; `GetExtendedAgentCard` RPC for authenticated callers. |
+| Multi-modal input | — | `--parts/--json` | `send --parts/--json/--attach/--data` | a2acli addition; text, data, file, and raw parts. |
+| Config env management | — | — | `config env add/remove/use/list` | a2acli addition; manage named environments without editing YAML. |
 | Cancel task | `task cancel` | `cancel` | `cancel` | Aligned. |
 | Subscribe | `task subscribe` | `subscribe` | `subscribe` | Aligned. `watch` kept as alias. |
 | Download artifacts | — | — | `download` | a2acli addition. |
@@ -62,7 +65,7 @@ on an official canonical CLI:
 | `--context` | `--context` | `--ref / -r` | Different semantics: `--ref` references a *completed* task, not a context ID. |
 | `--skill` | — | `--skill / -s` | a2acli addition. |
 | `--instruction-file` | `-f file` | `--instruction-file / -i` | Similar. #306 reads a full JSON Message; a2acli appends plain text. |
-| `--parts` / `--json` / `--file` | ✓ | planned (`a2ac-79d`) | Multi-modal input not yet implemented. |
+| `--parts` / `--json` / `--file` (input) | ✓ | `--parts` / `--json` / `--attach` / `--data` | Multi-modal input. a2acli uses `--attach` for input files (`--file` is output filename). |
 | `--history` | ✓ | — | Not yet implemented. |
 | `--out-dir` | — | `--out-dir / -o` | a2acli addition for artifact saving. |
 | `--file` (output) | — | `--file / -f` | a2acli addition. |
@@ -164,13 +167,13 @@ These items from the proposals are tracked in the issue tracker and not yet impl
 
 | Item | Issue | Priority |
 |---|---|---|
-| `discover --extended` (authenticated card) | `a2ac-o2i` | 2 |
-| `send` multi-modal input (`--parts`, `--json`, `--file`, `--data`) | `a2ac-79d` | 2 |
-| `list tasks` filters (`--context`, `--status`, `--since`, `--with-artifacts`) | `a2ac-mvu` | 2 |
-| `discover --extended` (authenticated card) | `a2ac-o2i` | 2 |
 | `serve --proxy` | `a2ac-6x6` | 3 |
 | `serve --exec` | `a2ac-7n2` | 3 |
 | `--tenant` global flag | — | — |
+| `--history` count on send/get | — | — |
+
+> Recently completed and removed from this list: `discover --extended` (`a2ac-o2i`),
+> multi-modal input (`a2ac-79d`), `list tasks` filters (`a2ac-mvu`). See "Where a2acli Leads".
 
 ---
 

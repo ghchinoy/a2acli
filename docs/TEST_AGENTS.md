@@ -5,7 +5,8 @@ each can test, its value (utility vs conformance), gaps worth filling, and a lis
 of test services still worth building to cover the full A2A pattern space.
 
 > Generated as a housekeeping pass. All surveyed agents speak **A2A protocol 1.0**
-> (via `a2a-go/v2`). None currently serve gRPC; only read-aloud plans REST/HTTP+JSON.
+> (via `a2a-go/v2`). gRPC/REST multi-transport is in progress in `a2a-simple` (`a2a-simple-4e1`);
+> read-aloud also plans REST/HTTP+JSON.
 
 ## Capability Matrix
 
@@ -14,7 +15,7 @@ of test services still worth building to cover the full A2A pattern space.
 | SDK version | v2.2.1 | v2.2.1 | v2.3.1 | v2.2.0 | v2.2.0 | TBD |
 | Protocol | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
 | **JSONRPC** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (planned) |
-| **gRPC** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **gRPC** | ❌ | ❌ | ⏳ in progress | ❌ | ❌ | ❌ |
 | **REST/HTTP+JSON** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ (planned) |
 | **Streaming** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (planned) |
 | **Auth** | none | none | Bearer/JWT | none | OAuth2+PKCE | none |
@@ -26,7 +27,7 @@ of test services still worth building to cover the full A2A pattern space.
 | **URL/FileURL artifact** | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ (GCS) |
 | **Push notifications** | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | **Extensions** | ✅ A2UI v1.0 | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Extended agent card** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Extended agent card** | ❌ | ❌ | ⏳ planned | ❌ | ✅ | ❌ |
 | **ListTasks (history)** | ❌ | ❌ | ✅ | ❌ | ✅ Firestore | — |
 | **Multi-skill** | 1 | 2 | 7 | 8 | 4 | 1 |
 
@@ -48,7 +49,8 @@ of test services still worth building to cover the full A2A pattern space.
 - **Exercises in a2acli:** the widest surface — `send` (text/data/raw/url artifacts), `push-config` CRUD (only push-capable agent), `multimodal_echo` (the `--parts/--json/--attach/--data` round-trip target), `--token` auth gating (`admin_echo`), `get`/`subscribe`/`list tasks`, cross-task `--ref`.
 - **Utility value:** Medium — it's a test/demo harness, not a product.
 - **Conformance value:** **Highest overall.** Richest artifact coverage, the only push-notification target, the only multimodal echo, bearer-auth gating. The de-facto a2acli regression workhorse.
-- **Missing / valuable to add:** gRPC or REST transport (would make it the only multi-transport target); an extended-agent-card variant; A2UI or another extension.
+- **In progress:** multi-service restructure done (`a2a-simple-gnv`); gRPC multi-transport echo (`a2a-simple-4e1`), multimodal kitchen-sink (`a2a-simple-lin`), and extended-card (`a2a-simple-2z1`) fixture servers being built.
+- **Missing / valuable to add:** A2UI or another extension producer.
 
 ### syntaxis — publication engine
 - **Exercises in a2acli:** multi-turn FSM conversation (`project_assistant` → the natural `a2ac-srx` REPL target), stateful tasks, streaming status logs, `--skill` targeting across 8 skills, file-as-source workflows.
@@ -57,10 +59,10 @@ of test services still worth building to cover the full A2A pattern space.
 - **Missing / valuable to add:** return generated PDFs as Raw/FileURL artifacts (currently returns filesystem paths as text — a real gap); DataPart for structured review suggestions (currently JSON-in-text).
 
 ### eldamo / candir.mithlond.com — Mithlond Elvish Agent
-- **Exercises in a2acli:** **OAuth 2.1 auth-code + PKCE** (`auth login`, the only OAuth target), per-skill scopes display in `discover`, 401 actionable hints, persistent task store (`get`/`list` survive restarts), streaming token chunks, CNAME/CIMD flows.
+- **Exercises in a2acli:** **OAuth 2.1 auth-code + PKCE** (`auth login`, the only OAuth target), per-skill scopes display in `discover`, **`discover --extended`** (the only live extended-card target), 401 actionable hints, persistent task store (`get`/`list` survive restarts, `list --status` filtering), streaming token chunks, CNAME/CIMD flows.
 - **Utility value:** **High** — a real, deployed, useful agent (Tolkien linguistics) on Cloud Run.
-- **Conformance value:** **High and unique** — the only OAuth2/PKCE target, only Firestore-backed persistent store, only per-skill scope enforcement. Drives the entire auth feature set.
-- **Missing / valuable to add:** audio artifacts (TTS of generated names would add Raw/URL coverage); extended agent card (richer card for authenticated callers — would be the `a2ac-o2i` test target).
+- **Conformance value:** **High and unique** — the only OAuth2/PKCE target, only Firestore-backed persistent store, only per-skill scope enforcement, **only live `extendedAgentCard` target** (`eldamo-server-lde`, shipped). Drives the entire auth feature set and validated `discover --extended` (`a2ac-o2i`).
+- **Missing / valuable to add:** audio artifacts (TTS of generated names would add Raw/URL coverage, `eldamo-server-zhw`).
 
 ### read-aloud / Fabulae — (planned)
 - **Will exercise in a2acli:** binary artifact save (`a2ac-mfd` — the MP3 Raw/FileURL path, already implemented in anticipation), **REST/HTTP+JSON transport** (the only planned non-JSONRPC target), `audio/mpeg` output modes, `--out-dir` for media.
@@ -74,12 +76,14 @@ These A2A capabilities have **no live test target** today:
 
 | Gap | Impact on a2acli | Closest plan |
 |---|---|---|
-| **gRPC transport** | a2acli's gRPC path is only tested against the TCK SUT, never a sister agent | none — would need a new/retrofitted server |
-| **REST/HTTP+JSON transport** | a2acli's `--transport rest` is TCK-only | read-aloud (planned) |
-| **Extended agent card** | `a2ac-o2i` has no test target; feature held | none |
+| **gRPC transport** | a2acli's gRPC path is only tested against the TCK SUT, never a sister agent | `a2a-simple-4e1` (in progress) |
+| **REST/HTTP+JSON transport** | a2acli's `--transport rest` is TCK-only | `a2a-simple-4e1` (multi-transport) + read-aloud (planned) |
 | **A2A extension (non-A2UI)** | generic extension activation untested beyond A2UI | none |
 | **Push notification *delivery*** | a2acli tests config CRUD, but never observes an actual webhook callback | none — needs a server that POSTs + a receiver |
-| **input-required / auth-required mid-task states** | a2acli's handling of these task states is untested | none |
+| **input-required / auth-required mid-task states** | a2acli's handling of these task states is untested | `a2a-simple-lin` (multimodal kitchen-sink drives all states) |
+
+> **Closed gap:** Extended agent card — eldamo/candir now advertises `extendedAgentCard: true`
+> and serves a richer card to authenticated callers; `discover --extended` is live-validated against it.
 
 ## Proposed New Test Services
 
@@ -105,9 +109,10 @@ client gap):
    webhook receiver, so a2acli can validate end-to-end push delivery (not just
    config CRUD). Would let a2acli add a `--watch-push` or callback-listen mode.
 
-4. **`a2a-extended-card`** *(medium value)* — an agent advertising
-   `extendedAgentCard: true` that returns a richer card to authenticated callers.
-   The concrete test target that unblocks `a2ac-o2i` (`discover --extended`).
+4. **`a2a-extended-card`** *(now partially satisfied)* — eldamo/candir now serves
+   a live `extendedAgentCard`, which validated `discover --extended` (`a2ac-o2i`).
+   A deterministic fixture (`a2a-simple-2z1`) is still worth building for CI
+   (eldamo requires real OAuth + network).
 
 5. **`a2a-rest`** *(medium value, or fold into #1)* — a REST/HTTP+JSON-bound
    agent, if read-aloud's timeline slips. Validates `--transport rest` against a
@@ -137,7 +142,7 @@ satisfied by eldamo and read-aloud respectively as those projects evolve.
 | `a2ui validate` | apex a2a_a2ui | only A2UI producer |
 | `conformance` | any | smoke checks |
 | binary artifact save (`--out-dir`) | read-aloud (planned), a2a-simple | Raw/URL parts |
-| `list tasks` | a2a-simple, eldamo | task-store-backed |
-| `discover --extended` (`a2ac-o2i`) | **none yet** | needs `a2a-extended-card` |
-| gRPC transport | **TCK SUT only** | needs `a2a-grpc-echo` |
+| `list tasks` (+ `--status`/`--context`) | a2a-simple, eldamo | task-store-backed |
+| `discover --extended` | eldamo/candir (live) | `a2a-simple-2z1` for deterministic CI |
+| gRPC transport | **TCK SUT only** | `a2a-simple-4e1` (in progress) |
 | REST transport | **TCK SUT only** | read-aloud (planned) |

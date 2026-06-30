@@ -2,6 +2,12 @@
 
 Fetches the AgentCard from the A2A discovery endpoint (`/.well-known/agent.json`). Use before sending tasks to verify the agent's skills, transport capabilities, and auth requirements.
 
+## Flags
+
+| Flag | Description |
+|---|---|
+| `--extended` | Fetch the authenticated extended AgentCard via `GetExtendedAgentCard`. Requires a token; the agent must advertise `extendedAgentCard: true` in its public card. |
+
 ## Usage
 
 ```bash
@@ -10,6 +16,9 @@ a2acli discover --service-url http://localhost:9001 --output json
 
 # With auth (if the agent requires a token to expose its card)
 a2acli discover --service-url http://localhost:9001 --token "<TOKEN>" --output json
+
+# Fetch the richer extended card (authenticated callers)
+a2acli discover --service-url https://agent.example.com --extended --output json
 ```
 
 ## Output Schema

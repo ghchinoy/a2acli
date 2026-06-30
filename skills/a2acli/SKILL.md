@@ -20,11 +20,11 @@ compatibility: Requires the a2acli binary. Install via brew, curl, or go install
 
 | Command | What it does |
 |---|---|
-| `discover` | Fetch an agent's AgentCard (capabilities, skills, security schemes) |
-| `send` | Send a message to initiate or continue a task |
+| `discover` | Fetch an agent's AgentCard (capabilities, skills, security schemes); `--extended` for the authenticated card |
+| `send` | Send a message to initiate or continue a task; multi-modal via `--parts/--json/--attach/--data` |
 | `subscribe` | Subscribe to a running task's event stream |
 | `get` | Retrieve state and artifacts of a task by ID |
-| `list tasks` | List historical tasks (server must support history) |
+| `list tasks` | List historical tasks (server must support history); filter with `--context`/`--status` |
 | `cancel` | Cancel an active task |
 | `download` | Download artifacts from a completed task |
 | `push-config` | Manage push-notification callbacks for a task |
@@ -33,6 +33,7 @@ compatibility: Requires the a2acli binary. Install via brew, curl, or go install
 | `auth login` | Obtain an OAuth 2.1 token (browser-based, one-time) |
 | `auth token` | Print the stored access token (for scripting) |
 | `auth status` | Check stored token validity |
+| `config env` | Manage named environments (`add`/`remove`/`use`/`list`) |
 | `serve` | Spin up a local mock A2A agent for testing |
 
 ## Global Flags (apply to all commands)
