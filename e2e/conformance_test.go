@@ -59,6 +59,18 @@ func TestConformance(t *testing.T) {
 		t.Fatalf("a2a-go SDK source not found at %s", a2aGoSrc)
 	}
 
+	simpleSrc := os.Getenv("A2A_SIMPLE_SRC")
+	if simpleSrc == "" {
+		simpleSrc = "../../a2a-simple"
+	}
+	if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
+		home, _ := os.UserHomeDir()
+		simpleSrc = filepath.Join(home, "projects/a2a-simple")
+	}
+	if abs, err := filepath.Abs(simpleSrc); err == nil {
+		simpleSrc = abs
+	}
+
 	cliPath := "../bin/a2acli"
 
 	runCLI := func(args ...string) *exec.Cmd {
@@ -247,36 +259,34 @@ func TestConformance(t *testing.T) {
 	})
 
 	t.Run("A2UI-Extension-v1.0", func(t *testing.T) {
-		// Run the apex A2UI sample server.
-		// Respect APEX_SRC env var if set (for CI), else check sibling checkouts.
-		apexSutDir := os.Getenv("APEX_SRC")
-		if apexSutDir == "" {
-			apexSutDir = "../../../apex"
-		}
-		apexSutDir = filepath.Join(apexSutDir, "tools/sample_servers/a2a_a2ui")
-
-		if _, err := os.Stat(apexSutDir); os.IsNotExist(err) {
-			// Try absolute path under home
-			home, _ := os.UserHomeDir()
-			apexSutDir = filepath.Join(home, "projects/apex/tools/sample_servers/a2a_a2ui")
-			if _, err := os.Stat(apexSutDir); os.IsNotExist(err) {
-				t.Skipf("apex A2UI sample server not found at %s", apexSutDir)
-			}
+		// Run the A2UI sample server from the public a2a-simple repo (Option A).
+		if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
+			t.Skipf("a2a-simple source not found at %s", simpleSrc)
 		}
 
-		sutCmd := exec.Command("go", "run", ".")
-		sutCmd.Dir = apexSutDir
+		// Build the fixture to a temp binary and exec it directly.
+		a2uiBin := filepath.Join(t.TempDir(), "a2ui")
+		buildA2UI := exec.Command("go", "build", "-o", a2uiBin, "./cmd/a2ui")
+		buildA2UI.Dir = simpleSrc
+		if out, err := buildA2UI.CombinedOutput(); err != nil {
+			t.Fatalf("failed to build a2a-simple a2ui: %v\nOutput: %s", err, out)
+		}
+
+		// Run on dedicated port 9016.
+		const httpPort = 9016
+		sutCmd := exec.Command(a2uiBin, "-port", fmt.Sprintf("%d", httpPort))
+		sutCmd.Dir = simpleSrc
 		var sutOut bytes.Buffer
 		sutCmd.Stdout = &sutOut
 		sutCmd.Stderr = &sutOut
 		if err := sutCmd.Start(); err != nil {
-			t.Fatalf("failed to start apex A2UI SUT: %v", err)
+			t.Fatalf("failed to start a2ui server: %v", err)
 		}
 		defer func() { _ = sutCmd.Process.Kill() }()
 
-		sutURL := "http://127.0.0.1:9002"
-		if err := waitForServer(sutURL+"/a2a", 10*time.Second); err != nil {
-			t.Fatalf("apex A2UI SUT failed to start. Logs:\n%s", sutOut.String())
+		sutURL := fmt.Sprintf("http://127.0.0.1:%d", httpPort)
+		if err := waitForServer(sutURL+"/.well-known/agent-card.json", 20*time.Second); err != nil {
+			t.Fatalf("a2ui server failed to start. Logs:\n%s", sutOut.String())
 		}
 
 		t.Run("Validate", func(t *testing.T) {
@@ -317,16 +327,8 @@ func TestConformance(t *testing.T) {
 	// validates a2acli's transport selection and the three bindings against the
 	// same agent simultaneously. See docs/TEST_AGENTS.md (a2ac-k9i).
 	t.Run("A2A-Simple-MultiTransport", func(t *testing.T) {
-		simpleSrc := os.Getenv("A2A_SIMPLE_SRC")
-		if simpleSrc == "" {
-			simpleSrc = "../../a2a-simple"
-		}
 		if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
-			home, _ := os.UserHomeDir()
-			simpleSrc = filepath.Join(home, "projects/a2a-simple")
-			if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
-				t.Skipf("a2a-simple source not found (set A2A_SIMPLE_SRC)")
-			}
+			t.Skipf("a2a-simple source not found at %s", simpleSrc)
 		}
 
 		// Build the fixture to a temp binary and exec it directly. Unlike `go run`,
@@ -425,5 +427,156 @@ func TestConformance(t *testing.T) {
 		t.Run("JSONRPC", func(t *testing.T) { assertEchoCompleted(t, "jsonrpc") })
 		t.Run("REST", func(t *testing.T) { assertEchoCompleted(t, "rest") })
 		t.Run("gRPC", func(t *testing.T) { assertEchoCompleted(t, "grpc") })
+	})
+
+	// A2A-Simple-Multimodal: a high-fidelity kitchen-sink reference server
+	// that serves Text, Data, Raw PNG, and local FileURL MP3 download in a single task,
+	// and supports driving tasks into specific intermediate or terminal states on-demand.
+	// This closes the coverage gaps for all artifact types and task states (a2ac-ih8).
+	t.Run("A2A-Simple-Multimodal", func(t *testing.T) {
+		if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
+			t.Skipf("a2a-simple source not found at %s", simpleSrc)
+		}
+
+		// Build the multimodal fixture to a temp binary and exec it directly.
+		multiBin := filepath.Join(t.TempDir(), "multimodal")
+		buildMulti := exec.Command("go", "build", "-o", multiBin, "./cmd/multimodal")
+		buildMulti.Dir = simpleSrc
+		if out, err := buildMulti.CombinedOutput(); err != nil {
+			t.Fatalf("failed to build a2a-simple multimodal: %v\nOutput: %s", err, out)
+		}
+
+		// Run on dedicated port 9018. Point to the absolute assets path.
+		const httpPort = 9018
+		assetsPath := filepath.Join(simpleSrc, "cmd/multimodal/testdata/assets")
+		sutCmd := exec.Command(multiBin,
+			"-port", fmt.Sprintf("%d", httpPort),
+			"-assets", assetsPath)
+		sutCmd.Dir = simpleSrc
+		var sutOut bytes.Buffer
+		sutCmd.Stdout = &sutOut
+		sutCmd.Stderr = &sutOut
+		if err := sutCmd.Start(); err != nil {
+			t.Fatalf("failed to start multimodal server: %v", err)
+		}
+		defer func() { _ = sutCmd.Process.Kill() }()
+
+		sutURL := fmt.Sprintf("http://127.0.0.1:%d", httpPort)
+		if err := waitForServer(sutURL+"/.well-known/agent-card.json", 20*time.Second); err != nil {
+			t.Fatalf("multimodal server failed to start. Logs:\n%s", sutOut.String())
+		}
+
+		// 1. Test all artifact types are fully parsed and retrieved
+		t.Run("ArtifactTypes", func(t *testing.T) {
+			cmd := runCLI("send", "all-artifacts", "--wait", "--output", "json", "-u", sutURL)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("send all-artifacts failed: %v\nOutput: %s", err, out)
+			}
+
+			var task struct {
+				Status struct {
+					State string `json:"state"`
+				} `json:"status"`
+				Artifacts []struct {
+					Name        string `json:"name"`
+					Description string `json:"description"`
+					Parts       []struct {
+						Text      string `json:"text,omitempty"`
+						Data      any    `json:"data,omitempty"`
+						Raw       string `json:"raw,omitempty"` // base64 encoded by SDK JSON marshaller
+						URL       string `json:"url,omitempty"`
+						MediaType string `json:"mediaType"`
+					} `json:"parts"`
+				} `json:"artifacts"`
+			}
+			if err := json.Unmarshal(out, &task); err != nil {
+				t.Fatalf("failed to parse task JSON: %v\nOutput: %s", err, out)
+			}
+
+			if task.Status.State != "TASK_STATE_COMPLETED" {
+				t.Errorf("expected TASK_STATE_COMPLETED, got %q", task.Status.State)
+			}
+
+			// Validate all 4 artifact types were returned and correctly populated
+			gotTypes := map[string]bool{}
+			for _, art := range task.Artifacts {
+				if len(art.Parts) == 0 {
+					t.Errorf("artifact %q has no parts", art.Name)
+					continue
+				}
+				p := art.Parts[0]
+				switch art.Name {
+				case "text-artifact":
+					gotTypes["text"] = true
+					if p.Text == "" {
+						t.Errorf("expected populated text in text-artifact, got %q", p.Text)
+					}
+				case "data-artifact":
+					gotTypes["data"] = true
+					if p.Data == nil {
+						t.Errorf("expected populated data in data-artifact")
+					}
+				case "raw-artifact":
+					gotTypes["raw"] = true
+					if p.Raw == "" {
+						t.Errorf("expected base64 raw binary in raw-artifact, got %q", p.Raw)
+					}
+					if p.MediaType != "image/png" {
+						t.Errorf("expected mediaType image/png, got %q", p.MediaType)
+					}
+				case "fileurl-artifact":
+					gotTypes["url"] = true
+					if p.URL == "" {
+						t.Errorf("expected URL in fileurl-artifact, got %q", p.URL)
+					}
+					if p.MediaType != "audio/mp3" {
+						t.Errorf("expected mediaType audio/mp3, got %q", p.MediaType)
+					}
+				}
+			}
+
+			for _, want := range []string{"text", "data", "raw", "url"} {
+				if !gotTypes[want] {
+					t.Errorf("missing expected artifact type: %s", want)
+				}
+			}
+		})
+
+		// 2. Test intermediate and terminal task states
+		t.Run("TaskStates", func(t *testing.T) {
+			statesToTest := []struct {
+				input string
+				want  string
+			}{
+				{"state-completed", "TASK_STATE_COMPLETED"},
+				{"state-failed", "TASK_STATE_FAILED"},
+				{"state-input-required", "TASK_STATE_INPUT_REQUIRED"},
+				{"state-auth-required", "TASK_STATE_AUTH_REQUIRED"},
+			}
+
+			for _, tc := range statesToTest {
+				t.Run(tc.input, func(t *testing.T) {
+					cmd := runCLI("send", tc.input, "--wait", "--output", "json", "-u", sutURL)
+					out, err := cmd.CombinedOutput()
+					if err != nil {
+						t.Fatalf("send %q failed: %v\nOutput: %s", tc.input, err, out)
+					}
+
+					var task struct {
+						Status struct {
+							State string `json:"state"`
+						} `json:"status"`
+					}
+					if err := json.Unmarshal(out, &task); err != nil {
+						t.Fatalf("failed to parse task JSON: %v\nOutput: %s", err, out)
+					}
+
+					if task.Status.State != tc.want {
+						t.Errorf("expected task state %q, got %q", tc.want, task.Status.State)
+					}
+				})
+			}
+		})
 	})
 }

@@ -64,9 +64,8 @@ To ensure the CLI's GitHub Actions CI is fast, reliable, and bulletproof, we enf
 - **Exercises in a2acli:** the widest surface — `send` (text/data/raw/url artifacts), `push-config` CRUD (only push-capable agent), `multimodal_echo` (the `--parts/--json/--attach/--data` round-trip target), `--token` auth gating (`admin_echo`), `get`/`subscribe`/`list tasks`, cross-task `--ref`.
 - **Utility value:** Medium — it's a test/demo harness, not a product.
 - **Conformance value:** **Highest overall.** Richest artifact coverage, the only push-notification target, the only multimodal echo, bearer-auth gating. The de-facto a2acli regression workhorse.
-- **Shipped:** multi-service restructure (`a2a-simple-gnv`) and the `grpc-echo` multi-transport fixture (`a2a-simple-4e1`) — a single process serving JSON-RPC + REST/HTTP+JSON (`:9002`) and gRPC (`:9003`), exercised by a2acli e2e (`a2ac-k9i`).
-- **In progress:** multimodal kitchen-sink (`a2a-simple-lin`) and extended-card (`a2a-simple-2z1`) fixture servers.
-- **Missing / valuable to add:** A2UI or another extension producer.
+- **Shipped:** multi-service restructure (`a2a-simple-gnv`), `grpc-echo` multi-transport fixture (`a2a-simple-4e1` / `a2ac-k9i`), `multimodal` kitchen-sink (`a2a-simple-lin` / `a2ac-ih8`), and the `a2ui` validator target (`a2a-simple-7nb` / `a2ac-et3`, migrated from apex).
+- **In progress:** `extended-card` (`a2a-simple-2z1`) fixture server.
 
 ### syntaxis — publication engine
 - **Exercises in a2acli:** multi-turn FSM conversation (`project_assistant` → the natural `a2ac-srx` REPL target), stateful tasks, streaming status logs, `--skill` targeting across 8 skills, file-as-source workflows.
@@ -96,7 +95,7 @@ These A2A capabilities have **no live test target** today:
 | ~~REST/HTTP+JSON transport~~ | **Closed** — `grpc-echo` serves REST/HTTP+JSON alongside gRPC; e2e-covered | `a2a-simple-4e1` ✅ (`a2ac-k9i`) |
 | **A2A extension (non-A2UI)** | generic extension activation untested beyond A2UI | none |
 | **Push notification *delivery*** | a2acli tests config CRUD, but never observes an actual webhook callback | none — needs a server that POSTs + a receiver |
-| **input-required / auth-required mid-task states** | a2acli's handling of these task states is untested | `a2a-simple-lin` (multimodal kitchen-sink drives all states) |
+| ~~input-required / auth-required task states~~ | **Closed** — `a2a-simple` `multimodal` drives all task states in e2e | `a2a-simple-lin` ✅ (`a2ac-ih8`) |
 
 > **Closed gap:** Extended agent card — eldamo/candir now advertises `extendedAgentCard: true`
 > and serves a richer card to authenticated callers; `discover --extended` is live-validated against it.
@@ -112,12 +111,10 @@ client gap):
    echoes message parts as named artifacts. a2acli e2e (`a2ac-k9i`) now tests transport
    auto-selection and `--transport grpc/rest/jsonrpc` against it, not just the TCK SUT.
 
-2. **`a2a-multimodal`** *(high value)* — an agent that deterministically returns
-   **every artifact type** (Text, Data, Raw bytes, FileURL) and **every task
-   state** (working, input-required, auth-required, completed, failed, canceled)
-   on demand via skill or keyword. The "kitchen sink" for client rendering and
-   state-handling. (apex's A2UI kitchen-sink is the inspiration; this generalizes
-   it beyond A2UI.)
+2. ~~**`a2a-multimodal`**~~ *(SHIPPED — `a2a-simple-lin`)* — `a2a-simple`'s `multimodal`
+   serves all four artifact types (Text, Data, Raw PNG, FileURL MP3) and drives
+   intermediate and terminal states (`WORKING`, `INPUT_REQUIRED`, `AUTH_REQUIRED`,
+   `COMPLETED`, `FAILED`). Covered end-to-end in `a2ac-ih8`.
 
 3. **`a2a-pushnotify` receiver+sender pair** *(medium value)* — a server that
    actually **delivers** push notifications to a callback, plus a tiny local
@@ -139,10 +136,7 @@ client gap):
 
 ### Recommended priority
 
-`a2a-grpc-echo` (#1) is **done** (`a2a-simple-4e1`), closing the gRPC and
-REST/HTTP+JSON gaps. `a2a-multimodal` (#2, `a2a-simple-lin`) is next and closes
-all artifact types and task states. The others are valuable but narrower, and
-#4/#5 may be satisfied by eldamo and read-aloud respectively as those projects evolve.
+`a2a-grpc-echo` (#1, `a2a-simple-4e1`) and `a2a-multimodal` (#2, `a2a-simple-lin`) are both **done**, closing the gRPC, REST, all artifact types, and all task states gaps. The others are valuable but narrower, and #4/#5 may be satisfied by eldamo and read-aloud respectively as those projects evolve.
 
 ## How a2acli Features Map to Test Agents
 
@@ -154,7 +148,7 @@ all artifact types and task states. The others are valuable but narrower, and
 | `push-config *` | a2a-simple | only push-capable agent |
 | `auth login` (OAuth2/PKCE) | eldamo/candir | only OAuth target |
 | `--token` bearer auth | a2a-simple (`admin_echo`) | bearer gating |
-| `a2ui validate` | apex a2a_a2ui | only A2UI producer |
+| `a2ui validate` | a2a-simple (`cmd/a2ui`) | A2UI producer (migrated from apex) |
 | `conformance` | any | smoke checks |
 | binary artifact save (`--out-dir`) | read-aloud (planned), a2a-simple | Raw/URL parts |
 | `list tasks` (+ `--status`/`--context`) | a2a-simple, eldamo | task-store-backed |

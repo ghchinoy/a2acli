@@ -23,12 +23,12 @@ jobs:
           ref: v2.3.1  # Pinned SDK version matching a2acli's build
           path: a2a-go
 
-      - name: Checkout apex (A2UI server)
+      - name: Checkout a2a-simple (A2A test fixtures)
         uses: actions/checkout@v4
         with:
-          repository: ghchinoy/apex
-          ref: main    # Latest main containing the A2UI v1.0 / apex-2xl fix
-          path: apex
+          repository: ghchinoy/a2a-experiments
+          ref: main
+          path: a2a-simple
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -37,10 +37,10 @@ jobs:
           cache: true
           cache-dependency-path: a2acli/go.sum
 
-      - name: Install dependencies (SUT and apex SUT)
+      - name: Install dependencies (SUT and fixtures)
         run: |
           cd a2a-go && go mod download && cd ..
-          cd apex && go mod download && cd ..
+          cd a2a-simple && go mod download && cd ..
           cd a2acli && go mod download
 
       - name: Run A2A and A2UI e2e conformance tests
@@ -49,4 +49,4 @@ jobs:
           # Point the e2e tests to the pinned sibling checkouts.
           # GOLANG_PROTOBUF_REGISTRATION_CONFLICT is required because the SUT uses
           # both v0 and v1 protobufs which causes a namespace panic at runtime.
-          GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=../../a2a-go APEX_SRC=../../apex go test -v ./e2e/...
+          GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=../../a2a-go A2A_SIMPLE_SRC=../../a2a-simple go test -v ./e2e/...
