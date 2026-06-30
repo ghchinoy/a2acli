@@ -48,15 +48,16 @@ var (
 	outDir          string
 	outFile         string
 	instructionFile string
-	disableTUI      bool
-	outputMode      string
-	requestTimeout  time.Duration
-	wait            bool
-	immediate       bool
-	verbose         bool
-	showFull        bool
-	transport       string
-	protocol        string
+	disableTUI       bool
+	outputMode       string
+	requestTimeout   time.Duration
+	wait             bool
+	immediate        bool
+	verbose          bool
+	showFull         bool
+	discoverExtended bool
+	transport        string
+	protocol         string
 	authHeaders     []string
 	svcParams       []string
 
@@ -349,12 +350,49 @@ func runText(stream chan streamMsg, outDir string) {
 }
 
 func runDescribe(_ *cobra.Command, _ []string) {
-	card, err := getResolver().Resolve(context.Background(), serviceURL)
+	ctx := context.Background()
+
+	card, err := getResolver().Resolve(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+serviceURL)
 	}
 	verboseLog("resolved AgentCard: name=%q version=%q skills=%d interfaces=%d",
 		card.Name, card.Version, len(card.Skills), len(card.SupportedInterfaces))
+
+	if discoverExtended {
+		verboseLog("requesting extended AgentCard")
+		if !card.Capabilities.ExtendedAgentCard {
+			fatalf("extended card not supported", fmt.Errorf("serviceURL=%s", serviceURL),
+				"The AgentCard does not advertise ExtendedAgentCard: true in its capabilities.")
+		}
+
+		client, err := createClient(ctx, card)
+		if err != nil {
+			fatalf("failed to create client", err, "Verify your --token or configuration settings")
+		}
+
+		// Verify we have some token or auth header for the extended card.
+		// Extended cards are only served to authenticated callers.
+		hasAuth := authToken != "" || len(authHeaders) > 0
+		if !hasAuth {
+			// Check token store
+			if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil && !stored.IsExpired() {
+				hasAuth = true
+			}
+		}
+		if !hasAuth {
+			fatalf("authentication required", fmt.Errorf("no credentials"),
+				"Requesting the extended card requires authentication. Run 'a2acli auth login' or pass --token")
+		}
+
+		extCard, err := client.GetExtendedAgentCard(ctx, &a2a.GetExtendedAgentCardRequest{})
+		if err != nil {
+			fatalf("GetExtendedAgentCard failed", err, "Verify your credentials have the required scopes (e.g. agent:invoke)")
+		}
+		verboseLog("resolved extended AgentCard: name=%q version=%q skills=%d",
+			extCard.Name, extCard.Version, len(extCard.Skills))
+		card = extCard // Replace the public card with the richer extended card
+	}
 
 	if disableTUI {
 		b, err := json.MarshalIndent(card, "", "  ")
@@ -792,12 +830,17 @@ The AgentCard contains the agent's identity, description, supported
 interface protocols (e.g., JSON-RPC), and available skills. It also 
 lists any security requirements for each skill.
 
+Use --extended to fetch the richer, authenticated AgentCard via the
+GetExtendedAgentCard protocol RPC.
+
 'describe' is accepted as a backwards-compatible alias.`,
 		Example: `  a2acli discover
+  a2acli discover --extended
   a2acli discover --service-url http://localhost:9001
   a2acli discover --output json --token "my-auth-token"`,
 		Run: runDescribe,
 	}
+	describeCmd.Flags().BoolVar(&discoverExtended, "extended", false, "Fetch the authenticated extended AgentCard")
 
 	var sendCmd = &cobra.Command{
 		Use:     "send [message]",

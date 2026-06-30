@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -27,6 +28,8 @@ import (
 var (
 	listLimit     int
 	listPageToken string
+	listContext   string
+	listStatus    string
 )
 
 func setupListCmd() *cobra.Command {
@@ -41,12 +44,16 @@ func setupListCmd() *cobra.Command {
 		Short: "List historical tasks from an agent",
 		Long: `Query the agent for a list of historical tasks it has processed.
 Note: The server must support history for this endpoint to return data.`,
-		Example: `  a2acli list tasks --limit 10`,
-		Run:     runListTasks,
+		Example: `  a2acli list tasks --limit 10
+  a2acli list tasks --status completed
+  a2acli list tasks --context ctx-123`,
+		Run: runListTasks,
 	}
 
 	tasksCmd.Flags().IntVar(&listLimit, "limit", 10, "Maximum number of tasks to return")
 	tasksCmd.Flags().StringVar(&listPageToken, "page-token", "", "Pagination token")
+	tasksCmd.Flags().StringVar(&listContext, "context", "", "Filter by context ID")
+	tasksCmd.Flags().StringVar(&listStatus, "status", "", "Filter by task state (short forms: submitted, working, completed, failed, canceled, rejected)")
 
 	cmd.AddCommand(tasksCmd)
 	return cmd
@@ -68,6 +75,26 @@ func runListTasks(_ *cobra.Command, _ []string) {
 	req := &a2a.ListTasksRequest{
 		PageSize:  listLimit,
 		PageToken: listPageToken,
+	}
+
+	if listContext != "" {
+		req.ContextID = listContext
+	}
+
+	if listStatus != "" {
+		// Map short status forms to exact SDK uppercase enum strings
+		state := strings.ToUpper(listStatus)
+		if !strings.HasPrefix(state, "TASK_STATE_") {
+			state = "TASK_STATE_" + state
+		}
+		switch a2a.TaskState(state) {
+		case a2a.TaskStateSubmitted, a2a.TaskStateWorking, a2a.TaskStateCompleted,
+			a2a.TaskStateFailed, a2a.TaskStateCanceled, a2a.TaskStateRejected:
+			req.Status = a2a.TaskState(state)
+		default:
+			fatalf("invalid status filter", fmt.Errorf("%q", listStatus),
+				"Must be: submitted, working, completed, failed, canceled, or rejected")
+		}
 	}
 
 	resp, err := client.ListTasks(ctx, req)
