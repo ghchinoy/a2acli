@@ -283,8 +283,13 @@ a2acli a2ui validate -u http://localhost:9002 --output json
 ### Client Configuration
 
 ```bash
-a2acli config    # Show active environment, URL, transport, and token status
-a2acli version   # Print version information
+a2acli config                   # Show active environment and config file location
+a2acli config env list          # List configured environments and token status
+a2acli config env add <name> --service-url <url> [--transport <grpc|jsonrpc|rest>]
+                                # Add or update a named environment profile
+a2acli config env use <name>    # Set the default environment
+a2acli config env remove <name> # Delete an environment profile
+a2acli version                  # Print version information
 ```
 
 ## Shell Completion

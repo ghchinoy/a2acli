@@ -924,20 +924,6 @@ already have completed or be in a non-cancelable state.`,
 		Run:  runCancel,
 	}
 
-	var configCmd = &cobra.Command{
-		Use:     "config",
-		GroupID: GroupSystem,
-		Short:   "View the active configuration",
-		Long: `Display the active configuration settings.
-
-Settings are loaded from the default configuration file ($HOME/.config/a2acli/config.yaml) 
-and can be overridden by environment variables and command-line flags.`,
-		Example: `  a2acli config
-  a2acli config --env production
-  a2acli config --config ./myconfig.yaml`,
-		Run: runConfig,
-	}
-
 	rootCmd.Run = func(cmd *cobra.Command, _ []string) {
 		if v, _ := cmd.Flags().GetBool("version"); v {
 			runVersion(cmd, nil)
@@ -946,7 +932,7 @@ and can be overridden by environment variables and command-line flags.`,
 		_ = cmd.Help()
 	}
 
-	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, configCmd, versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd(), setupA2UICmd(), setupAuthCmd())
+	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, setupConfigCmd(), versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd(), setupA2UICmd(), setupAuthCmd())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
