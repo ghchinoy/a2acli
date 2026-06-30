@@ -31,6 +31,21 @@ of test services still worth building to cover the full A2A pattern space.
 | **ListTasks (history)** | ❌ | ❌ | ✅ | ❌ | ✅ Firestore | — |
 | **Multi-skill** | 1 | 2 | 7 | 8 | 4 | 1 |
 
+## CI Conformance vs. Local Utility (Privacy Boundary)
+
+To ensure the CLI's GitHub Actions CI is fast, reliable, and bulletproof, we enforce a strict boundary between public deterministic CI fixtures and private real-world local utilities:
+
+1. **Public Deterministic CI Fixtures (`a2a-simple` + TCK)**:
+   - These are **completely public** and self-contained. They form the sole external repository dependencies of the CLI's CI workflow (`.github/workflows/conformance.yml`).
+   - To keep CI bulletproof and avoid managing access credentials or multi-repository checkout failures, **we are consolidating all conformance test servers under the public `a2a-simple` repository.**
+   - *Migration Plan (Option A):* The `apex a2a_a2ui` tool is a separate repository dependency that will be migrated directly into `a2a-simple` (publicly vendored/copied). Once migrated, the `A2UI-Extension-v1.0` test will run against this local fixture under `a2a-simple`, completely eliminating the `apex` checkout from the CI.
+
+2. **Private & Real-World Local Utilities (`Syntaxis`, `Read Aloud`, `Eldamo`)**:
+   - These represent private repositories or live, production-deployed agents (e.g., Candir).
+   - They are **never run in CI** to prevent credential leakages, auth-flow blocking, and private checkout failures.
+   - Any tests exercising these agents in `e2e/conformance_test.go` are strictly gated with `t.Skipf` when local checkouts (or their private environment variables) are missing.
+   - They are documented here because they remain invaluable for rich, manual local integration testing, OAuth 2.1 PKCE validation, and real-world semantic debugging.
+
 ## Per-Agent Assessment
 
 ### apex `a2a_a2ui` — A2UI Showcase
