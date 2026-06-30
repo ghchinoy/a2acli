@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -246,13 +247,18 @@ func TestConformance(t *testing.T) {
 	})
 
 	t.Run("A2UI-Extension-v1.0", func(t *testing.T) {
-		// Run the apex A2UI sample server from the sibling directory
-		apexSutDir := "../../../apex/tools/sample_servers/a2a_a2ui"
-		// If running from workspace root ~/projects/a2acli/e2e
+		// Run the apex A2UI sample server.
+		// Respect APEX_SRC env var if set (for CI), else check sibling checkouts.
+		apexSutDir := os.Getenv("APEX_SRC")
+		if apexSutDir == "" {
+			apexSutDir = "../../../apex"
+		}
+		apexSutDir = filepath.Join(apexSutDir, "tools/sample_servers/a2a_a2ui")
+
 		if _, err := os.Stat(apexSutDir); os.IsNotExist(err) {
-			// Try absolute path under /Users/ghchinoy or home
+			// Try absolute path under home
 			home, _ := os.UserHomeDir()
-			apexSutDir = home + "/projects/apex/tools/sample_servers/a2a_a2ui"
+			apexSutDir = filepath.Join(home, "projects/apex/tools/sample_servers/a2a_a2ui")
 			if _, err := os.Stat(apexSutDir); os.IsNotExist(err) {
 				t.Skipf("apex A2UI sample server not found at %s", apexSutDir)
 			}

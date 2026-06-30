@@ -3,6 +3,8 @@
 
 # Default path to the a2a-go SDK repository, required for conformance tests.
 A2A_GO_SRC ?= ../../github/a2a-go
+APEX_SRC   ?= ../../apex
+A2A_SIMPLE_SRC ?= ../../a2a-simple
 
 # Version details for binary
 VERSION ?= $(shell git describe --tags --always --dirty)
@@ -30,8 +32,8 @@ lint: ## Run golangci-lint
 test: ## Run unit tests
 	go test ./...
 
-test-e2e: ## Run end-to-end conformance tests (requires a2a-go SDK)
-	GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=$(A2A_GO_SRC) go test -v ./e2e/...
+test-e2e: ## Run end-to-end conformance tests (requires a2a-go SDK and optionally apex)
+	GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=$(A2A_GO_SRC) APEX_SRC=$(APEX_SRC) A2A_SIMPLE_SRC=$(A2A_SIMPLE_SRC) go test -v ./e2e/...
 
 conformance-report: ## Run conformance tests and update docs/CONFORMANCE_REPORT.md
 	@echo "Generating Conformance Report..."
@@ -51,7 +53,7 @@ conformance-report: ## Run conformance tests and update docs/CONFORMANCE_REPORT.
 	@echo "### Test Results Summary" >> docs/CONFORMANCE_REPORT.md
 	@echo "" >> docs/CONFORMANCE_REPORT.md
 	@echo "\`\`\`text" >> docs/CONFORMANCE_REPORT.md
-	GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=$(A2A_GO_SRC) go test -v ./e2e/... >> docs/CONFORMANCE_REPORT.md
+	GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=$(A2A_GO_SRC) APEX_SRC=$(APEX_SRC) A2A_SIMPLE_SRC=$(A2A_SIMPLE_SRC) go test -v ./e2e/... >> docs/CONFORMANCE_REPORT.md
 	@echo "\`\`\`" >> docs/CONFORMANCE_REPORT.md
 	@echo "" >> docs/CONFORMANCE_REPORT.md
 	@echo "*(Auto-generated via make conformance-report)*" >> docs/CONFORMANCE_REPORT.md
