@@ -263,6 +263,13 @@ func TestConformance(t *testing.T) {
 		if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
 			t.Skipf("a2a-simple source not found at %s", simpleSrc)
 		}
+		// The a2ui server calls Vertex AI (Gemini) at runtime; it requires
+		// GOOGLE_CLOUD_PROJECT to be set in the process environment (not just
+		// loaded from .env at server startup). Skip gracefully in CI environments
+		// where GCP credentials are not configured.
+		if os.Getenv("GOOGLE_CLOUD_PROJECT") == "" {
+			t.Skipf("GOOGLE_CLOUD_PROJECT not set — skipping A2UI test (requires Vertex AI credentials)")
+		}
 
 		// Build the fixture to a temp binary and exec it directly.
 		a2uiBin := filepath.Join(t.TempDir(), "a2ui")

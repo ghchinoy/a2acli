@@ -10,7 +10,7 @@ of test services still worth building to cover the full A2A pattern space.
 
 ## Capability Matrix
 
-| Capability | apex a2a_a2ui | apex a2a_server | a2a-simple | syntaxis | eldamo (candir) | read-aloud (planned) |
+| Capability | a2a_a2ui (→`a2a-simple`) | apex a2a_server | a2a-simple | syntaxis | eldamo (candir) | read-aloud (planned) |
 |---|---|---|---|---|---|---|
 | SDK version | v2.2.1 | v2.2.1 | v2.3.1 | v2.2.0 | v2.2.0 | TBD |
 | Protocol | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
@@ -37,21 +37,21 @@ To ensure the CLI's GitHub Actions CI is fast, reliable, and bulletproof, we enf
 
 1. **Public Deterministic CI Fixtures (`a2a-simple` + TCK)**:
    - These are **completely public** and self-contained. They form the sole external repository dependencies of the CLI's CI workflow (`.github/workflows/conformance.yml`).
-   - To keep CI bulletproof and avoid managing access credentials or multi-repository checkout failures, **we are consolidating all conformance test servers under the public `a2a-simple` repository.**
-   - *Migration Plan (Option A):* The `apex a2a_a2ui` tool is a separate repository dependency that will be migrated directly into `a2a-simple` (publicly vendored/copied). Once migrated, the `A2UI-Extension-v1.0` test will run against this local fixture under `a2a-simple`, completely eliminating the `apex` checkout from the CI.
+   - All conformance servers are consolidated under the public `a2a-simple` repository (`ghchinoy/a2a-experiments`): gRPC echo (`cmd/grpc-echo`), multimodal kitchen-sink (`cmd/multimodal`), extended-card (`cmd/extended-card`), and A2UI showcase (`cmd/a2ui`, migrated from apex, `a2a-simple-7nb` / `a2ac-et3` ✅).
+   - **Note:** `cmd/a2ui` calls Vertex AI (Gemini) at runtime and requires `GOOGLE_CLOUD_PROJECT` to be set. The `A2UI-Extension-v1.0` e2e test skips gracefully when GCP credentials are absent — suitable for local development but gated in CI unless a credential secret is configured.
 
 2. **Private & Real-World Local Utilities (`Syntaxis`, `Read Aloud`, `Eldamo`)**:
    - These represent private repositories or live, production-deployed agents (e.g., Candir).
    - They are **never run in CI** to prevent credential leakages, auth-flow blocking, and private checkout failures.
-   - Any tests exercising these agents in `e2e/conformance_test.go` are strictly gated with `t.Skipf` when local checkouts (or their private environment variables) are missing.
+   - Any tests exercising these agents in `e2e/conformance_test.go` are strictly gated with `t.Skipf` when local checkouts (or their private environment variables) are absent.
    - They are documented here because they remain invaluable for rich, manual local integration testing, OAuth 2.1 PKCE validation, and real-world semantic debugging.
 
 ## Per-Agent Assessment
 
-### apex `a2a_a2ui` — A2UI Showcase
+### apex `a2a_a2ui` — A2UI Showcase *(source migrated to `a2a-simple`)*
+- **Status:** The server code has been copied into `a2a-simple/cmd/a2ui` (`a2a-simple-7nb` / `a2ac-et3`). The `apex` private repo is no longer a CI dependency. The `apex` original remains the upstream reference for A2UI showcase features.
 - **Exercises in a2acli:** `a2ui validate` (the flagship A2UI extension conformance), `discover` (extension declaration), `send` with Data artifacts.
-- **Utility value:** Low as a standalone agent (it's a demo). High as the *only* A2UI extension producer.
-- **Conformance value:** **High and unique** — the sole test target for the A2UI v1.0 extension validator. Drives the e2e `A2UI-Extension-v1.0` test.
+- **Conformance value:** **High and unique** — now tested via `a2a-simple/cmd/a2ui`. Requires GCP credentials (Vertex AI) at runtime; skips gracefully in CI when absent.
 - **Missing / valuable to add:** inline catalog support (`acceptsInlineCatalogs: true`); client→server round-trips (for A2UI Phase B, `a2ac-k6e`).
 
 ### apex `a2a_server` — basic GenAI chat

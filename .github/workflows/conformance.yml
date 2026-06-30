@@ -37,6 +37,16 @@ jobs:
           cache: true
           cache-dependency-path: a2acli/go.sum
 
+      - name: Drop local replace directives from a2a-simple
+        # a2a-simple/go.mod carries local replace directives (../github/a2a-go,
+        # ../cloud-interactions-go) for developer convenience. These paths do not
+        # exist in CI. Drop them so go mod download resolves from the module proxy.
+        # The a2a-simple agent should migrate these to a gitignored go.work instead.
+        run: |
+          cd a2a-simple
+          go mod edit -dropreplace=github.com/a2aproject/a2a-go/v2
+          go mod edit -dropreplace=github.com/ghchinoy/cloud-interactions-go
+
       - name: Install dependencies (SUT and fixtures)
         run: |
           cd a2a-go && go mod download && cd ..
