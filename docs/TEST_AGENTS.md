@@ -5,8 +5,8 @@ each can test, its value (utility vs conformance), gaps worth filling, and a lis
 of test services still worth building to cover the full A2A pattern space.
 
 > Generated as a housekeeping pass. All surveyed agents speak **A2A protocol 1.0**
-> (via `a2a-go/v2`). gRPC/REST multi-transport is in progress in `a2a-simple` (`a2a-simple-4e1`);
-> read-aloud also plans REST/HTTP+JSON.
+> (via `a2a-go/v2`). gRPC + REST/HTTP+JSON multi-transport ships in `a2a-simple`'s
+> `grpc-echo` fixture (`a2a-simple-4e1`), covered by e2e (`a2ac-k9i`).
 
 ## Capability Matrix
 
@@ -15,7 +15,7 @@ of test services still worth building to cover the full A2A pattern space.
 | SDK version | v2.2.1 | v2.2.1 | v2.3.1 | v2.2.0 | v2.2.0 | TBD |
 | Protocol | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
 | **JSONRPC** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (planned) |
-| **gRPC** | ❌ | ❌ | ⏳ in progress | ❌ | ❌ | ❌ |
+| **gRPC** | ❌ | ❌ | ✅ (`grpc-echo`) | ❌ | ❌ | ❌ |
 | **REST/HTTP+JSON** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ (planned) |
 | **Streaming** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (planned) |
 | **Auth** | none | none | Bearer/JWT | none | OAuth2+PKCE | none |
@@ -49,7 +49,8 @@ of test services still worth building to cover the full A2A pattern space.
 - **Exercises in a2acli:** the widest surface — `send` (text/data/raw/url artifacts), `push-config` CRUD (only push-capable agent), `multimodal_echo` (the `--parts/--json/--attach/--data` round-trip target), `--token` auth gating (`admin_echo`), `get`/`subscribe`/`list tasks`, cross-task `--ref`.
 - **Utility value:** Medium — it's a test/demo harness, not a product.
 - **Conformance value:** **Highest overall.** Richest artifact coverage, the only push-notification target, the only multimodal echo, bearer-auth gating. The de-facto a2acli regression workhorse.
-- **In progress:** multi-service restructure done (`a2a-simple-gnv`); gRPC multi-transport echo (`a2a-simple-4e1`), multimodal kitchen-sink (`a2a-simple-lin`), and extended-card (`a2a-simple-2z1`) fixture servers being built.
+- **Shipped:** multi-service restructure (`a2a-simple-gnv`) and the `grpc-echo` multi-transport fixture (`a2a-simple-4e1`) — a single process serving JSON-RPC + REST/HTTP+JSON (`:9002`) and gRPC (`:9003`), exercised by a2acli e2e (`a2ac-k9i`).
+- **In progress:** multimodal kitchen-sink (`a2a-simple-lin`) and extended-card (`a2a-simple-2z1`) fixture servers.
 - **Missing / valuable to add:** A2UI or another extension producer.
 
 ### syntaxis — publication engine
@@ -76,8 +77,8 @@ These A2A capabilities have **no live test target** today:
 
 | Gap | Impact on a2acli | Closest plan |
 |---|---|---|
-| **gRPC transport** | a2acli's gRPC path is only tested against the TCK SUT, never a sister agent | `a2a-simple-4e1` (in progress) |
-| **REST/HTTP+JSON transport** | a2acli's `--transport rest` is TCK-only | `a2a-simple-4e1` (multi-transport) + read-aloud (planned) |
+| ~~gRPC transport~~ | **Closed** — `a2a-simple` `grpc-echo` now exercises gRPC against a sister agent in e2e | `a2a-simple-4e1` ✅ (`a2ac-k9i`) |
+| ~~REST/HTTP+JSON transport~~ | **Closed** — `grpc-echo` serves REST/HTTP+JSON alongside gRPC; e2e-covered | `a2a-simple-4e1` ✅ (`a2ac-k9i`) |
 | **A2A extension (non-A2UI)** | generic extension activation untested beyond A2UI | none |
 | **Push notification *delivery*** | a2acli tests config CRUD, but never observes an actual webhook callback | none — needs a server that POSTs + a receiver |
 | **input-required / auth-required mid-task states** | a2acli's handling of these task states is untested | `a2a-simple-lin` (multimodal kitchen-sink drives all states) |
@@ -91,11 +92,10 @@ Services worth creating to exercise the full A2A pattern space — independent o
 whether a2acli currently supports them (building the target often reveals the
 client gap):
 
-1. **`a2a-grpc-echo`** *(high value)* — a minimal echo agent served over **gRPC**
-   (and ideally all three transports from one binary). Closes the single biggest
-   coverage gap: no sister agent serves gRPC. Would let the e2e suite test
-   transport auto-selection and `--transport grpc` against a real agent, not just
-   the TCK SUT.
+1. ~~**`a2a-grpc-echo`**~~ *(SHIPPED — `a2a-simple-4e1`)* — `a2a-simple`'s `grpc-echo`
+   serves all three transports (gRPC, JSON-RPC, REST/HTTP+JSON) from one binary and
+   echoes message parts as named artifacts. a2acli e2e (`a2ac-k9i`) now tests transport
+   auto-selection and `--transport grpc/rest/jsonrpc` against it, not just the TCK SUT.
 
 2. **`a2a-multimodal`** *(high value)* — an agent that deterministically returns
    **every artifact type** (Text, Data, Raw bytes, FileURL) and **every task
@@ -124,10 +124,10 @@ client gap):
 
 ### Recommended priority
 
-`a2a-grpc-echo` (#1) and `a2a-multimodal` (#2) give the most coverage per unit of
-effort — together they close gRPC, REST (if multi-transport), all artifact types,
-and all task states. The others are valuable but narrower, and #4/#5 may be
-satisfied by eldamo and read-aloud respectively as those projects evolve.
+`a2a-grpc-echo` (#1) is **done** (`a2a-simple-4e1`), closing the gRPC and
+REST/HTTP+JSON gaps. `a2a-multimodal` (#2, `a2a-simple-lin`) is next and closes
+all artifact types and task states. The others are valuable but narrower, and
+#4/#5 may be satisfied by eldamo and read-aloud respectively as those projects evolve.
 
 ## How a2acli Features Map to Test Agents
 
@@ -144,5 +144,5 @@ satisfied by eldamo and read-aloud respectively as those projects evolve.
 | binary artifact save (`--out-dir`) | read-aloud (planned), a2a-simple | Raw/URL parts |
 | `list tasks` (+ `--status`/`--context`) | a2a-simple, eldamo | task-store-backed |
 | `discover --extended` | eldamo/candir (live) | `a2a-simple-2z1` for deterministic CI |
-| gRPC transport | **TCK SUT only** | `a2a-simple-4e1` (in progress) |
-| REST transport | **TCK SUT only** | read-aloud (planned) |
+| gRPC transport | a2a-simple `grpc-echo` (e2e) + TCK SUT | `a2a-simple-4e1` ✅ |
+| REST transport | a2a-simple `grpc-echo` (e2e) + TCK SUT | `a2a-simple-4e1` ✅ |

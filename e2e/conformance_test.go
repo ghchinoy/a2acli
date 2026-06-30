@@ -310,4 +310,120 @@ func TestConformance(t *testing.T) {
 			}
 		})
 	})
+
+	// A2A-Simple multi-transport echo: a deterministic sister-agent fixture
+	// (a2a-simple `grpc-echo`) that serves JSON-RPC, REST/HTTP+JSON, and gRPC
+	// from a single process. Unlike the TCK SUT (one transport per mode), this
+	// validates a2acli's transport selection and the three bindings against the
+	// same agent simultaneously. See docs/TEST_AGENTS.md (a2ac-k9i).
+	t.Run("A2A-Simple-MultiTransport", func(t *testing.T) {
+		simpleSrc := os.Getenv("A2A_SIMPLE_SRC")
+		if simpleSrc == "" {
+			simpleSrc = "../../a2a-simple"
+		}
+		if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
+			home, _ := os.UserHomeDir()
+			simpleSrc = filepath.Join(home, "projects/a2a-simple")
+			if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
+				t.Skipf("a2a-simple source not found (set A2A_SIMPLE_SRC)")
+			}
+		}
+
+		// Build the fixture to a temp binary and exec it directly. Unlike `go run`,
+		// this lets Process.Kill() actually stop the server (go run orphans its
+		// child), preventing port leaks across local reruns.
+		echoBin := filepath.Join(t.TempDir(), "grpc-echo")
+		buildEcho := exec.Command("go", "build", "-o", echoBin, "./cmd/grpc-echo")
+		buildEcho.Dir = simpleSrc
+		if out, err := buildEcho.CombinedOutput(); err != nil {
+			t.Fatalf("failed to build a2a-simple grpc-echo: %v\nOutput: %s", err, out)
+		}
+
+		// Use dedicated ports to avoid colliding with other fixtures (apex uses 9002).
+		const httpPort, grpcPort = 9014, 9015
+		sutCmd := exec.Command(echoBin,
+			"-port", fmt.Sprintf("%d", httpPort),
+			"-grpc-port", fmt.Sprintf("%d", grpcPort))
+		sutCmd.Dir = simpleSrc
+		var sutOut bytes.Buffer
+		sutCmd.Stdout = &sutOut
+		sutCmd.Stderr = &sutOut
+		if err := sutCmd.Start(); err != nil {
+			t.Fatalf("failed to start a2a-simple grpc-echo: %v", err)
+		}
+		defer func() { _ = sutCmd.Process.Kill() }()
+
+		sutURL := fmt.Sprintf("http://127.0.0.1:%d", httpPort)
+		if err := waitForServer(sutURL+"/.well-known/agent-card.json", 20*time.Second); err != nil {
+			t.Fatalf("grpc-echo failed to start. Logs:\n%s", sutOut.String())
+		}
+
+		t.Run("Discover", func(t *testing.T) {
+			cmd := runCLI("discover", "--output", "json", "-u", sutURL)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("discover failed: %v\nOutput: %s", err, out)
+			}
+			var card struct {
+				SupportedInterfaces []struct {
+					ProtocolBinding string `json:"protocolBinding"`
+				} `json:"supportedInterfaces"`
+			}
+			if err := json.Unmarshal(out, &card); err != nil {
+				t.Fatalf("failed to parse card JSON: %v\nOutput: %s", err, out)
+			}
+			got := map[string]bool{}
+			for _, i := range card.SupportedInterfaces {
+				got[i.ProtocolBinding] = true
+			}
+			for _, want := range []string{"JSONRPC", "HTTP+JSON", "GRPC"} {
+				if !got[want] {
+					t.Errorf("expected card to advertise %s transport; got %v", want, got)
+				}
+			}
+		})
+
+		// assertEchoCompleted runs `send` and asserts the task completed with the
+		// deterministic echo artifact (part-0-text).
+		assertEchoCompleted := func(t *testing.T, transport string) {
+			t.Helper()
+			args := []string{"send", "hello-" + transport, "--output", "json", "--wait", "-u", sutURL}
+			if transport != "" {
+				args = append(args, "--transport", transport)
+			}
+			cmd := runCLI(args...)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("send (%s) failed: %v\nOutput: %s", transport, err, out)
+			}
+			// --wait emits a single final task object.
+			var task struct {
+				Status struct {
+					State string `json:"state"`
+				} `json:"status"`
+				Artifacts []struct {
+					Name string `json:"name"`
+				} `json:"artifacts"`
+			}
+			if err := json.Unmarshal(out, &task); err != nil {
+				t.Fatalf("failed to parse task JSON (%s): %v\nOutput: %s", transport, err, out)
+			}
+			if task.Status.State != "TASK_STATE_COMPLETED" {
+				t.Errorf("[%s] expected TASK_STATE_COMPLETED, got %q", transport, task.Status.State)
+			}
+			found := false
+			for _, a := range task.Artifacts {
+				if a.Name == "part-0-text" {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("[%s] expected artifact 'part-0-text', got %+v", transport, task.Artifacts)
+			}
+		}
+
+		t.Run("JSONRPC", func(t *testing.T) { assertEchoCompleted(t, "jsonrpc") })
+		t.Run("REST", func(t *testing.T) { assertEchoCompleted(t, "rest") })
+		t.Run("gRPC", func(t *testing.T) { assertEchoCompleted(t, "grpc") })
+	})
 }

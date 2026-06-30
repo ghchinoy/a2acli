@@ -41,8 +41,8 @@ conformance-report: ## Run conformance tests and update docs/CONFORMANCE_REPORT.
 	@echo "" >> docs/CONFORMANCE_REPORT.md
 	@echo "**Date:** $$(date +%Y-%m-%d)" >> docs/CONFORMANCE_REPORT.md
 	@echo "**CLI Version:** $(VERSION)" >> docs/CONFORMANCE_REPORT.md
-	@echo "**SDK Source:** \`$$(cd $(A2A_GO_SRC) && git remote get-url origin | sed 's|ssh://git@github.com/|github.com/|;s|git@github.com:|github.com/|;s|.git$$||')\`" >> docs/CONFORMANCE_REPORT.md
-	@echo "**SDK Branch:** \`$$(cd $(A2A_GO_SRC) && git branch --show-current)\`" >> docs/CONFORMANCE_REPORT.md
+	@echo "**SDK Source:** \`$$(cd $$(echo "$(A2A_GO_SRC)" | sed 's|^\.\./||') 2>/dev/null && git remote get-url origin | sed 's|ssh://git@github.com/|github.com/|;s|git@github.com:|github.com/|;s|.git$$||' || echo unknown)\`" >> docs/CONFORMANCE_REPORT.md
+	@echo "**SDK Branch:** \`$$(cd $$(echo "$(A2A_GO_SRC)" | sed 's|^\.\./||') 2>/dev/null && git branch --show-current || echo unknown)\`" >> docs/CONFORMANCE_REPORT.md
 	@echo "" >> docs/CONFORMANCE_REPORT.md
 	@echo "## Conformance Status" >> docs/CONFORMANCE_REPORT.md
 	@echo "" >> docs/CONFORMANCE_REPORT.md
