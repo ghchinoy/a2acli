@@ -40,3 +40,5 @@ no-db: true
 # - linear.api-key
 # - github.org
 # - github.repo
+
+sync.remote: "git+ssh://git@github.com/ghchinoy/a2acli.git"
