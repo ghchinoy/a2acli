@@ -1,0 +1,91 @@
+name: "\U0001F41E Bug Report"
+description: Something in a2acli isn't working as expected
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve **a2acli**! Please fill in the details below so we can reproduce the issue quickly.
+
+        Questions about the **A2A protocol itself** (not the CLI) are best asked at
+        [a2a-protocol.org](https://a2a-protocol.org/latest/) or in the
+        [A2A project](https://github.com/a2aproject/A2A).
+  - type: input
+    id: version
+    attributes:
+      label: a2acli version
+      description: "Output of `a2acli version`."
+      placeholder: "e.g. v0.5.2 (commit abc1234, built 2026-01-01)"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install a2acli?
+      options:
+        - Homebrew
+        - Install script (curl)
+        - apt (.deb)
+        - rpm
+        - go install
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command you ran
+      description: The exact command line. Redact any secrets/tokens.
+      render: shell
+      placeholder: "a2acli send \"hello\" --service-url http://localhost:9001 --output json --wait"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+      placeholder: Tell us what went wrong.
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport (if relevant)
+      options:
+        - "Not sure / auto-selected"
+        - grpc
+        - jsonrpc
+        - rest
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Verbose log output
+      description: "Re-run with `--verbose` and paste the output here. It will be formatted automatically."
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this hasn't been reported yet.
+          required: true
+        - label: I reproduced this on the latest release (or noted the version above).
+          required: true

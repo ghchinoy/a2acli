@@ -1,4 +1,4 @@
-.PHONY: build run clean lint test test-e2e install help conformance-report
+.PHONY: build run clean lint test test-e2e install help conformance-report diagrams
 .DEFAULT_GOAL := help
 
 # Default path to the a2a-go SDK repository, required for conformance tests.
@@ -59,6 +59,17 @@ conformance-report: ## Run conformance tests and update docs/CONFORMANCE_REPORT.
 
 install: ## Install the binary to GOBIN
 	go install -ldflags="$(LDFLAGS)" ./cmd/a2acli
+
+diagrams: ## Render docs/diagrams/*.dot to docs/img/*.webp (requires graphviz + cwebp)
+	@command -v dot >/dev/null 2>&1   || { echo "graphviz (dot) not found; install graphviz"; exit 1; }
+	@command -v cwebp >/dev/null 2>&1 || { echo "cwebp not found; install webp"; exit 1; }
+	@mkdir -p docs/img
+	@for f in docs/diagrams/*.dot; do \
+		name=$$(basename $$f .dot); \
+		dot -Tpng $$f -o /tmp/$$name.png && \
+		cwebp -quiet -q 90 /tmp/$$name.png -o docs/img/$$name.webp && \
+		echo "  rendered docs/img/$$name.webp"; \
+	done
 
 clean: ## Remove build artifacts
 	rm -rf bin/

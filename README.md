@@ -5,25 +5,13 @@
 
 A standalone, A2A Specification v1.0 compliant command-line client for discovering, messaging, and managing agents. Built on the [a2a-go](https://github.com/a2aproject/a2a-go) SDK with an interactive streaming TUI and a scriptable JSON mode.
 
-## Quick Start
+## What is A2A?
 
-```bash
-# Describe an agent — fetch its AgentCard, skills, and security requirements
-a2acli discover --service-url http://localhost:9001
+**A2A (Agent-to-Agent)** is an open protocol for talking to AI agents over a network — discover what an agent can do, send it a message, and stream back results and artifacts, regardless of how the agent is built. Every agent publishes an **AgentCard** (its skills, security requirements, and transports); you send a **message** that creates a **task**; the task moves through states (`working` → `completed`) and may produce **artifacts** (text, data, files).
 
-# Send a message and stream responses in real time
-a2acli send "Generate a project plan" --service-url http://localhost:9001
+`a2acli` is the command-line client for that protocol. To learn the protocol itself, see the canonical site: **[a2a-protocol.org](https://a2a-protocol.org/latest/)**.
 
-# Send a message and get a single JSON result (for scripting and agents)
-a2acli send "Generate a project plan" --service-url http://localhost:9001 --output json --wait
-```
-
-**With an OAuth 2.1-protected agent** (one-time setup, then no `--token` needed):
-
-```bash
-a2acli auth login --service-url https://agent.example.com   # browser opens once
-a2acli send "hello" --service-url https://agent.example.com --wait   # auto-authenticated
-```
+![How a2acli commands map to the A2A task lifecycle](docs/img/task-lifecycle.webp)
 
 ## Installation
 
@@ -68,378 +56,114 @@ go install github.com/ghchinoy/a2acli/cmd/a2acli@latest
 ```bash
 git clone https://github.com/ghchinoy/a2acli.git
 cd a2acli
-make build
+make build   # binary is written to bin/a2acli
 ```
 
-The binary is written to `bin/a2acli`.
-
-## Command Grammar
-
-```
-a2acli <verb> [noun] [positional-args] [flags]
-```
-
-**Verbs** map directly to A2A Protocol RPCs. **Nouns** are used where a verb spans multiple resource types (`list tasks`). **Positional args** are required IDs or message text. **Flags** are optional modifiers.
-
-| Pattern | Example | Notes |
-|---|---|---|
-| `verb` | `a2acli discover` | Verb only — single resource type |
-| `verb message` | `a2acli send "Hello"` | Positional message text |
-| `verb id` | `a2acli get <taskID>` | Positional task ID |
-| `verb noun` | `a2acli list tasks` | Noun disambiguates resource |
-
-The agent URL is always a flag (`--service-url / -u`) rather than a positional argument. This enables named environment profiles in config — you rarely need to type a URL at all once configured.
-
-**Output modes** are controlled by `--output`:
-
-| Mode | Flag | Use when |
-|---|---|---|
-| `tui` | default | Interactive terminal with streaming UI |
-| `text` | `--output text` | Non-interactive, human-readable (CI logs, piped output) |
-| `json` | `--output json` | Machine-readable NDJSON (scripts, agents) |
-
-`-n` / `--no-tui` is a backwards-compatible shorthand for `--output json`.
-
-## Commands
-
-Commands are organized into four A2A-aligned groups: **Discovery & Identity**, **Messaging & Tasks**, **Server & Mocking**, and **Client Configuration**.
-
-### Discovery & Identity
-
-#### `discover` — Inspect an Agent
-Fetch and display an agent's `AgentCard`, registered skills, and security requirements.
-*(Fetches via the standard A2A discovery endpoint.)*
+### Verify your install
 
 ```bash
-a2acli discover --service-url http://localhost:9001
-
-# Fetch the richer, authenticated extended card (requires auth)
-a2acli discover --service-url https://agent.example.com --extended
+a2acli version
 ```
 
-| Flag | Description |
-|---|---|
-| `--extended` | Fetch the authenticated extended AgentCard via `GetExtendedAgentCard` (requires a token; the agent must advertise `extendedAgentCard: true`) |
+You should see version, commit, and build-date information. If the command isn't
+found, ensure your install location (e.g. `$(go env GOPATH)/bin` for `go install`,
+or `./bin` when building from source) is on your `PATH`.
 
-### Messaging & Tasks
+## 5-Minute Tutorial
 
-#### `send` — Send a Message
-Send a message to initiate or continue a task.
-*(Maps to the A2A Protocol's `SendMessage` RPC.)*
+You don't need a remote agent to get started — `a2acli` can run a local mock agent
+for you. This golden path runs entirely on your machine, no auth required.
 
-```bash
-a2acli send "Generate a project plan" --out-dir ./output/
-```
-
-By default, `send` streams real-time updates. Use `--wait` (`-w`) for a blocking call that returns the final result only. When stdin is not a terminal, the message is read from stdin:
-
-```bash
-echo "Summarize Q3 results" | a2acli send --skill summarize --wait --output json
-cat prompt.txt | a2acli send --wait
-```
-
-| Flag | Short | Description |
-|---|---|---|
-| `--skill` | `-s` | Target a specific skill on the agent |
-| `--wait` / `--sync` | `-w` | Block until task completes (returns final JSON) |
-| `--full` | — | Show complete artifact content without truncation (default: 500 char preview) |
-| `--out-dir` | `-o` | Save artifacts to a directory |
-| `--file` | `-f` | Save artifact to a specific filename |
-| `--instruction-file` | `-i` | Path to a file with supplemental instructions |
-
-#### `watch` — Subscribe to a Task
-Subscribe to an active task's event stream.
-*(Maps to the A2A Protocol's `SubscribeToTask` RPC.)*
-
-```bash
-a2acli subscribe <task_id> --out-dir ./output/
-```
-
-| Flag | Short | Description |
-|---|---|---|
-| `--out-dir` | `-o` | Save artifacts to a directory as they arrive |
-| `--file` | `-f` | Save artifact to a specific filename |
-
-#### `get` — Get Task Status
-Retrieve the state and artifacts of a specific task.
-*(Maps to the A2A Protocol's `GetTask` RPC.)*
-
-```bash
-a2acli get <task_id> --out-dir ./output/
-```
-
-| Flag | Short | Description |
-|---|---|---|
-| `--out-dir` | `-o` | Save artifacts to a directory |
-| `--file` | `-f` | Save artifact to a specific filename |
-| `--full` | — | Show complete artifact content without truncation |
-
-#### `list` — List Tasks
-Query an agent for historical tasks.
-*(Maps to the A2A Protocol's `ListTasks` RPC. The server must support history.)*
-
-```bash
-a2acli list tasks --limit 10
-a2acli list tasks --status completed
-a2acli list tasks --context ctx-123
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--limit` | `10` | Maximum number of tasks to return |
-| `--page-token` | — | Pagination token for the next page |
-| `--context` | — | Filter by context ID |
-| `--status` | — | Filter by task state (`submitted`, `working`, `completed`, `failed`, `canceled`, `rejected`) |
-
-#### `cancel` — Cancel a Task
-Cancel an active task.
-*(Maps to the A2A Protocol's `CancelTask` RPC.)*
-
-```bash
-a2acli cancel <task_id>
-```
-
-#### `push-config` — Push Notification Configs
-Register, list, retrieve, and delete push-notification callbacks for a task.
-*(Maps to the A2A Protocol's `CreateTaskPushNotificationConfig` and related RPCs.)*
-
-```bash
-a2acli push-config create <task_id> https://myserver.example.com/notify
-a2acli push-config create <task_id> https://cb.example.com/notify \
-  --auth-scheme Bearer --auth-credentials mytoken --id my-config
-a2acli push-config list <task_id>
-a2acli push-config get <task_id> <config_id>
-a2acli push-config delete <task_id> <config_id>
-```
-
-#### `download` — Download Artifacts
-Download artifacts produced by a task to a local directory.
-
-```bash
-a2acli download <task_id> --out-dir ./downloads
-```
-
-| Flag | Short | Description |
-|---|---|---|
-| `--out-dir` | `-o` | Directory to save artifacts to |
-| `--file` | `-f` | Save artifact to a specific filename |
-
-### Server & Mocking
-
-#### `serve` — Run a Mock Agent
-Spin up an A2A-compliant echo agent locally for testing and development.
+**1. Start a local echo agent** (in one terminal, or background it with `&`):
 
 ```bash
 a2acli serve --echo --port 9001
 ```
 
-| Flag | Default | Description |
+**2. Discover what it can do** — fetch its AgentCard, skills, and security schemes:
+
+```bash
+a2acli discover --service-url http://localhost:9001
+```
+
+**3. Send it a message** and stream the response in real time:
+
+```bash
+a2acli send "Hello, agent!" --service-url http://localhost:9001
+```
+
+That's the full loop: **serve → discover → send**. The echo agent simply returns
+your message, which is exactly what you want when learning the mechanics.
+
+**4. Get a single JSON result** instead of the interactive UI — this is the form
+scripts and AI agents use:
+
+```bash
+a2acli send "Hello, agent!" --service-url http://localhost:9001 --output json --wait
+```
+
+### Graduating to a real agent
+
+Once the loop makes sense, point the same commands at a real agent. If it's
+protected by OAuth 2.1, log in once and every later command is authenticated
+automatically — no `--token` needed:
+
+```bash
+a2acli auth login --service-url https://agent.example.com   # browser opens once
+a2acli send "hello" --service-url https://agent.example.com --wait   # auto-authenticated
+```
+
+Tired of retyping URLs? Save a named environment and use `--env`:
+
+```bash
+a2acli config env add prod --service-url https://agent.example.com
+a2acli send "hello" --env prod --wait
+```
+
+See the [Reference Manual](docs/MANUAL.md#client-configuration) for full config details.
+
+## Command Overview
+
+Commands are organized into four A2A-aligned groups. The table below is a map;
+the [Reference Manual](docs/MANUAL.md) has the full flag lists, examples, and
+output schemas for each.
+
+| Command | Group | What it does |
 |---|---|---|
-| `--port` | `9001` | Listen port |
-| `--host` | `127.0.0.1` | Bind address |
-| `--echo` | — | Return the user's message as the response |
+| [`discover`](docs/MANUAL.md#discover--inspect-an-agent) | Discovery | Fetch an agent's AgentCard, skills, and security schemes |
+| [`send`](docs/MANUAL.md#send--send-a-message) | Messaging | Send a message to initiate or continue a task |
+| [`subscribe`](docs/MANUAL.md#subscribe-watch--subscribe-to-a-task) | Messaging | Subscribe to a running task's event stream |
+| [`get`](docs/MANUAL.md#get--get-task-status) | Messaging | Retrieve state and artifacts of a task by ID |
+| [`list tasks`](docs/MANUAL.md#list--list-tasks) | Messaging | List historical tasks (with `--status`/`--context` filters) |
+| [`cancel`](docs/MANUAL.md#cancel--cancel-a-task) | Messaging | Cancel an active task |
+| [`push-config`](docs/MANUAL.md#push-config--push-notification-configs) | Messaging | Manage push-notification callbacks for a task |
+| [`download`](docs/MANUAL.md#download--download-artifacts) | Messaging | Download artifacts from a completed task |
+| [`serve`](docs/MANUAL.md#serve--run-a-mock-agent) | Server | Run a local mock A2A agent for testing |
+| [`auth`](docs/MANUAL.md#authentication) | Config | OAuth 2.1 login/status/token/logout |
+| [`conformance`](docs/MANUAL.md#conformance--a2a-conformance-smoke-check) | Server | Run A2A conformance smoke checks against a live server |
+| [`a2ui validate`](docs/MANUAL.md#a2ui-validate--a2ui-extension-conformance) | Server | Validate A2UI v1.0 extension wire conformance |
+| [`config`](docs/MANUAL.md#client-configuration) | Config | Manage named environments |
 
-### Authentication — `auth`
+**Output modes** are controlled by `--output`: `tui` (default interactive),
+`text` (plain, for CI/pipes), and `json` (NDJSON for scripting). `a2acli`
+auto-degrades from `tui` to `text` when output isn't a terminal. See
+[Output Modes](docs/MANUAL.md#output-modes).
 
-Obtain, inspect, and revoke OAuth 2.1 tokens for agents that require authentication.
-Tokens are stored in `~/.config/a2acli/tokens/` (0600 permissions) and used
-automatically — no `--token` flag needed once logged in.
+For the complete grammar, every flag, global flags, shell completion, and
+automation guidance, see the **[Reference Manual](docs/MANUAL.md)**.
 
-```bash
-# Log in once — browser opens for OAuth 2.1 auth-code + PKCE flow
-a2acli auth login --service-url https://agent.example.com
+## Using a2acli from AI Coding Agents
 
-# Or log in using a named environment
-a2acli auth login --env mithlond
+`a2acli` is designed to be driven by AI coding agents (Claude Code, Cursor, GitHub
+Copilot CLI) as well as shell scripts. Two rules make it deterministic in
+non-interactive contexts:
 
-# Check stored token validity
-a2acli auth status --service-url https://agent.example.com
+1. Pass `--output json` (or `-n`) to disable the TUI and emit parseable NDJSON.
+2. Pass `--wait` with `send` to block until the task completes.
 
-# Print the raw JWT (useful for scripts that need the token explicitly)
-TOKEN=$(a2acli auth token --service-url https://agent.example.com)
-
-# Remove the stored token
-a2acli auth logout --service-url https://agent.example.com
-```
-
-After `auth login`, all commands (`send`, `discover`, `conformance`, etc.) use the
-stored token automatically. The `auth token` subcommand is the `--token $(make token)`
-equivalent for scripts.
-
-> **Note for non-interactive contexts (CI, agents):** `auth login` requires a browser.
-> Use `auth token` to retrieve a previously stored token for `--token` in automated
-> contexts, or pass the JWT directly via `--token`.
-
-### `conformance` — A2A Conformance Smoke Check
-
-Run a quick sequence of checks against a live A2A server: AgentCard well-formed,
-auth gating (auto-uses stored token if available), and a round-trip send.
-Non-zero exit code on failure.
-
-```bash
-a2acli conformance --service-url http://localhost:9001
-a2acli conformance --env mithlond --output json   # uses stored token automatically
-```
-
-### `a2ui validate` — A2UI Extension Conformance
-
-Validate that a server emits a conformant **A2UI v1.0** extension stream — at the
-wire level, against the official A2UI JSON Schemas, with no UI renderer required.
-
-```bash
-a2acli a2ui validate --service-url http://localhost:9002
-a2acli a2ui validate -u http://localhost:9002 --output json
-```
-
-### Client Configuration
-
-```bash
-a2acli config                   # Show active environment and config file location
-a2acli config env list          # List configured environments and token status
-a2acli config env add <name> --service-url <url> [--transport <grpc|jsonrpc|rest>]
-                                # Add or update a named environment profile
-a2acli config env use <name>    # Set the default environment
-a2acli config env remove <name> # Delete an environment profile
-a2acli version                  # Print version information
-```
-
-## Shell Completion
-
-`a2acli` can generate completion scripts for bash, zsh, fish, and PowerShell.
-
-### zsh
-
-```bash
-a2acli completion zsh > "${fpath[1]}/_a2acli"
-```
-
-Or for a single session:
-```bash
-source <(a2acli completion zsh)
-```
-
-### bash
-
-```bash
-a2acli completion bash > /etc/bash_completion.d/a2acli
-```
-
-Or for a single session:
-```bash
-source <(a2acli completion bash)
-```
-
-### fish
-
-```bash
-a2acli completion fish > ~/.config/fish/completions/a2acli.fish
-```
-
-### PowerShell
-
-```powershell
-a2acli completion powershell | Out-String | Invoke-Expression
-```
-
-## Configuration
-
-`a2acli` supports named environments via an XDG Base Directory compliant config file at `~/.config/a2acli/config.yaml`. This lets you switch between local, staging, and production agents without repeating URLs and tokens.
-
-```yaml
-# ~/.config/a2acli/config.yaml
-default_env: "local"
-
-envs:
-  local:
-    service_url: "http://127.0.0.1:9001"
-
-  staging:
-    service_url: "https://staging-agent.internal.corp"
-    token: "my-staging-auth-token"         # static token; or omit and use auth login
-
-  mithlond:
-    service_url: "https://candir.mithlond.com"
-    # token omitted — stored automatically by 'a2acli auth login --env mithlond'
-    # transport omitted — auto-selected from AgentCard (JSONRPC in this case)
-```
-
-Use the `--env` (`-e`) flag to select an environment:
-
-```bash
-a2acli auth login --env mithlond           # one-time browser login
-a2acli send "name star silver quenya" --env mithlond --skill name-generate --wait
-a2acli conformance --env mithlond          # auth gating auto-resolved from token store
-```
-
-Supported fields per environment: `service_url`, `token` (static, takes precedence over token store), `transport` (pin a specific transport, e.g. `jsonrpc`).
-
-Precedence: **CLI Flags > Environment Variables > Config File > Defaults.**
-
-Environment variables follow the pattern `A2ACLI_<FLAG>` (e.g. `A2ACLI_SERVICE_URL`).
-
-### Global Flags
-
-| Flag | Description |
-|---|---|
-| `-u, --service-url` | Base URL of the A2A service (default: `http://127.0.0.1:9001`) |
-| `-t, --token` | Authorization token (if omitted, stored token from `auth login` is used automatically) |
-| `--auth` | Authorization headers, e.g. `Bearer …` (repeatable) |
-| `--svc-param` | Service parameters, e.g. `key=value` (repeatable) |
-| `-k, --task` | Existing Task ID to continue (must be non-terminal) |
-| `-r, --ref` | Task ID to reference as context |
-| `-n, --no-tui` | Output JSON/NDJSON instead of the interactive TUI |
-| `--output` | Output mode: `tui` (default), `text` (plain/CI), `json` (NDJSON for scripting) |
-| `-v, --verbose` | Print diagnostic info to stderr (transport, token resolution, events) |
-| `-p, --protocol` | A2A protocol version: `1.0.0` or `0.3.0` (default: `1.0.0`) |
-| `--transport` | Force transport: `grpc`, `jsonrpc`, or `rest` |
-| `--timeout` | Request timeout, e.g. `30s`, `2m` (default: no timeout) |
-| `-e, --env` | Named environment from config file |
-| `-c, --config` | Path to config file |
-| `-V, --version` | Print version information |
-
-**Example: auth and service parameters**
-
-```bash
-a2acli send "Generate report" --service-url http://localhost:9001 \
-  --auth "ApiKey secret-key-here" \
-  --svc-param "tenant_id=123" \
-  --svc-param "debug=true"
-```
-
-## Agent & Automation
-
-`a2acli` is designed to be driven by AI coding agents (Claude Code, Cursor, GitHub Copilot CLI) as well as shell scripts.
-
-### Non-Interactive Mode (`-n`)
-
-The `-n` / `--no-tui` flag switches all output to newline-delimited JSON (NDJSON), giving scripts and agents a stable, parseable stream. It can also be set via `A2ACLI_NO_TUI=true` or `NO_COLOR=true`.
-
-```bash
-a2acli send "Write code" -n --wait
-```
-
-### Transport Selection
-
-`a2acli` auto-selects the best available transport based on the agent's advertised capabilities, in priority order: **gRPC > JSON-RPC > REST**. Override when needed:
-
-```bash
-a2acli send "Generate video" --transport grpc
-```
-
-> When using `--protocol 0.3.0`, only `jsonrpc` is available. gRPC is disabled for legacy connections to prevent protobuf namespace conflicts.
-
-### Proactive Error Hints
-
-On failure, the CLI emits a `Hint:` to assist automated recovery:
-
-```
-Error: failed to resolve AgentCard: connection refused
-Hint: Ensure the A2A server is running at http://localhost:9001
-```
-
-### Agent Skills
-
-This repository ships an [`agentskills.io`](https://agentskills.io/) compliant `skills/` directory. AI coding agents load these skills automatically and learn to use `--no-tui` and `--wait` for deterministic JSON output.
+This repository ships an [`agentskills.io`](https://agentskills.io/) compliant
+[`skills/`](skills/) directory that teaches agents these conventions automatically.
+See [Agent & Automation](docs/MANUAL.md#agent--automation) for details.
 
 ## Development
 
@@ -448,6 +172,7 @@ make build      # Compile to bin/a2acli
 make run        # Build and run
 make lint       # Run golangci-lint
 make test-e2e   # Run end-to-end conformance tests
+make diagrams   # Re-render docs/diagrams/*.dot to docs/img/*.webp
 make clean      # Remove bin/
 ```
 
@@ -455,9 +180,12 @@ For release instructions see [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Conformance (TCK)
 
-`a2acli` is tested against the official A2A Technology Compatibility Kit for both **v0.3.0** and **v1.0.0**. See the [Conformance Report](docs/CONFORMANCE_REPORT.md) for current status.
+`a2acli` is tested against the official A2A Technology Compatibility Kit for both
+**v0.3.0** and **v1.0.0**. See the [Conformance Report](docs/CONFORMANCE_REPORT.md)
+for current status.
 
-Running the tests requires the [a2a-go](https://github.com/a2aproject/a2a-go) SDK source locally, as the suite spins up the TCK SUT server dynamically:
+Running the tests requires the [a2a-go](https://github.com/a2aproject/a2a-go) SDK
+source locally, as the suite spins up the TCK SUT server dynamically:
 
 ```bash
 # Default path: ../../github/a2a-go

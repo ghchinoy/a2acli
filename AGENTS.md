@@ -108,7 +108,7 @@ For more details, see README.md and docs/QUICKSTART.md.
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
+   bd dolt push          # sync beads to Dolt remote (writes auto-commit to Dolt)
    git push
    git status  # MUST show "up to date with origin"
    ```

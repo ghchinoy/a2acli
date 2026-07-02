@@ -1,0 +1,38 @@
+name: "\U0001F64B Question / Help"
+description: Getting started, usage help, or "how do I…?" with a2acli
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New to a2acli or A2A? Welcome! A few pointers before you ask:
+
+        - The [5-Minute Tutorial](https://github.com/ghchinoy/a2acli#5-minute-tutorial) gets you from install to a working `serve → discover → send` loop.
+        - The [Reference Manual](https://github.com/ghchinoy/a2acli/blob/main/docs/MANUAL.md) has every command and flag.
+        - For questions about the **A2A protocol itself**, see [a2a-protocol.org](https://a2a-protocol.org/latest/).
+
+        If those don't cover it, ask away.
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+      description: Describe your goal and where you got stuck.
+      placeholder: "I'm trying to … and I expected … but instead …"
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Commands you ran (redact secrets) and any output. Optional but speeds up help.
+      render: shell
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: a2acli version (optional)
+      description: "Output of `a2acli version`, if relevant."
+    validations:
+      required: false

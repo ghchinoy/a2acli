@@ -1,0 +1,56 @@
+// a2acli — how commands map to the A2A task lifecycle
+//
+// Render:  make diagrams          (see Makefile)
+// Or:      dot -Tpng docs/diagrams/task-lifecycle.dot -o /tmp/tl.png \
+//            && cwebp -q 90 /tmp/tl.png -o docs/img/task-lifecycle.webp
+//
+digraph a2a_task_lifecycle {
+  rankdir=LR;
+  bgcolor="white";
+  fontname="Helvetica";
+  labelloc="t";
+  label="a2acli commands mapped to the A2A task lifecycle";
+  fontsize=16;
+
+  node [fontname="Helvetica", fontsize=11, style="filled", color="#334155", penwidth=1.2];
+  edge [fontname="Helvetica", fontsize=10, color="#64748b"];
+
+  // Actors
+  cli   [label="a2acli", shape="box", style="filled,rounded", fillcolor="#dbeafe"];
+  agent [label="A2A Agent\n(gRPC / JSON-RPC / REST)", shape="box", style="filled,rounded", fillcolor="#dcfce7"];
+
+  // Discovery
+  card  [label="AgentCard\nskills · security · transports", shape="note", fillcolor="#fef9c3"];
+
+  // Task states (the A2A state machine)
+  subgraph cluster_task {
+    label="Task";
+    style="rounded,dashed";
+    color="#94a3b8";
+    fontname="Helvetica";
+    fontsize=12;
+
+    submitted [label="submitted", shape="ellipse", fillcolor="#e2e8f0"];
+    working   [label="working",   shape="ellipse", fillcolor="#fde68a"];
+    completed [label="completed", shape="ellipse", fillcolor="#bbf7d0"];
+    failed    [label="failed",    shape="ellipse", fillcolor="#fecaca"];
+    input     [label="input-required", shape="ellipse", fillcolor="#fed7aa"];
+  }
+
+  artifacts [label="Artifacts\ntext · data · files", shape="folder", fillcolor="#e0e7ff"];
+
+  // Flow
+  cli   -> card      [label="discover"];
+  card  -> agent     [style="dotted", label="pick transport", constraint=false];
+  cli   -> submitted [label="send"];
+  submitted -> working;
+  working  -> completed;
+  working  -> failed;
+  working  -> input      [label="needs more"];
+  input    -> working    [label="send --task", constraint=false];
+  working  -> working    [label="subscribe / get", constraint=false];
+  completed -> artifacts  [label="download / --out-dir"];
+
+  // keep agent near the top
+  { rank=same; cli; agent; }
+}

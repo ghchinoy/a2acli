@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "\U0001F4D8 A2A Protocol Documentation"
+    url: https://a2a-protocol.org/latest/
+    about: Questions about the A2A protocol itself (AgentCards, tasks, transports) — not the CLI.
+  - name: "\U0001F4D6 Reference Manual"
+    url: https://github.com/ghchinoy/a2acli/blob/main/docs/MANUAL.md
+    about: The full command and flag reference before filing a usage question.

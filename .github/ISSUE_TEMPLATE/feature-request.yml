@@ -1,0 +1,48 @@
+name: "\U0001F4A1 Feature Request"
+description: Suggest a new command, flag, or improvement for a2acli
+title: "[Feat]: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Before proposing a new command or flag, it helps to skim
+        [docs/CLI_DESIGN_BEST_PRACTICES.md](https://github.com/ghchinoy/a2acli/blob/main/docs/CLI_DESIGN_BEST_PRACTICES.md)
+        so the suggestion fits the existing grammar.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: A clear and concise description of the problem or gap.
+      placeholder: "Ex. I'm always frustrated when [...]"
+    validations:
+      required: false
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Describe the solution you'd like
+      description: What should the command/flag/behavior look like? Include example invocations if you can.
+      placeholder: "e.g. a2acli send ... --new-flag"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Other approaches, workarounds, or prior art (including other A2A CLIs).
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else — links, screenshots, related A2A spec sections.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this hasn't already been requested.
+          required: true
