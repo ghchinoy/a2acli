@@ -45,6 +45,12 @@ Download the `.rpm` from the [latest release](https://github.com/ghchinoy/a2acli
 sudo rpm -i a2acli_*.rpm
 ```
 
+### Windows — winget
+
+```powershell
+winget install ghchinoy.a2acli
+```
+
 ### Any platform — Go Install
 
 ```bash
