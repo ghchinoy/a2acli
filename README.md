@@ -167,8 +167,13 @@ non-interactive contexts:
 1. Pass `--output json` (or `-n`) to disable the TUI and emit parseable NDJSON.
 2. Pass `--wait` with `send` to block until the task completes.
 
-This repository ships an [`agentskills.io`](https://agentskills.io/) compliant
-[`skills/`](skills/) directory that teaches agents these conventions automatically.
+This repository ships [`agentskills.io`](https://agentskills.io/) compliant
+[skills](skills/) that teach coding agents how to use, build, and evaluate A2A services:
+
+- [**`a2acli`**](skills/a2acli/SKILL.md) — Teaches agents how to interact with A2A services from the command line using `a2acli`.
+- [**`a2a-expose`**](skills/a2a-expose/SKILL.md) — Guides developers and agents in adding a compliant A2A exposure layer to an existing API or service.
+- [**`a2a-conformance`**](skills/a2a-conformance/SKILL.md) — Evaluates an A2A agent against normative spec rules, stable check IDs, and TCK orchestration.
+
 See [Agent & Automation](docs/MANUAL.md#agent--automation) for details.
 
 ## Development

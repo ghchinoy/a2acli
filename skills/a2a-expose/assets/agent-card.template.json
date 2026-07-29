@@ -1,0 +1,50 @@
+{
+  "name": "YOUR_AGENT_NAME",
+  "version": "1.0",
+  "description": "DETAILED_DESCRIPTION_OF_AGENT_CAPABILITIES_AND_INTENTS",
+  "documentationUrl": "HTTPS_DOCUMENTATION_URL",
+  "supportedInterfaces": [
+    {
+      "url": "HTTP_SERVICE_BASE_URL/invoke",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    },
+    {
+      "url": "HTTP_SERVICE_BASE_URL/",
+      "protocolBinding": "HTTP+JSON",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "defaultInputModes": [
+    "text"
+  ],
+  "defaultOutputModes": [
+    "text"
+  ],
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "extendedAgentCard": false
+  },
+  "skills": [
+    {
+      "id": "SKILL_ID",
+      "name": "HUMAN_READABLE_SKILL_NAME",
+      "description": "INTENT_RICH_DESCRIPTION_FOR_LLM_TOOL_CALLERS",
+      "tags": [
+        "tag1",
+        "tag2"
+      ],
+      "examples": [
+        "Example user prompt 1",
+        "Example user prompt 2"
+      ],
+      "inputModes": [
+        "text"
+      ],
+      "outputModes": [
+        "text"
+      ]
+    }
+  ]
+}
