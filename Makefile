@@ -1,4 +1,4 @@
-.PHONY: build run clean lint test test-e2e install help conformance-report diagrams
+.PHONY: build run clean lint lint-fix fmt test test-e2e install help conformance-report diagrams
 .DEFAULT_GOAL := help
 
 # Default path to the a2a-go SDK repository, required for conformance tests.
@@ -25,8 +25,14 @@ build: ## Build the a2acli binary
 run: build ## Build and run the a2acli binary
 	./bin/a2acli
 
+fmt: ## Format Go source code
+	go fmt ./...
+
 lint: ## Run golangci-lint
 	golangci-lint run
+
+lint-fix: ## Run golangci-lint with auto-fix
+	golangci-lint run --fix
 
 test: ## Run unit tests
 	go test ./...

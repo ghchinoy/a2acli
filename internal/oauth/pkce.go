@@ -37,7 +37,11 @@ import (
 // a2acli must bind exactly here; port randomisation is not possible without a new
 // registration.
 const CallbackAddr = "127.0.0.1:8080"
+
+// CallbackPath is the URL path for the OAuth authorization callback endpoint.
 const CallbackPath = "/callback"
+
+// RedirectURI is the full callback redirect URI used in OAuth requests.
 const RedirectURI = "http://" + CallbackAddr + CallbackPath
 
 // CIMDURL is a2acli's own Client Instance Metadata Document URL. Used as client_id.
@@ -122,23 +126,23 @@ func StartCallbackServer(ctx context.Context, expectedState string) (<-chan Call
 
 		if errParam != "" {
 			ch <- CallbackResult{Err: fmt.Errorf("auth server error: %s — %s", errParam, q.Get("error_description"))}
-			fmt.Fprintf(w, "<html><body><h2>Authentication failed</h2><p>%s</p><p>You may close this tab.</p></body></html>", errParam)
+			_, _ = fmt.Fprintf(w, "<html><body><h2>Authentication failed</h2><p>%s</p><p>You may close this tab.</p></body></html>", errParam)
 			return
 		}
 		if state != expectedState {
 			ch <- CallbackResult{Err: fmt.Errorf("state mismatch: got %q, expected %q (possible CSRF)", state, expectedState)}
-			fmt.Fprintf(w, "<html><body><h2>Authentication failed</h2><p>State mismatch.</p></body></html>")
+			_, _ = fmt.Fprintf(w, "<html><body><h2>Authentication failed</h2><p>State mismatch.</p></body></html>")
 			return
 		}
 		ch <- CallbackResult{Code: code, State: state}
-		fmt.Fprintf(w, "<html><body><h2>Authentication successful!</h2><p>You may close this tab and return to a2acli.</p></body></html>")
+		_, _ = fmt.Fprintf(w, "<html><body><h2>Authentication successful!</h2><p>You may close this tab and return to a2acli.</p></body></html>")
 	})
 
 	go func() {
 		_ = srv.Serve(ln)
 	}()
 
-	stop := func() { _ = srv.Shutdown(context.Background()) }
+	stop := func() { _ = srv.Shutdown(ctx) }
 	return ch, stop, nil
 }
 
@@ -172,7 +176,7 @@ func ExchangeCode(ctx context.Context, tokenEndpoint, code string, pkce Challeng
 	if err != nil {
 		return nil, fmt.Errorf("token exchange: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		var e struct {

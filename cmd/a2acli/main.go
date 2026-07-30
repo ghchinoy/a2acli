@@ -40,14 +40,14 @@ import (
 )
 
 var (
-	serviceURL      string
-	skillID         string
-	authToken       string
-	targetTaskID    string
-	refTaskID       string
-	outDir          string
-	outFile         string
-	instructionFile string
+	serviceURL       string
+	skillID          string
+	authToken        string
+	targetTaskID     string
+	refTaskID        string
+	outDir           string
+	outFile          string
+	instructionFile  string
 	disableTUI       bool
 	outputMode       string
 	requestTimeout   time.Duration
@@ -58,8 +58,8 @@ var (
 	discoverExtended bool
 	transport        string
 	protocol         string
-	authHeaders     []string
-	svcParams       []string
+	authHeaders      []string
+	svcParams        []string
 
 	rootCmd = &cobra.Command{
 		Use:   "a2acli",
@@ -274,7 +274,9 @@ func isTTY() bool {
 // isStdinPiped reports whether stdin is being piped (not a terminal).
 // Used to decide whether 'send' can read its message from stdin.
 // This is intentionally separate from isTTY: when running
-//   echo "msg" | a2acli send --env mithlond --wait
+//
+//	echo "msg" | a2acli send --env mithlond --wait
+//
 // stdout is still a terminal (isTTY returns true) but stdin is a pipe.
 func isStdinPiped() bool {
 	return !isatty.IsTerminal(os.Stdin.Fd()) && !isatty.IsCygwinTerminal(os.Stdin.Fd())
@@ -349,6 +351,117 @@ func runText(stream chan streamMsg, outDir string) {
 	}
 }
 
+func fetchExtendedCard(ctx context.Context, card *a2a.AgentCard) *a2a.AgentCard {
+	verboseLog("requesting extended AgentCard")
+	if !card.Capabilities.ExtendedAgentCard {
+		fatalf("extended card not supported", fmt.Errorf("serviceURL=%s", serviceURL),
+			"The AgentCard does not advertise ExtendedAgentCard: true in its capabilities.")
+	}
+
+	client, err := createClient(ctx, card)
+	if err != nil {
+		fatalf("failed to create client", err, "Verify your --token or configuration settings")
+	}
+
+	hasAuth := authToken != "" || len(authHeaders) > 0
+	if !hasAuth {
+		if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil && !stored.IsExpired() {
+			hasAuth = true
+		}
+	}
+	if !hasAuth {
+		fatalf("authentication required", fmt.Errorf("no credentials"),
+			"Requesting the extended card requires authentication. Run 'a2acli auth login' or pass --token")
+	}
+
+	extCard, err := client.GetExtendedAgentCard(ctx, &a2a.GetExtendedAgentCardRequest{})
+	if err != nil {
+		fatalf("GetExtendedAgentCard failed", err, "Verify your credentials have the required scopes (e.g. agent:invoke)")
+	}
+	verboseLog("resolved extended AgentCard: name=%q version=%q skills=%d",
+		extCard.Name, extCard.Version, len(extCard.Skills))
+	return extCard
+}
+
+func printSecurityScheme(name string, scheme a2a.SecurityScheme) {
+	switch s := scheme.(type) {
+	case a2a.HTTPAuthSecurityScheme:
+		label := s.Scheme
+		if s.BearerFormat != "" {
+			label += " (" + s.BearerFormat + ")"
+		}
+		fmt.Printf("  %s: http/%s\n", name, label)
+		fmt.Printf("    Hint: pass via --token <value>\n")
+		verboseLog("security scheme %q: http scheme=%s bearerFormat=%s", name, s.Scheme, s.BearerFormat)
+	case a2a.OAuth2SecurityScheme:
+		fmt.Printf("  %s: oauth2\n", name)
+		if s.Oauth2MetadataURL != "" {
+			fmt.Printf("    Metadata URL: %s\n", s.Oauth2MetadataURL)
+		}
+		switch f := s.Flows.(type) {
+		case a2a.AuthorizationCodeOAuthFlow:
+			fmt.Printf("    Flow:         authorization_code\n")
+			if f.TokenURL != "" {
+				fmt.Printf("    Token URL:    %s\n", f.TokenURL)
+			}
+			if f.AuthorizationURL != "" {
+				fmt.Printf("    Auth URL:     %s\n", f.AuthorizationURL)
+			}
+		case a2a.ClientCredentialsOAuthFlow:
+			fmt.Printf("    Flow:         client_credentials\n")
+			if f.TokenURL != "" {
+				fmt.Printf("    Token URL:    %s\n", f.TokenURL)
+			}
+		case a2a.DeviceCodeOAuthFlow:
+			fmt.Printf("    Flow:         device_code\n")
+			if f.TokenURL != "" {
+				fmt.Printf("    Token URL:    %s\n", f.TokenURL)
+			}
+		}
+		fmt.Printf("    Hint: run 'a2acli auth login -u %s' or pass via --token <jwt>\n", serviceURL)
+		verboseLog("security scheme %q: oauth2 metadataURL=%s flows=%T", name, s.Oauth2MetadataURL, s.Flows)
+	case a2a.APIKeySecurityScheme:
+		fmt.Printf("  %s: apiKey in %s (header: %s)\n", name, s.Location, s.Name)
+		fmt.Printf("    Hint: pass via --auth \"%s: <key>\"\n", s.Name)
+		verboseLog("security scheme %q: apiKey location=%s name=%s", name, s.Location, s.Name)
+	case a2a.OpenIDConnectSecurityScheme:
+		fmt.Printf("  %s: openIdConnect\n", name)
+		if s.OpenIDConnectURL != "" {
+			fmt.Printf("    Discovery: %s\n", s.OpenIDConnectURL)
+		}
+		verboseLog("security scheme %q: openIdConnect url=%s", name, s.OpenIDConnectURL)
+	case a2a.MutualTLSSecurityScheme:
+		fmt.Printf("  %s: mutualTLS\n", name)
+		verboseLog("security scheme %q: mutualTLS", name)
+	default:
+		fmt.Printf("  %s: (unrecognised scheme type %T)\n", name, scheme)
+	}
+}
+
+func printSkills(skills []a2a.AgentSkill) {
+	if len(skills) == 0 {
+		return
+	}
+	fmt.Printf("\nSkills:\n")
+	for _, s := range skills {
+		fmt.Printf("  - [%s] %s\n", s.ID, s.Name)
+		if s.Description != "" {
+			fmt.Printf("    Description: %s\n", s.Description)
+		}
+		if len(s.SecurityRequirements) > 0 {
+			for _, req := range s.SecurityRequirements {
+				for schemeName, scopes := range req {
+					if len(scopes) > 0 {
+						fmt.Printf("    Security: %s [scopes: %s]\n", schemeName, strings.Join(scopes, ", "))
+					} else {
+						fmt.Printf("    Security: %s\n", schemeName)
+					}
+				}
+			}
+		}
+	}
+}
+
 func runDescribe(_ *cobra.Command, _ []string) {
 	ctx := context.Background()
 
@@ -360,38 +473,7 @@ func runDescribe(_ *cobra.Command, _ []string) {
 		card.Name, card.Version, len(card.Skills), len(card.SupportedInterfaces))
 
 	if discoverExtended {
-		verboseLog("requesting extended AgentCard")
-		if !card.Capabilities.ExtendedAgentCard {
-			fatalf("extended card not supported", fmt.Errorf("serviceURL=%s", serviceURL),
-				"The AgentCard does not advertise ExtendedAgentCard: true in its capabilities.")
-		}
-
-		client, err := createClient(ctx, card)
-		if err != nil {
-			fatalf("failed to create client", err, "Verify your --token or configuration settings")
-		}
-
-		// Verify we have some token or auth header for the extended card.
-		// Extended cards are only served to authenticated callers.
-		hasAuth := authToken != "" || len(authHeaders) > 0
-		if !hasAuth {
-			// Check token store
-			if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil && !stored.IsExpired() {
-				hasAuth = true
-			}
-		}
-		if !hasAuth {
-			fatalf("authentication required", fmt.Errorf("no credentials"),
-				"Requesting the extended card requires authentication. Run 'a2acli auth login' or pass --token")
-		}
-
-		extCard, err := client.GetExtendedAgentCard(ctx, &a2a.GetExtendedAgentCardRequest{})
-		if err != nil {
-			fatalf("GetExtendedAgentCard failed", err, "Verify your credentials have the required scopes (e.g. agent:invoke)")
-		}
-		verboseLog("resolved extended AgentCard: name=%q version=%q skills=%d",
-			extCard.Name, extCard.Version, len(extCard.Skills))
-		card = extCard // Replace the public card with the richer extended card
+		card = fetchExtendedCard(ctx, card)
 	}
 
 	if disableTUI {
@@ -425,84 +507,70 @@ func runDescribe(_ *cobra.Command, _ []string) {
 
 	fmt.Printf("Capabilities: [Streaming: %v]\n", card.Capabilities.Streaming)
 
-	// Security schemes defined at the agent level.
-	// SDK unmarshals into value types (not pointers), so the switch uses value cases.
 	if len(card.SecuritySchemes) > 0 {
 		fmt.Printf("\nSecurity Schemes:\n")
 		for name, scheme := range card.SecuritySchemes {
-			switch s := scheme.(type) {
-			case a2a.HTTPAuthSecurityScheme:
-				label := s.Scheme
-				if s.BearerFormat != "" {
-					label += " (" + s.BearerFormat + ")"
-				}
-				fmt.Printf("  %s: http/%s\n", name, label)
-				fmt.Printf("    Hint: pass via --token <value>\n")
-				verboseLog("security scheme %q: http scheme=%s bearerFormat=%s", name, s.Scheme, s.BearerFormat)
-			case a2a.OAuth2SecurityScheme:
-				fmt.Printf("  %s: oauth2\n", name)
-				if s.Oauth2MetadataURL != "" {
-					fmt.Printf("    Metadata URL: %s\n", s.Oauth2MetadataURL)
-				}
-				// Show flow-specific URLs via type switch on the OAuthFlows interface.
-				switch f := s.Flows.(type) {
-				case a2a.AuthorizationCodeOAuthFlow:
-					fmt.Printf("    Flow:         authorization_code\n")
-					if f.TokenURL != "" {
-						fmt.Printf("    Token URL:    %s\n", f.TokenURL)
-					}
-					if f.AuthorizationURL != "" {
-						fmt.Printf("    Auth URL:     %s\n", f.AuthorizationURL)
-					}
-				case a2a.ClientCredentialsOAuthFlow:
-					fmt.Printf("    Flow:         client_credentials\n")
-					if f.TokenURL != "" {
-						fmt.Printf("    Token URL:    %s\n", f.TokenURL)
-					}
-				case a2a.DeviceCodeOAuthFlow:
-					fmt.Printf("    Flow:         device_code\n")
-					if f.TokenURL != "" {
-						fmt.Printf("    Token URL:    %s\n", f.TokenURL)
-					}
-				}
-				fmt.Printf("    Hint: run 'a2acli auth login -u %s' or pass via --token <jwt>\n", serviceURL)
-				verboseLog("security scheme %q: oauth2 metadataURL=%s flows=%T", name, s.Oauth2MetadataURL, s.Flows)
-			case a2a.APIKeySecurityScheme:
-				fmt.Printf("  %s: apiKey in %s (header: %s)\n", name, s.Location, s.Name)
-				fmt.Printf("    Hint: pass via --auth \"%s: <key>\"\n", s.Name)
-				verboseLog("security scheme %q: apiKey location=%s name=%s", name, s.Location, s.Name)
-			case a2a.OpenIDConnectSecurityScheme:
-				fmt.Printf("  %s: openIdConnect\n", name)
-				if s.OpenIDConnectURL != "" {
-					fmt.Printf("    Discovery: %s\n", s.OpenIDConnectURL)
-				}
-				verboseLog("security scheme %q: openIdConnect url=%s", name, s.OpenIDConnectURL)
-			case a2a.MutualTLSSecurityScheme:
-				fmt.Printf("  %s: mutualTLS\n", name)
-				verboseLog("security scheme %q: mutualTLS", name)
-			default:
-				fmt.Printf("  %s: (unrecognised scheme type %T)\n", name, scheme)
-			}
+			printSecurityScheme(string(name), scheme)
 		}
 	}
 
-	fmt.Printf("\nSkills:\n")
-	for _, s := range card.Skills {
-		fmt.Printf("  - [%s] %s\n", s.ID, s.Name)
-		if s.Description != "" {
-			fmt.Printf("    Description: %s\n", s.Description)
+	printSkills(card.Skills)
+}
+
+func handleSendImmediate(ctx context.Context, client *a2aclient.Client, params *a2a.SendMessageRequest, card *a2a.AgentCard) {
+	params.Config = &a2a.SendMessageConfig{ReturnImmediately: true}
+	result, err := client.SendMessage(ctx, params)
+	if err != nil {
+		hint := "Check service connectivity or skill availability"
+		if is401(err) {
+			hint = authHintFromCard(card)
 		}
-		if len(s.SecurityRequirements) > 0 {
-			for _, req := range s.SecurityRequirements {
-				for schemeName, scopes := range req {
-					if len(scopes) > 0 {
-						fmt.Printf("    Security: %s [scopes: %s]\n", schemeName, strings.Join(scopes, ", "))
-					} else {
-						fmt.Printf("    Security: %s\n", schemeName)
-					}
-				}
+		fatalf("SendMessage failed", err, hint)
+	}
+	if outputMode == "json" {
+		b, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(b))
+	} else if task, ok := result.(*a2a.Task); ok {
+		fmt.Printf("Task submitted: %s\n", task.ID)
+		fmt.Printf("Use 'a2acli subscribe %s' to follow progress\n", task.ID)
+	}
+}
+
+func handleSendWait(ctx context.Context, client *a2aclient.Client, params *a2a.SendMessageRequest, card *a2a.AgentCard) {
+	params.Config = &a2a.SendMessageConfig{ReturnImmediately: false}
+	if outputMode == "tui" {
+		fmt.Printf("Invoking A2A Service (Blocking)...\n\n")
+	}
+	result, err := client.SendMessage(ctx, params)
+	if err != nil {
+		hint := "Check service connectivity or skill availability"
+		if is401(err) {
+			hint = authHintFromCard(card)
+		}
+		fatalf("SendMessage failed", err, hint)
+	}
+	if outputMode == "json" {
+		b, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(b))
+		if task, ok := result.(*a2a.Task); ok && (outDir != "" || outFile != "") {
+			for i, art := range task.Artifacts {
+				_, _ = saveArtifact(outDir, outFile, *art, i)
 			}
 		}
+		return
+	}
+	if task, ok := result.(*a2a.Task); ok {
+		displayTaskResult(task, outDir)
+		fmt.Printf("\nTask ID: %s (use --task %s to continue, or --ref %s to reference)\n", task.ID, task.ID, task.ID)
+	} else if msg, ok := result.(*a2a.Message); ok {
+		fmt.Printf("Received simple message from agent (Task ID: %s)\n", msg.TaskID)
+		for _, p := range msg.Parts {
+			if tp, ok := p.Content.(a2a.Text); ok {
+				fmt.Printf("Agent: %s\n", string(tp))
+			}
+		}
+	} else {
+		fmt.Printf("Unknown result type received: %T\n", result)
 	}
 }
 
@@ -571,62 +639,13 @@ func runSend(_ *cobra.Command, args []string) {
 
 	// --immediate: fire-and-forget — return the task ID without waiting or streaming
 	if immediate {
-		params.Config = &a2a.SendMessageConfig{ReturnImmediately: true}
-		result, err := client.SendMessage(ctx, params)
-		if err != nil {
-			hint := "Check service connectivity or skill availability"
-			if is401(err) {
-				hint = authHintFromCard(card)
-			}
-			fatalf("SendMessage failed", err, hint)
-		}
-		if outputMode == "json" {
-			b, _ := json.MarshalIndent(result, "", "  ")
-			fmt.Println(string(b))
-		} else if task, ok := result.(*a2a.Task); ok {
-			fmt.Printf("Task submitted: %s\n", task.ID)
-			fmt.Printf("Use 'a2acli subscribe %s' to follow progress\n", task.ID)
-		}
+		handleSendImmediate(ctx, client, params, card)
 		return
 	}
 
 	// --wait: blocking call
 	if wait {
-		params.Config = &a2a.SendMessageConfig{ReturnImmediately: false}
-		if outputMode == "tui" {
-			fmt.Printf("Invoking A2A Service (Blocking)...\n\n")
-		}
-		result, err := client.SendMessage(ctx, params)
-		if err != nil {
-			hint := "Check service connectivity or skill availability"
-			if is401(err) {
-				hint = authHintFromCard(card)
-			}
-			fatalf("SendMessage failed", err, hint)
-		}
-		if outputMode == "json" {
-			b, _ := json.MarshalIndent(result, "", "  ")
-			fmt.Println(string(b))
-			if task, ok := result.(*a2a.Task); ok && (outDir != "" || outFile != "") {
-				for i, art := range task.Artifacts {
-					_, _ = saveArtifact(outDir, outFile, *art, i)
-				}
-			}
-			return
-		}
-		if task, ok := result.(*a2a.Task); ok {
-			displayTaskResult(task, outDir)
-			fmt.Printf("\nTask ID: %s (use --task %s to continue, or --ref %s to reference)\n", task.ID, task.ID, task.ID)
-		} else if msg, ok := result.(*a2a.Message); ok {
-			fmt.Printf("Received simple message from agent (Task ID: %s)\n", msg.TaskID)
-			for _, p := range msg.Parts {
-				if tp, ok := p.Content.(a2a.Text); ok {
-					fmt.Printf("Agent: %s\n", string(tp))
-				}
-			}
-		} else {
-			fmt.Printf("Unknown result type received: %T\n", result)
-		}
+		handleSendWait(ctx, client, params, card)
 		return
 	}
 
@@ -857,7 +876,7 @@ You can save artifacts produced by the task using the --out-dir flag.`,
   a2acli send "Add error handling to that CLI" --task <taskID>
   a2acli send "Summarize this task" --ref <taskID>
   a2acli send "Generate report" --skill reports --wait --out-dir ./reports`,
-		Args: func(cmd *cobra.Command, args []string) error {
+		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 && !isStdinPiped() && !hasMultimodalInput() {
 				return fmt.Errorf("message text required: provide as argument, pipe via stdin, or use --json/--parts/--attach/--data")
 			}
@@ -1116,6 +1135,7 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 	}
 	fmt.Printf("\n%s\n", StyleAccent.Render("------------------------------"))
 }
+
 // mimeToExt returns a file extension for a MIME type, e.g. "audio/mpeg" → ".mp3".
 // Falls back to ".bin" for unknown binary types.
 func mimeToExt(mediaType string) string {
@@ -1185,7 +1205,7 @@ func downloadURL(rawURL string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download returned HTTP %d", resp.StatusCode)
 	}

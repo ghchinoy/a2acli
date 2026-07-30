@@ -168,9 +168,9 @@ func runConformance(_ *cobra.Command, _ []string) {
 
 	// Pick the first skill that doesn't require auth (or any skill if auth is provided).
 	testSkill := ""
-		for _, s := range card.Skills {
-			needsAuth := len(s.SecurityRequirements) > 0
-			if !needsAuth || effectiveToken != "" || len(authHeaders) > 0 {
+	for _, s := range card.Skills {
+		needsAuth := len(s.SecurityRequirements) > 0
+		if !needsAuth || effectiveToken != "" || len(authHeaders) > 0 {
 			testSkill = s.ID
 			break
 		}

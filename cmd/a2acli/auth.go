@@ -231,7 +231,7 @@ func runAuthLogin(_ *cobra.Command, _ []string) {
 	}
 }
 
-func runClientCredentials(ctx context.Context, tokenURL string) {
+func runClientCredentials(ctx context.Context, _ string) {
 	body := fmt.Sprintf("grant_type=client_credentials&client_id=%s&client_secret=%s",
 		authClientID, authClientSecret)
 	_ = body // exchange via ExchangeCode variant — TODO: implement client_credentials exchange
@@ -252,12 +252,12 @@ func runAuthStatus(_ *cobra.Command, _ []string) {
 
 	if disableTUI {
 		b, _ := json.MarshalIndent(map[string]any{
-			"service_url":   serviceURL,
-			"has_token":     tok.AccessToken != "",
-			"expires_at":    tok.ExpiresAt,
-			"expired":       tok.IsExpired(),
-			"has_refresh":   tok.RefreshToken != "",
-			"scope":         tok.Scope,
+			"service_url": serviceURL,
+			"has_token":   tok.AccessToken != "",
+			"expires_at":  tok.ExpiresAt,
+			"expired":     tok.IsExpired(),
+			"has_refresh": tok.RefreshToken != "",
+			"scope":       tok.Scope,
 		}, "", "  ")
 		fmt.Println(string(b))
 		return

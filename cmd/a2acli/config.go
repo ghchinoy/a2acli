@@ -198,8 +198,8 @@ and can be overridden by environment variables and command-line flags.`,
 
 	// env list
 	listCmd := &cobra.Command{
-		Use:     "list",
-		Short:   "List all named environments",
+		Use:   "list",
+		Short: "List all named environments",
 		Example: `  a2acli config env list
   a2acli config env list --output json`,
 		Run: runConfigEnvList,
