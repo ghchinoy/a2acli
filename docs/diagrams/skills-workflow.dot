@@ -1,0 +1,66 @@
+// a2acli — A2A Skills End-to-End Workflow
+//
+// Render:  make diagrams          (see Makefile)
+// Or:      dot -Tpng docs/diagrams/skills-workflow.dot -o /tmp/sw.png \
+//            && cwebp -q 90 /tmp/sw.png -o docs/img/skills-workflow.webp
+//
+digraph a2a_skills_workflow {
+  rankdir=LR;
+  bgcolor="white";
+  fontname="Helvetica";
+  labelloc="t";
+  label="A2A Skills End-to-End Lifecycle Workflow";
+  fontsize=16;
+
+  node [fontname="Helvetica", fontsize=11, style="filled", color="#334155", penwidth=1.2];
+  edge [fontname="Helvetica", fontsize=10, color="#64748b"];
+
+  // Legend / Group Subgraphs
+  subgraph cluster_expose {
+    label="a2a-expose skill";
+    style="dashed";
+    color="#2563eb";
+    fontcolor="#1e40af";
+    fontsize=12;
+
+    design  [label="1. Design\nExposure Proposal", shape="box", style="filled,rounded", fillcolor="#dbeafe"];
+    impl    [label="2. Implement\nGo/Python SDK", shape="box", style="filled,rounded", fillcolor="#dbeafe"];
+    verify  [label="3. Verify\nverify-exposure.sh", shape="box", style="filled,rounded", fillcolor="#dbeafe"];
+  }
+
+  subgraph cluster_conformance {
+    label="a2a-conformance skill";
+    style="dashed";
+    color="#d97706";
+    fontcolor="#92400e";
+    fontsize=12;
+
+    audit   [label="4. Audit\nTier 0/1/2 Report", shape="box", style="filled,rounded", fillcolor="#fef3c7"];
+  }
+
+  subgraph cluster_a2acli {
+    label="a2acli skill";
+    style="dashed";
+    color="#059669";
+    fontcolor="#065f46";
+    fontsize=12;
+
+    operate [label="5. Operate\ndiscover / send / watch", shape="box", style="filled,rounded", fillcolor="#dcfce7"];
+  }
+
+  // Inputs and Artifacts
+  api_src  [label="Existing API / Codebase", shape="ellipse", fillcolor="#f1f5f9"];
+  des_doc  [label="exposure-design.md\n+ Agent Card JSON", shape="note", fillcolor="#f8fafc"];
+  server   [label="Running A2A Server\n(/.well-known/agent-card.json)", shape="ellipse", fillcolor="#f1f5f9"];
+  report   [label="Conformance Report\n(A2A-* IDs + Verdict)", shape="note", fillcolor="#f8fafc"];
+
+  // Flow Edges
+  api_src  -> design  [label=" Analyze API"];
+  design   -> des_doc [label=" User Sign-off"];
+  des_doc  -> impl    [label=" Emit SDK Code"];
+  impl     -> server  [label=" Build & Launch"];
+  server   -> verify  [label=" a2acli Battery"];
+  verify   -> audit   [label=" Probe / TCK"];
+  audit    -> report  [label=" Verdict"];
+  server   -> operate [label=" Production Use"];
+}

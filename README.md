@@ -174,7 +174,7 @@ This repository ships [`agentskills.io`](https://agentskills.io/) compliant
 - [**`a2a-expose`**](skills/a2a-expose/SKILL.md) — Guides developers and agents in adding a compliant A2A exposure layer to an existing API or service.
 - [**`a2a-conformance`**](skills/a2a-conformance/SKILL.md) — Evaluates an A2A agent against normative spec rules, stable check IDs, and TCK orchestration.
 
-See [Agent & Automation](docs/MANUAL.md#agent--automation) for details.
+See the [**Agent Skills Guide**](docs/SKILLS.md) for full usage scenarios, prompt libraries, and authoring guidelines.
 
 ## Development
 

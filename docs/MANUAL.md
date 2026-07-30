@@ -409,6 +409,10 @@ Hint: Ensure the A2A server is running at http://localhost:9001
 
 ### Agent Skills
 
-This repository ships an [`agentskills.io`](https://agentskills.io/) compliant
-`skills/` directory. AI coding agents load these skills automatically and learn to
-use `--no-tui` and `--wait` for deterministic JSON output.
+This repository ships three [`agentskills.io`](https://agentskills.io/) compliant agent skills in [`skills/`](../skills/):
+
+- [`a2acli`](../skills/a2acli/SKILL.md) — Teaches agents how to drive `a2acli` using `--output json` and `--wait`.
+- [`a2a-expose`](../skills/a2a-expose/SKILL.md) — Guides agents in adding an A2A Protocol v1.0 exposure layer to an API or service.
+- [`a2a-conformance`](../skills/a2a-conformance/SKILL.md) — Evaluates A2A servers against normative spec rules, stable check IDs, and TCK orchestration.
+
+For full usage scenarios, prompt libraries, and authoring guidelines, see the [**Agent Skills Guide (`docs/SKILLS.md`)**](SKILLS.md).
