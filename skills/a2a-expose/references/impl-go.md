@@ -1,6 +1,6 @@
-# Go Implementation Reference (`github.com/a2aproject/a2a-go/v2` v2.3.1)
+# Go Implementation Reference (`github.com/a2aproject/a2a-go/v2` v2.4.0)
 
-This reference provides exact, verified code snippets for building an A2A server in Go using `a2a-go/v2` v2.3.1.
+This reference provides exact, verified code snippets for building an A2A server in Go using `a2a-go/v2` v2.4.0.
 
 ---
 

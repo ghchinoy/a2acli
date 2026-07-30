@@ -106,7 +106,7 @@ To prevent mechanical 1:1 mappings of REST endpoints to A2A skills, the skill en
 10. **Discoverability:** Include intent-rich descriptions, tags, and concrete user examples.
 
 ### SDK Coverage
-- **Go (`a2a-go/v2` v2.3.1):** Full implementation guide in `references/impl-go.md`.
+- **Go (`a2a-go/v2` v2.4.0):** Full implementation guide in `references/impl-go.md`.
 - **Python (`a2a-sdk` >=1.0):** Full implementation guide in `references/impl-python.md`.
 
 ---

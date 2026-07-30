@@ -2,7 +2,7 @@
 
 **Proposed Agent Name:** `{{AGENT_NAME}}`  
 **Target Codebase / Service:** `{{SERVICE_NAME}}`  
-**Target SDK / Language:** `{{SDK_LANGUAGE}}` (`a2a-go` v2.3.1 | `a2a-sdk` >=1.0)  
+**Target SDK / Language:** `{{SDK_LANGUAGE}}` (`a2a-go` v2.4.0 | `a2a-sdk` >=1.0)  
 
 ---
 

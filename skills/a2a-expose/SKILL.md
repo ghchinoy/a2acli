@@ -21,7 +21,7 @@ Load these reference documents during each phase of exposure design and implemen
 - [references/agent-card.md](references/agent-card.md) — Agent Card v1.0 canonical JSON schema, skill authoring, and discoverability rules.
 - [references/task-lifecycle.md](references/task-lifecycle.md) — Task state machine, status events, artifact delivery patterns, and multi-turn state.
 - [references/auth.md](references/auth.md) — Security scheme declarations (`bearerAuth`, `apiKeyAuth`, `oauth2`) and in-task authorization (§7.6).
-- [references/impl-go.md](references/impl-go.md) — Exact, verified Go implementation guide (`github.com/a2aproject/a2a-go/v2` v2.3.1).
+- [references/impl-go.md](references/impl-go.md) — Exact, verified Go implementation guide (`github.com/a2aproject/a2a-go/v2` v2.4.0).
 - [references/impl-python.md](references/impl-python.md) — Python implementation guide (`a2a-sdk` >=1.0 with FastAPI/Starlette).
 - [references/anti-patterns.md](references/anti-patterns.md) — 14 common server failure modes with spec citations and fixes.
 - [references/verify.md](references/verify.md) — Verification battery workflow using `a2acli`.
@@ -40,7 +40,7 @@ Load these reference documents during each phase of exposure design and implemen
 
 ### Phase 2: Implementation
 Upon user approval, implement the server layer using the appropriate SDK reference:
-- **Go (`a2a-go/v2` v2.3.1):** Follow [references/impl-go.md](references/impl-go.md). Implement `a2asrv.AgentExecutor`, create `AgentCard`, build `RequestHandler` with options (`WithTaskStore`, `WithCapabilityChecks`), and mount HTTP mux at `/` and `/.well-known/agent-card.json`.
+- **Go (`a2a-go/v2` v2.4.0):** Follow [references/impl-go.md](references/impl-go.md). Implement `a2asrv.AgentExecutor`, create `AgentCard`, build `RequestHandler` with options (`WithTaskStore`, `WithCapabilityChecks`), and mount HTTP mux at `/` and `/.well-known/agent-card.json`.
 - **Python (`a2a-sdk` >=1.0):** Follow [references/impl-python.md](references/impl-python.md). Check installed SDK version, implement `AgentExecutor`, create `AgentCard`, build `DefaultRequestHandlerV2`, and mount sub-app at `/`.
 
 ### Phase 3: Avoid Anti-Patterns

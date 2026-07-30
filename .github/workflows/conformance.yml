@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: a2aproject/a2a-go
-          ref: v2.3.1  # Pinned SDK version matching a2acli's build
+          ref: v2.4.0  # Pinned SDK version matching a2acli's build
           path: a2a-go
 
       - name: Checkout a2a-simple (A2A test fixtures)
