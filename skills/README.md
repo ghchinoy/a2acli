@@ -1,6 +1,6 @@
-# A2A Agent Skills
+# A2A Agent Skills & Agent Plugin
 
-This directory contains [`agentskills.io`](https://agentskills.io/) compliant agent skills designed for AI coding agents (Claude Code, OpenCode, Cursor, Gemini CLI, Copilot CLI).
+This directory contains [`agentskills.io`](https://agentskills.io/) compliant agent skills designed for AI coding agents (Claude Code, OpenCode, Cursor, Gemini CLI, Copilot CLI). The repository is a conformant [`Agent Plugins Specification v1.0.0`](https://agent-plugins.org) plugin package (`plugin.json`).
 
 ## Available Skills
 

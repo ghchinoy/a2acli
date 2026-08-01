@@ -167,7 +167,7 @@ non-interactive contexts:
 1. Pass `--output json` (or `-n`) to disable the TUI and emit parseable NDJSON.
 2. Pass `--wait` with `send` to block until the task completes.
 
-This repository ships [`agentskills.io`](https://agentskills.io/) compliant
+This repository is a conformant [Agent Plugins Specification v1.0.0](https://agent-plugins.org) plugin package shipping [`agentskills.io`](https://agentskills.io/) compliant
 [skills](skills/) that teach coding agents how to use, build, and evaluate A2A services:
 
 - [**`a2acli`**](skills/a2acli/SKILL.md) — Teaches agents how to interact with A2A services from the command line using `a2acli`.

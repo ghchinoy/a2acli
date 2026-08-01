@@ -1,6 +1,6 @@
 # Agent Skills Guide (`docs/SKILLS.md`)
 
-This guide explains how AI coding agents (Claude Code, OpenCode, Cursor, Gemini CLI, Copilot CLI) use the skills shipped in `a2acli` to build, evaluate, and operate Agent-to-Agent (A2A) protocol services.
+This guide explains how AI coding agents (Claude Code, OpenCode, Cursor, Gemini CLI, Copilot CLI) use the skills shipped in `a2acli` (packaged as a conformant [Agent Plugins Specification v1.0.0](https://agent-plugins.org) plugin) to build, evaluate, and operate Agent-to-Agent (A2A) protocol services.
 
 ---
 
