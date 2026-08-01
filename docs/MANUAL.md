@@ -47,9 +47,19 @@ Output modes are controlled by `--output`:
 |---|---|---|
 | `tui` | default | Interactive terminal with streaming UI |
 | `text` | `--output text` | Non-interactive, human-readable (CI logs, piped output) |
-| `json` | `--output json` | Machine-readable NDJSON (scripts, agents) |
+| `json` | `--output json` | Machine-readable NDJSON (scripts, agents); errors emit structured JSON objects on `stderr` |
 
 `-n` / `--no-tui` is a backwards-compatible shorthand for `--output json`.
+
+In `--output json` mode, errors on `stderr` are emitted as structured JSON objects:
+```json
+{
+  "code": "UNAUTHENTICATED",
+  "error": "SendMessage failed: unexpected HTTP status: 401 Unauthorized",
+  "hint": "Stored token for https://agent.example.com is expired. Run: a2acli auth login -u https://agent.example.com"
+}
+```
+Machine-readable error codes include `UNAUTHENTICATED`, `TIMEOUT`, `TASK_FAILED`, `INVALID_ARGUMENT`, `NOT_FOUND`, and `INTERNAL_ERROR`.
 
 When stdout is not a terminal, `a2acli` automatically degrades from `tui` to
 `text`, so streaming works correctly in pipes, CI, and agent contexts without any
@@ -224,7 +234,9 @@ a2acli auth logout --service-url https://agent.example.com
 ```
 
 After `auth login`, all commands (`send`, `discover`, `conformance`, etc.) use the
-stored token automatically. The `auth token` subcommand is the
+stored token automatically. If an access token expires and a valid refresh token
+is stored, `a2acli` proactively exchanges the refresh token for a new access token
+automatically before executing requests. The `auth token` subcommand is the
 `--token $(make token)` equivalent for scripts.
 
 > **Note for non-interactive contexts (CI, agents):** `auth login` requires a

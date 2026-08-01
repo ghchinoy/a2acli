@@ -13,7 +13,7 @@ metadata:
 
 ## Critical Rules for Agents
 
-1. **Always pass `--output json`** (or `-n`) — disables the interactive TUI and emits JSON/NDJSON instead. Without this flag the CLI hangs in non-TTY contexts.
+1. **Always pass `--output json`** (or `-n`) — disables the interactive TUI and emits JSON/NDJSON instead. Errors emit structured JSON objects on `stderr` (`{"code": "...", "error": "...", "hint": "..."}`). Without this flag the CLI degrades in non-TTY contexts.
 2. **Always pass `--wait` with `send`** — makes the call blocking and returns the final task result. Without `--wait`, `send` streams indefinitely.
 3. **Check `status.state`** in the JSON output to determine success (`TASK_STATE_COMPLETED`) or failure (`TASK_STATE_FAILED`).
 4. **For OAuth-protected agents** — run `auth login` once interactively (requires a browser). For non-interactive agent use, retrieve the stored token via `auth token` and pass it as `--token`.
