@@ -53,6 +53,12 @@ jobs:
           cd a2a-simple && go mod download && cd ..
           cd a2acli && go mod download
 
+      - name: Install ffmpeg and generate a2a-simple test assets
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          cd a2a-simple
+          ./scripts/gen-assets.sh
+
       - name: Run A2A and A2UI e2e conformance tests
         run: |
           cd a2acli
