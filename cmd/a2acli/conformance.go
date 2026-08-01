@@ -58,7 +58,7 @@ if any check fails.`,
 	}
 }
 
-func runConformance(_ *cobra.Command, _ []string) {
+func runConformance(cmd *cobra.Command, _ []string) {
 	var results []conformanceResult
 	overallPass := true
 
@@ -120,7 +120,7 @@ func runConformance(_ *cobra.Command, _ []string) {
 	// Resolve effective token: explicit --token flag, then the token store.
 	effectiveToken := authToken
 	if effectiveToken == "" {
-		if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil && !stored.IsExpired() {
+		if stored, err := oauth.LoadValidToken(cmd.Context(), serviceURL); err == nil && stored != nil && !stored.IsExpired() {
 			effectiveToken = stored.AccessToken
 			verboseLog("conformance: using stored token for %s", serviceURL)
 		}

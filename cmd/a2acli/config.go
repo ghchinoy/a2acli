@@ -310,7 +310,7 @@ type jsonEnvOut struct {
 	IsDefault  bool   `json:"is_default"`
 }
 
-func runConfigEnvList(_ *cobra.Command, _ []string) {
+func runConfigEnvList(cmd *cobra.Command, _ []string) {
 	envs := viper.GetStringMap("envs")
 	defaultEnv := viper.GetString("default_env")
 	if defaultEnv == "" {
@@ -331,7 +331,7 @@ func runConfigEnvList(_ *cobra.Command, _ []string) {
 			tokenState = "static"
 		} else {
 			// Check token store
-			if stored, err := oauth.LoadToken(urlVal); err == nil && stored != nil {
+			if stored, err := oauth.LoadValidToken(cmd.Context(), urlVal); err == nil && stored != nil {
 				hasToken = true
 				if stored.IsExpired() {
 					tokenState = "expired"

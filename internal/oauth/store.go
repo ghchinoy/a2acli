@@ -15,12 +15,14 @@
 package oauth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // tokenDir returns the XDG-compliant directory for token storage.
@@ -91,6 +93,45 @@ func LoadToken(serviceURL string) (*StoredToken, error) {
 		return nil, err
 	}
 	return &tok, nil
+}
+
+// LoadValidToken retrieves the stored token for a service URL.
+// If the token is expired but carries a RefreshToken and TokenURL, it attempts
+// to refresh the token, saves the updated token back to disk, and returns it.
+// If refresh fails or no refresh token is available, it returns the stored token as-is.
+func LoadValidToken(ctx context.Context, serviceURL string) (*StoredToken, error) {
+	tok, err := LoadToken(serviceURL)
+	if err != nil || tok == nil {
+		return tok, err
+	}
+	if !tok.IsExpired() {
+		return tok, nil
+	}
+	if tok.RefreshToken == "" || tok.TokenURL == "" {
+		return tok, nil
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	newTok, err := RefreshAccessToken(ctx, tok.TokenURL, tok.RefreshToken)
+	if err != nil {
+		return tok, nil
+	}
+
+	tok.AccessToken = newTok.AccessToken
+	if newTok.RefreshToken != "" {
+		tok.RefreshToken = newTok.RefreshToken
+	}
+	if newTok.ExpiresIn > 0 {
+		tok.ExpiresAt = time.Now().Add(time.Duration(newTok.ExpiresIn) * time.Second)
+	}
+	if newTok.Scope != "" {
+		tok.Scope = newTok.Scope
+	}
+
+	_ = SaveToken(serviceURL, tok)
+	return tok, nil
 }
 
 // DeleteToken removes the stored token for a service URL.

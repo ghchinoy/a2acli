@@ -97,7 +97,7 @@ func authHintFromCard(card *a2a.AgentCard) string {
 		case a2a.OAuth2SecurityScheme:
 			_ = s
 			// Check if a stored token exists but may be expired.
-			if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil {
+			if stored, err := oauth.LoadValidToken(context.Background(), serviceURL); err == nil && stored != nil {
 				if stored.IsExpired() {
 					return fmt.Sprintf("Stored token for %s is expired. Run: a2acli auth login -u %s", serviceURL, serviceURL)
 				}
@@ -248,7 +248,7 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 	// Auto-use stored OAuth token when no explicit --token is given.
 	resolvedToken := authToken
 	if resolvedToken == "" {
-		if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil && !stored.IsExpired() {
+		if stored, err := oauth.LoadValidToken(ctx, serviceURL); err == nil && stored != nil && !stored.IsExpired() {
 			resolvedToken = stored.AccessToken
 			verboseLog("using stored OAuth token for %s (expires %s)", serviceURL, stored.ExpiresAt.Format("15:04:05"))
 		}
@@ -365,7 +365,7 @@ func fetchExtendedCard(ctx context.Context, card *a2a.AgentCard) *a2a.AgentCard 
 
 	hasAuth := authToken != "" || len(authHeaders) > 0
 	if !hasAuth {
-		if stored, err := oauth.LoadToken(serviceURL); err == nil && stored != nil && !stored.IsExpired() {
+		if stored, err := oauth.LoadValidToken(ctx, serviceURL); err == nil && stored != nil && !stored.IsExpired() {
 			hasAuth = true
 		}
 	}

@@ -282,8 +282,8 @@ func runAuthLogout(_ *cobra.Command, _ []string) {
 	fmt.Printf("Token deleted for %s\n", serviceURL)
 }
 
-func runAuthToken(_ *cobra.Command, _ []string) {
-	tok, err := oauth.LoadToken(serviceURL)
+func runAuthToken(cmd *cobra.Command, _ []string) {
+	tok, err := oauth.LoadValidToken(cmd.Context(), serviceURL)
 	if err != nil {
 		fatalf("failed to load token", err, "")
 	}

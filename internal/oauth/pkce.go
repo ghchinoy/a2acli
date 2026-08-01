@@ -194,6 +194,43 @@ func ExchangeCode(ctx context.Context, tokenEndpoint, code string, pkce Challeng
 	return &tok, nil
 }
 
+// RefreshAccessToken exchanges a refresh token for a new access token at tokenEndpoint.
+func RefreshAccessToken(ctx context.Context, tokenEndpoint, refreshToken string) (*TokenResponse, error) {
+	body := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+		"client_id":     {CIMDURL},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenEndpoint,
+		strings.NewReader(body.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("build refresh token request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("refresh token exchange: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		var e struct {
+			Error string `json:"error"`
+			Desc  string `json:"error_description"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&e)
+		return nil, fmt.Errorf("refresh token endpoint returned %d: %s — %s", resp.StatusCode, e.Error, e.Desc)
+	}
+
+	var tok TokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tok); err != nil {
+		return nil, fmt.Errorf("decode token response: %w", err)
+	}
+	return &tok, nil
+}
+
 // StoredToken is the on-disk token record keyed by service URL host.
 type StoredToken struct {
 	AccessToken  string    `json:"access_token"`
