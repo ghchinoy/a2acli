@@ -34,6 +34,12 @@ JSON-RPC layer, not obvious compile errors.
 
 Check before releasing: `grep a2a-go go.mod` and compare with sister projects.
 
+## Install docs alignment
+
+The installation channel matrix is documented in two places — `README.md` (`## Installation`) and `skills/a2acli/references/install.md` (agent-facing reference). When adding, updating, or changing a distribution channel (e.g. new package manager, Homebrew tap change, install script update), update both files to maintain parity.
+
+Check before releasing: compare `README.md` and `skills/a2acli/references/install.md` installation sections.
+
 ## CIMD document stability
 
 `docs/metadata.json` is served via GitHub Pages at

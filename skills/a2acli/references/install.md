@@ -21,36 +21,59 @@ a2acli version
 
 Choose the appropriate channel for your host environment:
 
-### Option A: Homebrew (macOS / Linux)
+### macOS and Linux — Homebrew
 Recommended for macOS and Linux developer workstations:
 
 ```bash
-brew install ghchinoy/tap/a2acli
+brew tap ghchinoy/tap
+brew trust ghchinoy/tap
+brew install a2acli
 ```
 
-### Option B: `go install` (Cross-Platform / Go Environments)
+### Linux — Install Script
+Recommended for automated environments or general Linux systems:
+
+```bash
+curl -sL https://raw.githubusercontent.com/ghchinoy/a2acli/main/scripts/install.sh | bash
+```
+
+### Linux — apt (Debian / Ubuntu)
+Download the `.deb` package from the [latest release](https://github.com/ghchinoy/a2acli/releases/latest):
+
+```bash
+sudo dpkg -i a2acli_*.deb
+```
+
+### Linux — rpm (Fedora / RHEL)
+Download the `.rpm` package from the [latest release](https://github.com/ghchinoy/a2acli/releases/latest):
+
+```bash
+sudo rpm -i a2acli_*.rpm
+```
+
+### Windows — winget
+Recommended for Windows environments:
+
+```powershell
+winget install ghchinoy.a2acli
+```
+
+### Cross-Platform — `go install`
 Requires Go 1.25+:
 
 ```bash
 go install github.com/ghchinoy/a2acli/cmd/a2acli@latest
 ```
 
-Ensure `$GOPATH/bin` or `~/go/bin` is present in your system `PATH`.
+Ensure `$(go env GOPATH)/bin` or `~/go/bin` is present in your system `PATH`.
 
-### Option C: GitHub Release Binaries (CI / Non-Go Environments)
-Pre-compiled binaries for macOS, Linux, and Windows (amd64 / arm64) are attached to every GitHub release at `https://github.com/ghchinoy/a2acli/releases/latest`:
-
-```bash
-# Example Linux x86_64 download:
-curl -sSL https://github.com/ghchinoy/a2acli/releases/latest/download/a2acli_Linux_x86_64.tar.gz | tar -xz
-mv a2acli /usr/local/bin/
-```
-
-### Option D: Build from Source
-From the cloned repository root:
+### From Source
+Build directly from the repository root:
 
 ```bash
-make build    # Outputs binary to ./bin/a2acli
+git clone https://github.com/ghchinoy/a2acli.git
+cd a2acli
+make build    # Binary is written to ./bin/a2acli
 ```
 
 ---
