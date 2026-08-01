@@ -3,6 +3,8 @@ name: a2a-expose
 description: Guide developers and coding agents in adding an A2A Protocol v1.0 exposure layer to an existing API, microservice, or codebase. Enforces a design-first workflow (intent-based skill modeling, task lifecycle, artifact delivery, and security mapping) before emitting Go or Python SDK code, followed by a verification battery. Use when asked to add A2A support to a service, expose an API via A2A, build an A2A agent, or turn code into an A2A service.
 license: Apache-2.0
 compatibility: Requires a2acli binary to run the verification battery. Works with Go (a2a-go v2) and Python (a2a-sdk >=1.0).
+metadata:
+  category: protocol-engineering
 ---
 
 # A2A Exposure Skill

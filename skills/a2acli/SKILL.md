@@ -3,6 +3,8 @@ name: a2acli
 description: Interact with Agent-to-Agent (A2A) protocol services from the command line. Use when you need to discover agent capabilities, send tasks, poll status, stream results, manage tasks, or authenticate with OAuth 2.1-protected A2A agents.
 license: Apache-2.0
 compatibility: Requires the a2acli binary. Install via brew, curl, or go install. See README for details.
+metadata:
+  category: cli-usage
 ---
 
 # a2acli — A2A Command-Line Client

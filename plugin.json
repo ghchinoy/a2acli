@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "a2acli",
+  "version": "1.8.2",
+  "description": "CLI and agent skills for the A2A protocol: drive a2acli to discover/invoke/monitor A2A agents, and build/audit A2A-compliant services.",
+  "author": {
+    "name": "G. H. Chinoy"
+  },
+  "homepage": "https://github.com/ghchinoy/a2acli",
+  "repository": "https://github.com/ghchinoy/a2acli",
+  "license": "Apache-2.0",
+  "keywords": [
+    "a2a",
+    "agent-to-agent",
+    "cli",
+    "conformance",
+    "agent-card",
+    "mcp"
+  ]
+}

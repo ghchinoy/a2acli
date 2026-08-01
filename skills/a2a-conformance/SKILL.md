@@ -3,6 +3,8 @@ name: a2a-conformance
 description: Evaluate an existing Agent-to-Agent (A2A) protocol service or agent for specification compliance, security best practices, and quality design. Uses static inspection, a2acli probes, and official TCK orchestration to produce a structured conformance report with stable check IDs. Use when asked to audit an A2A agent, run conformance checks, evaluate a service against the A2A spec, or check compatibility.
 license: Apache-2.0
 compatibility: Requires a2acli binary for live probes. Optional python3/uv/git for Tier 2 TCK.
+metadata:
+  category: protocol-engineering
 ---
 
 # A2A Conformance & Audit Skill
