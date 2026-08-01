@@ -73,10 +73,55 @@ var (
 	GroupServer    = "server"
 )
 
+// Standard machine-readable error codes emitted in non-interactive JSON mode.
+const (
+	ErrCodeUnauthenticated = "UNAUTHENTICATED"
+	ErrCodeTimeout         = "TIMEOUT"
+	ErrCodeTaskFailed      = "TASK_FAILED"
+	ErrCodeInvalidArgument = "INVALID_ARGUMENT"
+	ErrCodeNotFound        = "NOT_FOUND"
+	ErrCodeInternal        = "INTERNAL_ERROR"
+)
+
 func fatalf(format string, err error, hint string) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+": %v\n", err)
-	if hint != "" {
-		fmt.Fprintf(os.Stderr, "Hint: %s\n", hint)
+	fatalCode("", format, err, hint)
+}
+
+func fatalCode(code string, format string, err error, hint string) {
+	if outputMode == "" {
+		resolveOutputMode()
+	}
+
+	msg := fmt.Sprintf(format+": %v", err)
+	if err == nil {
+		msg = format
+	}
+
+	if code == "" {
+		if is401(err) {
+			code = ErrCodeUnauthenticated
+		} else if isTimeout(err) {
+			code = ErrCodeTimeout
+		} else {
+			code = ErrCodeInternal
+		}
+	}
+
+	if outputMode == "json" || disableTUI {
+		out := map[string]string{
+			"error": msg,
+			"code":  code,
+		}
+		if hint != "" {
+			out["hint"] = hint
+		}
+		b, _ := json.Marshal(out)
+		fmt.Fprintln(os.Stderr, string(b))
+	} else {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
+		if hint != "" {
+			fmt.Fprintf(os.Stderr, "Hint: %s\n", hint)
+		}
 	}
 	os.Exit(1)
 }
@@ -84,6 +129,15 @@ func fatalf(format string, err error, hint string) {
 // is401 reports whether an error is an HTTP 401 Unauthorized response.
 func is401(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "401")
+}
+
+// isTimeout reports whether an error indicates a request or context timeout.
+func isTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "timeout") || strings.Contains(s, "deadline exceeded")
 }
 
 // authHintFromCard generates an actionable authentication hint based on the
@@ -328,8 +382,7 @@ func resolveOutputMode() {
 func runText(stream chan streamMsg, outDir string) {
 	for msg := range stream {
 		if msg.Err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", msg.Err)
-			os.Exit(1)
+			fatalf("stream error", msg.Err, "")
 		}
 		switch e := msg.Event.(type) {
 		case *a2a.TaskStatusUpdateEvent:
@@ -996,8 +1049,7 @@ already have completed or be in a non-cancelable state.`,
 
 	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, setupConfigCmd(), versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd(), setupA2UICmd(), setupAuthCmd())
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
-		os.Exit(1)
+		fatalCode(ErrCodeInvalidArgument, "command execution failed", err, "")
 	}
 }
 
