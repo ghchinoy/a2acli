@@ -2,7 +2,7 @@
 name: a2acli
 description: Interact with Agent-to-Agent (A2A) protocol services from the command line. Use when you need to discover agent capabilities, send tasks, poll status, stream results, manage tasks, or authenticate with OAuth 2.1-protected A2A agents.
 license: Apache-2.0
-compatibility: Requires the a2acli binary. Install via brew, curl, or go install. See README for details.
+compatibility: Requires the a2acli binary on PATH (brew install ghchinoy/tap/a2acli or go install). Verify via 'a2acli version'. See references/install.md.
 metadata:
   category: cli-usage
 ---
@@ -17,6 +17,7 @@ metadata:
 2. **Always pass `--wait` with `send`** — makes the call blocking and returns the final task result. Without `--wait`, `send` streams indefinitely.
 3. **Check `status.state`** in the JSON output to determine success (`TASK_STATE_COMPLETED`) or failure (`TASK_STATE_FAILED`).
 4. **For OAuth-protected agents** — run `auth login` once interactively (requires a browser). For non-interactive agent use, retrieve the stored token via `auth token` and pass it as `--token`.
+5. **Verify binary availability first** — run `a2acli version` before execution. If missing, follow [references/install.md](references/install.md) or fail cleanly.
 
 ## Command Index
 
@@ -101,3 +102,4 @@ For full flag lists and output schemas, load the relevant reference file:
 - [download](references/download.md) — downloading artifacts
 - [serve](references/serve.md) — running a local mock agent
 - [auth](references/auth.md) — OAuth 2.1 authentication workflow
+- [install](references/install.md) — obtaining & verifying binary and skills
