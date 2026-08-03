@@ -16,3 +16,7 @@
 # Beads / Dolt files (added by bd init)
 .beads/proxieddb/
 *.gate.lock*
+
+# Local bd/gh handoff scripts (machine-local, gitignored by request)
+docs/commands/
+
