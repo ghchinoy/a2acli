@@ -1,9 +1,9 @@
 # A2A Conformance Report
 
-**Date:** 2026-07-29
-**CLI Version:** v1.8.1-6-g30c45e3-dirty
-**SDK Source:** `github.com/a2aproject/a2a-go`
-**SDK Branch:** `main`
+**Date:** 2026-08-04
+**CLI Version:** v1.9.0-12-g137826a-dirty
+**SDK Source:** `unknown`
+**SDK Branch:** `unknown`
 
 ## Conformance Status
 
@@ -16,17 +16,13 @@
 ```text
 === RUN   TestConformance
 === RUN   TestConformance/JSON-RPC
-=== RUN   TestConformance/JSON-RPC/Describe
-=== RUN   TestConformance/JSON-RPC/SendWait
-=== RUN   TestConformance/JSON-RPC/SendStdin
-=== RUN   TestConformance/JSON-RPC/ConformanceSmoke
+    conformance_test.go:96: a2a-go SDK source not found at ../../github/a2a-go/e2e/tck
 === RUN   TestConformance/gRPC
-=== RUN   TestConformance/gRPC/SendWait
-=== RUN   TestConformance/gRPC/ForcegRPC
+    conformance_test.go:180: a2a-go SDK source not found at ../../github/a2a-go/e2e/tck
 === RUN   TestConformance/A2A-0.3.0
-    conformance_test.go:205: 0.3.0 compat SUT not found at ../../github/a2a-go/e2e/compat/v0_3
+    conformance_test.go:213: 0.3.0 compat SUT not found at ../../github/a2a-go/e2e/compat/v0_3
 === RUN   TestConformance/A2UI-Extension-v1.0
-    conformance_test.go:266: GOOGLE_CLOUD_PROJECT not set — skipping A2UI test (requires Vertex AI credentials)
+    conformance_test.go:271: skipping A2UI extension e2e test: GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables must be set
 === RUN   TestConformance/A2A-Simple-MultiTransport
 === RUN   TestConformance/A2A-Simple-MultiTransport/Discover
 === RUN   TestConformance/A2A-Simple-MultiTransport/JSONRPC
@@ -39,31 +35,39 @@
 === RUN   TestConformance/A2A-Simple-Multimodal/TaskStates/state-failed
 === RUN   TestConformance/A2A-Simple-Multimodal/TaskStates/state-input-required
 === RUN   TestConformance/A2A-Simple-Multimodal/TaskStates/state-auth-required
---- PASS: TestConformance (12.29s)
-    --- PASS: TestConformance/JSON-RPC (6.47s)
-        --- PASS: TestConformance/JSON-RPC/Describe (0.19s)
-        --- PASS: TestConformance/JSON-RPC/SendWait (2.02s)
-        --- PASS: TestConformance/JSON-RPC/SendStdin (2.03s)
-        --- PASS: TestConformance/JSON-RPC/ConformanceSmoke (2.03s)
-    --- PASS: TestConformance/gRPC (4.06s)
-        --- PASS: TestConformance/gRPC/SendWait (2.03s)
-        --- PASS: TestConformance/gRPC/ForcegRPC (2.02s)
+=== RUN   TestConformance/JourneySuites
+=== RUN   TestConformance/JourneySuites/PositionalURLDiscover
+=== RUN   TestConformance/JourneySuites/ZeroArgValidation
+=== RUN   TestConformance/JourneySuites/ContextContinuity
+=== RUN   TestConformance/JourneySuites/TerminalTaskStrict
+=== RUN   TestConformance/JourneySuites/ListTasksColumns
+=== RUN   TestConformance/JourneySuites/DirectoryGuard
+--- PASS: TestConformance (2.62s)
+    --- SKIP: TestConformance/JSON-RPC (0.00s)
+    --- SKIP: TestConformance/gRPC (0.00s)
     --- SKIP: TestConformance/A2A-0.3.0 (0.00s)
     --- SKIP: TestConformance/A2UI-Extension-v1.0 (0.00s)
-    --- PASS: TestConformance/A2A-Simple-MultiTransport (0.88s)
-        --- PASS: TestConformance/A2A-Simple-MultiTransport/Discover (0.02s)
+    --- PASS: TestConformance/A2A-Simple-MultiTransport (0.65s)
+        --- PASS: TestConformance/A2A-Simple-MultiTransport/Discover (0.03s)
         --- PASS: TestConformance/A2A-Simple-MultiTransport/JSONRPC (0.02s)
-        --- PASS: TestConformance/A2A-Simple-MultiTransport/REST (0.01s)
-        --- PASS: TestConformance/A2A-Simple-MultiTransport/gRPC (0.01s)
-    --- PASS: TestConformance/A2A-Simple-Multimodal (0.72s)
-        --- PASS: TestConformance/A2A-Simple-Multimodal/ArtifactTypes (0.02s)
-        --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates (0.03s)
-            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-completed (0.01s)
-            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-failed (0.01s)
-            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-input-required (0.01s)
-            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-auth-required (0.01s)
+        --- PASS: TestConformance/A2A-Simple-MultiTransport/REST (0.02s)
+        --- PASS: TestConformance/A2A-Simple-MultiTransport/gRPC (0.02s)
+    --- PASS: TestConformance/A2A-Simple-Multimodal (0.53s)
+        --- PASS: TestConformance/A2A-Simple-Multimodal/ArtifactTypes (0.03s)
+        --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates (0.07s)
+            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-completed (0.02s)
+            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-failed (0.02s)
+            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-input-required (0.02s)
+            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-auth-required (0.02s)
+    --- PASS: TestConformance/JourneySuites (0.74s)
+        --- PASS: TestConformance/JourneySuites/PositionalURLDiscover (0.04s)
+        --- PASS: TestConformance/JourneySuites/ZeroArgValidation (0.02s)
+        --- PASS: TestConformance/JourneySuites/ContextContinuity (0.04s)
+        --- PASS: TestConformance/JourneySuites/TerminalTaskStrict (0.03s)
+        --- PASS: TestConformance/JourneySuites/ListTasksColumns (0.04s)
+        --- PASS: TestConformance/JourneySuites/DirectoryGuard (0.02s)
 PASS
-ok  	github.com/ghchinoy/a2acli/e2e	12.456s
+ok  	github.com/ghchinoy/a2acli/e2e	2.620s
 ```
 
 *(Auto-generated via make conformance-report)*

@@ -12,7 +12,7 @@ Before attempting installation, verify if `a2acli` is already available on `PATH
 a2acli version
 ```
 
-- **If output shows version (e.g. `a2acli version v1.8.2`)**: The binary is installed and ready.
+- **If output shows version (e.g. `a2acli version v1.10.0`)**: The binary is installed and ready.
 - **If command fails (`command not found`)**: Proceed with binary installation below.
 
 ---

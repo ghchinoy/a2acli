@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "a2acli",
-  "version": "1.8.2",
+  "version": "1.10.0",
   "description": "CLI and agent skills for the A2A protocol: drive a2acli to discover/invoke/monitor A2A agents, and build/audit A2A-compliant services.",
   "author": {
     "name": "G. H. Chinoy"
