@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -55,11 +56,7 @@ func TestConformance(t *testing.T) {
 	if a2aGoSrc == "" {
 		a2aGoSrc = "../../github/a2a-go"
 	}
-
 	sutDir := a2aGoSrc + "/e2e/tck"
-	if _, err := os.Stat(sutDir); os.IsNotExist(err) {
-		t.Skipf("a2a-go SDK source not found at %s (set A2A_GO_SRC to enable TCK tests)", a2aGoSrc)
-	}
 
 	simpleSrc := os.Getenv("A2A_SIMPLE_SRC")
 	if simpleSrc == "" {
@@ -91,9 +88,13 @@ func TestConformance(t *testing.T) {
 	t.Run("A2UI-Extension-v1.0", func(t *testing.T) { testA2UISuite(t, simpleSrc, runCLI) })
 	t.Run("A2A-Simple-MultiTransport", func(t *testing.T) { testMultiTransportSuite(t, simpleSrc, runCLI) })
 	t.Run("A2A-Simple-Multimodal", func(t *testing.T) { testMultimodalSuite(t, simpleSrc, runCLI) })
+	t.Run("JourneySuites", func(t *testing.T) { testJourneySuites(t, simpleSrc, runCLI) })
 }
 
 func testJSONRPCSuite(t *testing.T, sutDir string, runCLI runnerFunc, cliPath string) {
+	if _, err := os.Stat(sutDir); os.IsNotExist(err) {
+		t.Skipf("a2a-go SDK source not found at %s", sutDir)
+	}
 	sutCmd, sutURL, _ := runSUT(t, sutDir, "http")
 	defer func() { _ = sutCmd.Process.Kill() }()
 
@@ -175,6 +176,9 @@ func testJSONRPCSuite(t *testing.T, sutDir string, runCLI runnerFunc, cliPath st
 }
 
 func testGRPCSuite(t *testing.T, sutDir string, runCLI runnerFunc) {
+	if _, err := os.Stat(sutDir); os.IsNotExist(err) {
+		t.Skipf("a2a-go SDK source not found at %s", sutDir)
+	}
 	sutCmd, sutURL, _ := runSUT(t, sutDir, "grpc")
 	defer func() { _ = sutCmd.Process.Kill() }()
 
@@ -263,6 +267,9 @@ func test030Suite(t *testing.T, a2aGoSrc string, runCLI runnerFunc) {
 }
 
 func testA2UISuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
+	if os.Getenv("GOOGLE_CLOUD_PROJECT") == "" || os.Getenv("GOOGLE_CLOUD_LOCATION") == "" {
+		t.Skip("skipping A2UI extension e2e test: GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables must be set")
+	}
 	if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
 		t.Skipf("a2a-simple source not found at %s", simpleSrc)
 	}
@@ -557,6 +564,140 @@ func testMultimodalSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
 					t.Errorf("expected task state %q, got %q", tc.want, task.Status.State)
 				}
 			})
+		}
+	})
+}
+
+func testJourneySuites(t *testing.T, simpleSrc string, runCLI runnerFunc) {
+	if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
+		t.Skipf("a2a-simple source not found at %s", simpleSrc)
+	}
+
+	echoBin := filepath.Join(t.TempDir(), "grpc-echo")
+	buildEcho := exec.Command("go", "build", "-o", echoBin, "./cmd/grpc-echo")
+	buildEcho.Dir = simpleSrc
+	if out, err := buildEcho.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build a2a-simple grpc-echo: %v\nOutput: %s", err, out)
+	}
+
+	const httpPort = 9022
+	sutCmd := exec.Command(echoBin,
+		"-port", fmt.Sprintf("%d", httpPort),
+		"-grpc-port", fmt.Sprintf("%d", httpPort+1))
+	sutCmd.Dir = simpleSrc
+	var sutOut bytes.Buffer
+	sutCmd.Stdout = &sutOut
+	sutCmd.Stderr = &sutOut
+	if err := sutCmd.Start(); err != nil {
+		t.Fatalf("failed to start grpc-echo server: %v", err)
+	}
+	defer func() { _ = sutCmd.Process.Kill() }()
+
+	sutURL := fmt.Sprintf("http://127.0.0.1:%d", httpPort)
+	if err := waitForServer(sutURL+"/.well-known/agent-card.json", 20*time.Second); err != nil {
+		t.Fatalf("grpc-echo server failed to start. Logs:\n%s", sutOut.String())
+	}
+
+	t.Run("PositionalURLDiscover", func(t *testing.T) {
+		cmd := runCLI("discover", sutURL)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("discover positional URL failed: %v\nOutput: %s", err, out)
+		}
+		if !strings.Contains(string(out), "Multi-Transport Echo Server") {
+			t.Errorf("expected agent name in discover output, got:\n%s", string(out))
+		}
+	})
+
+	t.Run("ZeroArgValidation", func(t *testing.T) {
+		cmd := runCLI("version", "invalid_arg")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Errorf("expected error for version with positional arg, got success:\n%s", string(out))
+		}
+	})
+
+	t.Run("ContextContinuity", func(t *testing.T) {
+		cmd1 := runCLI("send", "Turn 1 message", "-u", sutURL, "--wait")
+		out1, err := cmd1.CombinedOutput()
+		if err != nil {
+			t.Fatalf("turn 1 failed: %v\nOutput: %s", err, out1)
+		}
+
+		ctxLine := ""
+		for _, line := range strings.Split(string(out1), "\n") {
+			if strings.HasPrefix(line, "Context ID:") {
+				ctxLine = strings.TrimSpace(strings.TrimPrefix(line, "Context ID:"))
+				break
+			}
+		}
+		if ctxLine == "" {
+			t.Fatalf("expected Context ID in turn 1 output, got:\n%s", string(out1))
+		}
+
+		cmd2 := runCLI("send", "Turn 2 message", "-u", sutURL, "--context", ctxLine, "--wait")
+		out2, err := cmd2.CombinedOutput()
+		if err != nil {
+			t.Fatalf("turn 2 failed: %v\nOutput: %s", err, out2)
+		}
+		if !strings.Contains(string(out2), ctxLine) {
+			t.Errorf("expected Turn 2 output to contain context ID %s, got:\n%s", ctxLine, string(out2))
+		}
+	})
+
+	t.Run("TerminalTaskStrict", func(t *testing.T) {
+		cmd1 := runCLI("send", "Task to complete", "-u", sutURL, "--wait")
+		out1, err := cmd1.CombinedOutput()
+		if err != nil {
+			t.Fatalf("task creation failed: %v\nOutput: %s", err, out1)
+		}
+
+		taskID := ""
+		for _, line := range strings.Split(string(out1), "\n") {
+			if strings.HasPrefix(line, "Task ID:") {
+				taskID = strings.TrimSpace(strings.TrimPrefix(line, "Task ID:"))
+				break
+			}
+		}
+		if taskID == "" {
+			t.Fatalf("expected Task ID in output, got:\n%s", string(out1))
+		}
+
+		cmd2 := runCLI("send", "Followup", "-u", sutURL, "--task", taskID, "--strict", "--output", "json")
+		out2, err := cmd2.CombinedOutput()
+		if err == nil {
+			t.Errorf("expected strict mode failure on completed task, got success:\n%s", string(out2))
+		}
+		if !strings.Contains(string(out2), "FAILED_PRECONDITION") {
+			t.Errorf("expected FAILED_PRECONDITION error code, got:\n%s", string(out2))
+		}
+	})
+
+	t.Run("ListTasksColumns", func(t *testing.T) {
+		// Send task with auth so it is owned by Admin
+		cmd1 := runCLI("send", "Admin task", "-u", sutURL, "--auth", "Bearer secret-token", "--wait")
+		if out, err := cmd1.CombinedOutput(); err != nil {
+			t.Fatalf("send with auth failed: %v\nOutput: %s", err, out)
+		}
+
+		cmd2 := runCLI("list", "tasks", "-u", sutURL, "--auth", "Bearer secret-token")
+		out, err := cmd2.CombinedOutput()
+		if err != nil {
+			t.Fatalf("list tasks failed: %v\nOutput: %s", err, out)
+		}
+		if !strings.Contains(string(out), "CONTEXT ID") {
+			t.Errorf("expected CONTEXT ID column in list tasks output, got:\n%s", string(out))
+		}
+	})
+
+	t.Run("DirectoryGuard", func(t *testing.T) {
+		cmd := runCLI("send", "test", "-u", sutURL, "-d", "json")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Errorf("expected error for -d json, got success:\n%s", string(out))
+		}
+		if !strings.Contains(string(out), "invalid directory name") {
+			t.Errorf("expected directory guard error message, got:\n%s", string(out))
 		}
 	})
 }

@@ -74,7 +74,7 @@ func runA2UIValidate(_ *cobra.Command, _ []string) {
 		fatalf("failed to load A2UI schemas", err, "This is a build problem; please file an issue")
 	}
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}

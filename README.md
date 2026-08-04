@@ -57,6 +57,16 @@ winget install ghchinoy.a2acli
 go install github.com/ghchinoy/a2acli/cmd/a2acli@latest
 ```
 
+Ensure your Go binary directory is exported in your shell profile (`~/.bashrc`, `~/.zshrc`):
+```bash
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+To use `a2a` as a convenient shorthand for `a2acli`:
+```bash
+alias a2a="a2acli"
+```
+
 ### From Source
 
 ```bash

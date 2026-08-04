@@ -1,4 +1,4 @@
-.PHONY: build run clean lint lint-fix fmt test test-e2e install help conformance-report diagrams
+.PHONY: build run clean lint lint-fix fmt test test-e2e test-journey install help conformance-report diagrams
 .DEFAULT_GOAL := help
 
 # Default path to the a2a-go SDK repository, required for conformance tests.
@@ -39,6 +39,9 @@ test: ## Run unit tests
 
 test-e2e: ## Run end-to-end conformance tests (requires a2a-go SDK and a2a-simple)
 	GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=$(A2A_GO_SRC) A2A_SIMPLE_SRC=$(A2A_SIMPLE_SRC) go test -v ./e2e/...
+
+test-journey: build ## Run journey and conversation continuity e2e tests (requires a2a-experiments)
+	GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=$(A2A_GO_SRC) A2A_SIMPLE_SRC=$(A2A_SIMPLE_SRC) go test -v ./e2e/... -run TestConformance/JourneySuites
 
 conformance-report: ## Run conformance tests and update docs/CONFORMANCE_REPORT.md
 	@echo "Generating Conformance Report..."

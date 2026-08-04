@@ -111,7 +111,7 @@ func runPushConfigCreate(_ *cobra.Command, args []string) {
 	ctx := context.Background()
 	verboseLog("push-config create: task=%s url=%s scheme=%q", taskID, callbackURL, pushAuthScheme)
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -158,7 +158,7 @@ func runPushConfigList(_ *cobra.Command, args []string) {
 	ctx := context.Background()
 	verboseLog("push-config list: task=%s pageSize=%d", taskID, pushPageSize)
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -199,7 +199,7 @@ func runPushConfigGet(_ *cobra.Command, args []string) {
 	ctx := context.Background()
 	verboseLog("push-config get: task=%s config=%s", taskID, configID)
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -238,7 +238,7 @@ func runPushConfigDelete(_ *cobra.Command, args []string) {
 	ctx := context.Background()
 	verboseLog("push-config delete: task=%s config=%s", taskID, configID)
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}

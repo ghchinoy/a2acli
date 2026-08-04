@@ -57,6 +57,7 @@ var (
 	verbose          bool
 	showFull         bool
 	discoverExtended bool
+	noCache          bool
 	transport        string
 	protocol         string
 	authHeaders      []string
@@ -235,6 +236,39 @@ func getResolver() *agentcard.Resolver {
 		}
 	}
 	return &agentcard.Resolver{Client: &http.Client{Timeout: t}}
+}
+
+func resolveAgentCard(ctx context.Context, targetURL string) (*a2a.AgentCard, error) {
+	if !noCache {
+		if cached, err := loadCachedCard(targetURL); err == nil && cached != nil {
+			verboseLog("using cached AgentCard for %s (fetched %s ago)", targetURL, time.Since(cached.FetchedAt).Round(time.Second))
+			return cached.Card, nil
+		}
+	}
+
+	var opts []agentcard.ResolveOption
+	if authToken != "" {
+		opts = append(opts, agentcard.WithRequestHeader("Authorization", "Bearer "+authToken))
+	}
+	for _, h := range authHeaders {
+		parts := strings.SplitN(h, ":", 2)
+		if len(parts) == 2 {
+			opts = append(opts, agentcard.WithRequestHeader(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])))
+		} else if len(parts) == 1 && strings.HasPrefix(strings.ToLower(parts[0]), "bearer ") {
+			opts = append(opts, agentcard.WithRequestHeader("Authorization", strings.TrimSpace(parts[0])))
+		}
+	}
+
+	card, err := getResolver().Resolve(ctx, targetURL, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := saveCachedCard(targetURL, card); err != nil {
+		verboseLog("failed to save AgentCard to disk cache: %v", err)
+	}
+
+	return card, nil
 }
 
 func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, error) {
@@ -532,7 +566,7 @@ func runDescribe(_ *cobra.Command, args []string) {
 		serviceURL = args[0]
 	}
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+serviceURL+" or specify --service-url / -u")
 	}
@@ -676,7 +710,7 @@ func runSend(_ *cobra.Command, args []string) {
 
 	ctx := context.Background()
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -800,7 +834,7 @@ func runWatch(_ *cobra.Command, args []string) {
 	taskID := args[0]
 	ctx := context.Background()
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -860,7 +894,7 @@ func runGet(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 	verboseLog("GetTask: %s", taskID)
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -911,7 +945,7 @@ func runCancel(_ *cobra.Command, args []string) {
 	ctx := context.Background()
 	verboseLog("CancelTask: %s", taskID)
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}
@@ -957,6 +991,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&contextID, "context", "", "Context ID for multi-turn conversation thread")
 	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference for cross-task artifact chaining (does not continue conversation)")
 	rootCmd.PersistentFlags().BoolVar(&strictMode, "strict", false, "Fail fast on warnings (e.g. continuing terminal tasks)")
+	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "Bypass agent card disk cache and fetch fresh")
 	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI — alias for --output json (backwards compat)")
 	rootCmd.PersistentFlags().StringVarP(&outputMode, "output", "o", "", "Output mode: tui (default), text (plain, no animations), json (NDJSON for scripting)")
 	rootCmd.PersistentFlags().DurationVar(&requestTimeout, "timeout", 0, "Request timeout, e.g. 30s, 2m (0 = no timeout)")

@@ -141,7 +141,7 @@ func newState() (string, error) {
 func runAuthLogin(_ *cobra.Command, _ []string) {
 	ctx := context.Background()
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
 	}

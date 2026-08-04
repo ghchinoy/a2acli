@@ -80,7 +80,7 @@ func runConformance(cmd *cobra.Command, _ []string) {
 	ctx := context.Background()
 
 	// ── Check 1: AgentCard well-formed ──────────────────────────────────────
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		results = append(results, fail("AgentCard fetch", fmt.Sprintf("could not fetch card: %v", err)))
 		printConformanceResults(results, overallPass)

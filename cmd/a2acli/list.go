@@ -63,7 +63,7 @@ Note: The server must support history for this endpoint to return data.`,
 func runListTasks(_ *cobra.Command, _ []string) {
 	ctx := context.Background()
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {
 		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+serviceURL)
 	}

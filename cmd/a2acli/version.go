@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 )
@@ -27,8 +28,42 @@ var (
 	date    = "unknown"
 )
 
+func getVersionInfo() (string, string, string) {
+	v, c, d := version, commit, date
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		if (v == "" || v == "dev") && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+			v = bi.Main.Version
+		}
+		var rev, t string
+		var modified bool
+		for _, setting := range bi.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				rev = setting.Value
+			case "vcs.time":
+				t = setting.Value
+			case "vcs.modified":
+				if setting.Value == "true" {
+					modified = true
+				}
+			}
+		}
+		if rev != "" && modified {
+			rev += "-dirty"
+		}
+		if (c == "" || c == "none") && rev != "" {
+			c = rev
+		}
+		if (d == "" || d == "unknown") && t != "" {
+			d = t
+		}
+	}
+	return v, c, d
+}
+
 func runVersion(_ *cobra.Command, _ []string) {
-	fmt.Printf("a2acli version %s\n", version)
-	fmt.Printf("commit: %s\n", commit)
-	fmt.Printf("built at: %s\n", date)
+	v, c, d := getVersionInfo()
+	fmt.Printf("a2acli version %s\n", v)
+	fmt.Printf("commit: %s\n", c)
+	fmt.Printf("built at: %s\n", d)
 }
