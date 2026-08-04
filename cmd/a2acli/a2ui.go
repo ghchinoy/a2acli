@@ -56,7 +56,8 @@ Exit code is non-zero if any check fails.`,
 		Example: `  a2acli a2ui validate --service-url http://localhost:9002
   a2acli a2ui validate -u http://localhost:9002 --probe "show me the showcase card"
   a2acli a2ui validate -u http://localhost:9002 --output json`,
-		Run: runA2UIValidate,
+		Args: cobra.NoArgs,
+		Run:  runA2UIValidate,
 	}
 	validateCmd.Flags().StringVar(&a2uiProbeMessage, "probe", "render a UI", "Message text to elicit an A2UI response")
 

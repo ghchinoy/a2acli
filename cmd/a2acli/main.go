@@ -291,12 +291,12 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 
 	if transport == "" {
 		verboseLog("auto-selected transport: %s", selectedTransport)
-		if outputMode == "tui" {
+		if outputMode == "tui" && verbose {
 			fmt.Printf("Auto-selected transport: %s\n", StyleAccent.Render(string(selectedTransport)))
 		}
 	} else {
 		verboseLog("forcing transport: %s", selectedTransport)
-		if outputMode == "tui" {
+		if outputMode == "tui" && verbose {
 			fmt.Printf("Forcing transport: %s\n", StyleAccent.Render(string(selectedTransport)))
 		}
 	}
@@ -433,20 +433,13 @@ func fetchExtendedCard(ctx context.Context, card *a2a.AgentCard) *a2a.AgentCard 
 		fatalf("failed to create client", err, "Verify your --token or configuration settings")
 	}
 
-	hasAuth := authToken != "" || len(authHeaders) > 0
-	if !hasAuth {
-		if stored, err := oauth.LoadValidToken(ctx, serviceURL); err == nil && stored != nil && !stored.IsExpired() {
-			hasAuth = true
-		}
-	}
-	if !hasAuth {
-		fatalf("authentication required", fmt.Errorf("no credentials"),
-			"Requesting the extended card requires authentication. Run 'a2acli auth login' or pass --token")
-	}
-
 	extCard, err := client.GetExtendedAgentCard(ctx, &a2a.GetExtendedAgentCardRequest{})
 	if err != nil {
-		fatalf("GetExtendedAgentCard failed", err, "Verify your credentials have the required scopes (e.g. agent:invoke)")
+		hint := "Verify your credentials or server availability"
+		if is401(err) {
+			hint = "Requesting the extended card requires authentication. Run 'a2acli auth login' or pass --token"
+		}
+		fatalf("GetExtendedAgentCard failed", err, hint)
 	}
 	verboseLog("resolved extended AgentCard: name=%q version=%q skills=%d",
 		extCard.Name, extCard.Version, len(extCard.Skills))
@@ -532,12 +525,17 @@ func printSkills(skills []a2a.AgentSkill) {
 	}
 }
 
-func runDescribe(_ *cobra.Command, _ []string) {
+func runDescribe(_ *cobra.Command, args []string) {
 	ctx := context.Background()
 
-	card, err := getResolver().Resolve(ctx, serviceURL)
+	targetURL := serviceURL
+	if len(args) > 0 && args[0] != "" {
+		targetURL = args[0]
+	}
+
+	card, err := getResolver().Resolve(ctx, targetURL)
 	if err != nil {
-		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+serviceURL)
+		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+targetURL+" or specify --service-url / -u")
 	}
 	verboseLog("resolved AgentCard: name=%q version=%q skills=%d interfaces=%d",
 		card.Name, card.Version, len(card.Skills), len(card.SupportedInterfaces))
@@ -652,6 +650,10 @@ func handleSendWait(ctx context.Context, client *a2aclient.Client, params *a2a.S
 }
 
 func runSend(_ *cobra.Command, args []string) {
+	if err := validateOutDir(outDir); err != nil {
+		fatalCode(ErrCodeInvalidArgument, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
+	}
+
 	var messageText string
 	if len(args) == 0 {
 		// No positional arg — read from stdin (only reachable when stdin is not a TTY)
@@ -792,6 +794,10 @@ func runSend(_ *cobra.Command, args []string) {
 }
 
 func runWatch(_ *cobra.Command, args []string) {
+	if err := validateOutDir(outDir); err != nil {
+		fatalCode(ErrCodeInvalidArgument, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
+	}
+
 	taskID := args[0]
 	ctx := context.Background()
 
@@ -847,6 +853,10 @@ func runWatch(_ *cobra.Command, args []string) {
 }
 
 func runGet(cmd *cobra.Command, args []string) {
+	if err := validateOutDir(outDir); err != nil {
+		fatalCode(ErrCodeInvalidArgument, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
+	}
+
 	taskID := args[0]
 	ctx := context.Background()
 	verboseLog("GetTask: %s", taskID)
@@ -949,7 +959,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference for cross-task artifact chaining (does not continue conversation)")
 	rootCmd.PersistentFlags().BoolVar(&strictMode, "strict", false, "Fail fast on warnings (e.g. continuing terminal tasks)")
 	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI — alias for --output json (backwards compat)")
-	rootCmd.PersistentFlags().StringVar(&outputMode, "output", "", "Output mode: tui (default), text (plain, no animations), json (NDJSON for scripting)")
+	rootCmd.PersistentFlags().StringVarP(&outputMode, "output", "o", "", "Output mode: tui (default), text (plain, no animations), json (NDJSON for scripting)")
 	rootCmd.PersistentFlags().DurationVar(&requestTimeout, "timeout", 0, "Request timeout, e.g. 30s, 2m (0 = no timeout)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Print diagnostic info to stderr (also: A2ACLI_VERBOSE=true)")
 	rootCmd.PersistentFlags().StringVar(&transport, "transport", "", "Force a specific transport protocol (grpc, jsonrpc, rest)")
@@ -957,7 +967,7 @@ func main() {
 	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
 
 	var describeCmd = &cobra.Command{
-		Use:     "discover",
+		Use:     "discover [url]",
 		Aliases: []string{"describe"},
 		GroupID: GroupDiscovery,
 		Short:   "Discover and display the agent card",
@@ -967,15 +977,18 @@ The AgentCard contains the agent's identity, description, supported
 interface protocols (e.g., JSON-RPC), and available skills. It also 
 lists any security requirements for each skill.
 
+The agent URL can be passed as an optional positional argument or via --service-url / -u.
+
 Use --extended to fetch the richer, authenticated AgentCard via the
 GetExtendedAgentCard protocol RPC.
 
 'describe' is accepted as a backwards-compatible alias.`,
 		Example: `  a2acli discover
+  a2acli discover http://localhost:9001
   a2acli discover --extended
-  a2acli discover --service-url http://localhost:9001
-  a2acli discover --output json --token "my-auth-token"`,
-		Run: runDescribe,
+  a2acli discover --service-url http://localhost:9001 --extended`,
+		Args: cobra.MaximumNArgs(1),
+		Run:  runDescribe,
 	}
 	describeCmd.Flags().BoolVar(&discoverExtended, "extended", false, "Fetch the authenticated extended AgentCard")
 
@@ -1046,11 +1059,12 @@ download artifacts to a directory.`,
 		Use:     "version",
 		GroupID: GroupSystem,
 		Short:   "Print the version number of a2acli",
+		Args:    cobra.NoArgs,
 		Run:     runVersion,
 	}
 
 	sendCmd.Flags().StringVarP(&skillID, "skill", "s", "", "Skill ID")
-	sendCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	sendCmd.Flags().StringVarP(&outDir, "out-dir", "d", "", "Directory to save artifacts to")
 	sendCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 	sendCmd.Flags().StringVarP(&instructionFile, "instruction-file", "i", "", "Path to a file with supplemental instructions")
 	sendCmd.Flags().BoolVarP(&wait, "wait", "w", false, "Block and wait for task completion instead of streaming (maps to A2A Blocking:true)")
@@ -1062,10 +1076,10 @@ download artifacts to a directory.`,
 	sendCmd.Flags().StringArrayVar(&attachFiles, "attach", nil, "Attach a file as a message part (repeatable; MIME type auto-detected)")
 	sendCmd.Flags().StringArrayVar(&dataArgs, "data", nil, "Add a JSON value as a DataPart (repeatable)")
 
-	watchCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	watchCmd.Flags().StringVarP(&outDir, "out-dir", "d", "", "Directory to save artifacts to")
 	watchCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 
-	getCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	getCmd.Flags().StringVarP(&outDir, "out-dir", "d", "", "Directory to save artifacts to")
 	getCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 	getCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating")
 
@@ -1084,7 +1098,7 @@ artifacts to the current directory or a specified output directory.`,
 		Args: cobra.ExactArgs(1),
 		Run:  runGet, // Reuse runGet which now handles outDir and outFile natively
 	}
-	downloadCmd.Flags().StringVarP(&outDir, "out-dir", "o", "", "Directory to save artifacts to")
+	downloadCmd.Flags().StringVarP(&outDir, "out-dir", "d", "", "Directory to save artifacts to")
 	downloadCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 	downloadCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating")
 
@@ -1402,6 +1416,17 @@ func downloadURL(rawURL string) ([]byte, error) {
 		}
 	}
 	return buf, nil
+}
+
+func validateOutDir(dir string) error {
+	if dir == "" {
+		return nil
+	}
+	lower := strings.ToLower(strings.TrimSpace(dir))
+	if lower == "json" || lower == "text" || lower == "tui" || lower == "ndjson" {
+		return fmt.Errorf("invalid directory name %q: did you mean -o or --output %s?", dir, lower)
+	}
+	return nil
 }
 
 func saveArtifact(outDir, outFile string, artifact a2a.Artifact, index int) (string, error) {

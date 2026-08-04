@@ -151,7 +151,8 @@ and can be overridden by environment variables and command-line flags.`,
 		Example: `  a2acli config
   a2acli config --env production
   a2acli config env list`,
-		Run: runConfig,
+		Args: cobra.NoArgs,
+		Run:  runConfig,
 	}
 
 	// env group
@@ -202,7 +203,8 @@ and can be overridden by environment variables and command-line flags.`,
 		Short: "List all named environments",
 		Example: `  a2acli config env list
   a2acli config env list --output json`,
-		Run: runConfigEnvList,
+		Args: cobra.NoArgs,
+		Run:  runConfigEnvList,
 	}
 
 	envCmd.AddCommand(addCmd, removeCmd, useCmd, listCmd)

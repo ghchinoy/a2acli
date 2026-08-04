@@ -61,7 +61,8 @@ Callback server binds to ` + oauth.RedirectURI + ` (pre-registered in the
 mithlond consent SPA). Port 8080 must be free.`,
 		Example: `  a2acli auth login --service-url https://eldamo.mithlond.com
   a2acli auth login -u https://eldamo.mithlond.com --client-id myid --client-secret mysecret`,
-		Run: runAuthLogin,
+		Args: cobra.NoArgs,
+		Run:  runAuthLogin,
 	}
 	loginCmd.Flags().StringVar(&authClientID, "client-id", "", "Client ID for client credentials flow (non-interactive)")
 	loginCmd.Flags().StringVar(&authClientSecret, "client-secret", "", "Client secret for client credentials flow")
@@ -71,6 +72,7 @@ mithlond consent SPA). Port 8080 must be free.`,
 		Use:     "status",
 		Short:   "Show stored token status for a service",
 		Example: `  a2acli auth status --service-url https://eldamo.mithlond.com`,
+		Args:    cobra.NoArgs,
 		Run:     runAuthStatus,
 	}
 
@@ -79,6 +81,7 @@ mithlond consent SPA). Port 8080 must be free.`,
 		Use:     "logout",
 		Short:   "Delete the stored token for a service",
 		Example: `  a2acli auth logout --service-url https://eldamo.mithlond.com`,
+		Args:    cobra.NoArgs,
 		Run:     runAuthLogout,
 	}
 
@@ -86,6 +89,7 @@ mithlond consent SPA). Port 8080 must be free.`,
 	tokenCmd := &cobra.Command{
 		Use:   "token",
 		Short: "Print the stored access token (for scripting)",
+		Args:  cobra.NoArgs,
 		Long: `Print the raw JWT access token for the service. Equivalent to
 'make token' in the service's own repo, but driven from a2acli's token store.
 Exits non-zero if no valid token is stored.`,

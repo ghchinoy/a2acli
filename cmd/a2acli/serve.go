@@ -47,6 +47,7 @@ func setupServeCmd() *cobra.Command {
 		Long: `Spin up a local A2A-compliant agent for testing purposes.
 Currently, this CLI supports the --echo mock mode.`,
 		Example: `  a2acli serve --echo --port 9001`,
+		Args:    cobra.NoArgs,
 		Run:     runServe,
 	}
 

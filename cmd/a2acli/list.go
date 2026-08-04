@@ -47,7 +47,8 @@ Note: The server must support history for this endpoint to return data.`,
 		Example: `  a2acli list tasks --limit 10
   a2acli list tasks --status completed
   a2acli list tasks --context ctx-123`,
-		Run: runListTasks,
+		Args: cobra.NoArgs,
+		Run:  runListTasks,
 	}
 
 	tasksCmd.Flags().IntVar(&listLimit, "limit", 10, "Maximum number of tasks to return")

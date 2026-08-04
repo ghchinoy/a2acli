@@ -107,6 +107,25 @@ func TestBuildMessageWithContext(t *testing.T) {
 	}
 }
 
+func TestValidateOutDir(t *testing.T) {
+	invalidDirs := []string{"json", "JSON", "text", "TEXT", "tui", "TUI", "ndjson"}
+	for _, dir := range invalidDirs {
+		err := validateOutDir(dir)
+		if err == nil {
+			t.Errorf("expected error for validateOutDir(%q), got nil", dir)
+		} else if !strings.Contains(err.Error(), "did you mean -o or --output") {
+			t.Errorf("expected error message to contain 'did you mean -o or --output', got: %v", err)
+		}
+	}
+
+	validDirs := []string{"", "./artifacts", "/tmp/out", "reports"}
+	for _, dir := range validDirs {
+		if err := validateOutDir(dir); err != nil {
+			t.Errorf("unexpected error for validateOutDir(%q): %v", dir, err)
+		}
+	}
+}
+
 func TestListStatusFormatting(t *testing.T) {
 	states := []struct {
 		input a2a.TaskState

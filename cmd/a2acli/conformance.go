@@ -54,7 +54,8 @@ if any check fails.`,
 		Example: `  a2acli conformance --service-url http://localhost:9001
   a2acli conformance --service-url https://eldamo.example.com --token mytoken
   a2acli conformance --output json`,
-		Run: runConformance,
+		Args: cobra.NoArgs,
+		Run:  runConformance,
 	}
 }
 

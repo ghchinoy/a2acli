@@ -216,7 +216,7 @@ func (m *model) handleArtifactUpdate(v *a2a.TaskArtifactUpdateEvent) {
 
 func (m model) View() string {
 	if m.err != nil {
-		return StyleFail.Render(fmt.Sprintf("Error: %v\n", m.err))
+		return ""
 	}
 
 	// Status Bar
