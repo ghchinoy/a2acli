@@ -41,7 +41,7 @@ on an official canonical CLI:
 | Flag | #1929 | #306 | a2acli | Notes |
 |---|---|---|---|---|
 | Agent URL | positional | positional | `--service-url / -u` | **a2acli difference** — flag enables named environments. |
-| Output format | `-o json` | `-o json` | `--output tui/text/json` | a2acli adds `tui` and `text` modes; no `-o` shorthand (conflict with `--out-dir`). |
+| Output format | `-o json` | `-o json` | `-o json / --output tui/text/json` | Aligned. a2acli supports `-o json` shorthand. |
 | Auth | headers | `--auth` | `--token`, `--auth` | a2acli supports both bearer token shorthand and raw headers. |
 | Service params | — | `--svc-param` | `--svc-param` | Aligned. |
 | Transport | — | `--transport` | `--transport` | Aligned. |
@@ -68,7 +68,7 @@ on an official canonical CLI:
 | `--instruction-file` | `-f file` | `--instruction-file / -i` | Similar. #306 reads a full JSON Message; a2acli appends plain text. |
 | `--parts` / `--json` / `--file` (input) | ✓ | `--parts` / `--json` / `--attach` / `--data` | Multi-modal input. a2acli uses `--attach` for input files (`--file` is output filename). |
 | `--history` | ✓ | — | Not yet implemented. |
-| `--out-dir` | — | `--out-dir / -o` | a2acli addition for artifact saving. |
+| `--out-dir` | — | `--out-dir / -d` | a2acli addition for artifact saving (`-d` shorthand). |
 | `--file` (output) | — | `--file / -f` | a2acli addition. |
 
 ---

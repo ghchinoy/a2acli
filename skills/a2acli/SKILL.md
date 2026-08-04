@@ -44,7 +44,8 @@ metadata:
 | Flag | Short | Default | Description |
 |---|---|---|---|
 | `--service-url` | `-u` | `http://127.0.0.1:9001` | Base URL of the A2A service |
-| `--output json` | `-n` | tui | **Required for agents.** Emit JSON instead of interactive UI |
+| `--output` | `-o` | tui | **`-o json` / `-n` required for agents.** Output mode: `tui`, `text`, or `json` |
+| `--no-cache` | — | false | Bypass AgentCard disk cache and fetch fresh |
 | `--wait` | `-w` | false | **Required with `send` for agents.** Block until task completes |
 | `--token` | `-t` | — | Bearer token. If omitted, stored token from `auth login` is used automatically |
 | `--auth` | — | — | Raw auth header, e.g. `ApiKey secret` (repeatable) |

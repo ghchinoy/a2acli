@@ -8,7 +8,7 @@ Maps to the A2A Protocol's `SendMessage` RPC. Initiates a new task or continues 
 |---|---|---|---|
 | `--wait` / `--sync` | `-w` | false | Block until task completes. **Required for agents.** |
 | `--skill` | `-s` | — | Target a specific skill ID on the agent |
-| `--out-dir` | `-o` | — | Save artifacts to a directory automatically |
+| `--out-dir` | `-d` | — | Save artifacts to a directory automatically |
 | `--file` | `-f` | — | Save artifact to a specific filename |
 | `--instruction-file` | `-i` | — | Path to a file with supplemental instructions |
 

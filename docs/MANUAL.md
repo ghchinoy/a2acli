@@ -108,7 +108,7 @@ cat prompt.txt | a2acli send --wait
 | `--skill` | `-s` | Target a specific skill on the agent |
 | `--wait` / `--sync` | `-w` | Block until task completes (returns final JSON) |
 | `--full` | — | Show complete artifact content without truncation (default: 500 char preview) |
-| `--out-dir` | `-o` | Save artifacts to a directory |
+| `--out-dir` | `-d` | Save artifacts to a directory |
 | `--file` | `-f` | Save artifact to a specific filename |
 | `--instruction-file` | `-i` | Path to a file with supplemental instructions |
 
@@ -137,7 +137,7 @@ a2acli get <task_id> --out-dir ./output/
 
 | Flag | Short | Description |
 |---|---|---|
-| `--out-dir` | `-o` | Save artifacts to a directory |
+| `--out-dir` | `-d` | Save artifacts to a directory |
 | `--file` | `-f` | Save artifact to a specific filename |
 | `--full` | — | Show complete artifact content without truncation |
 
@@ -328,8 +328,9 @@ Environment variables follow the pattern `A2ACLI_<FLAG>` (e.g.
 | `--context` | Context ID for multi-turn conversation thread |
 | `-r, --ref` | Task ID to reference for cross-task artifact chaining (does not continue conversation) |
 | `--strict` | Fail fast on warnings (e.g. continuing terminal tasks) |
-| `-n, --no-tui` | Output JSON/NDJSON instead of the interactive TUI |
-| `--output` | Output mode: `tui` (default), `text` (plain/CI), `json` (NDJSON for scripting) |
+| `-n, --no-tui` | Output JSON/NDJSON instead of the interactive TUI (alias for `-o json`) |
+| `-o, --output` | Output mode: `tui` (default), `text` (plain/CI), `json` (NDJSON for scripting) |
+| `--no-cache` | Bypass AgentCard disk cache and fetch fresh |
 | `-v, --verbose` | Print diagnostic info to stderr (transport, token resolution, events) |
 | `-p, --protocol` | A2A protocol version: `1.0.0` or `0.3.0` (default: `1.0.0`) |
 | `--transport` | Force transport: `grpc`, `jsonrpc`, or `rest` |
