@@ -528,14 +528,13 @@ func printSkills(skills []a2a.AgentSkill) {
 func runDescribe(_ *cobra.Command, args []string) {
 	ctx := context.Background()
 
-	targetURL := serviceURL
 	if len(args) > 0 && args[0] != "" {
-		targetURL = args[0]
+		serviceURL = args[0]
 	}
 
-	card, err := getResolver().Resolve(ctx, targetURL)
+	card, err := getResolver().Resolve(ctx, serviceURL)
 	if err != nil {
-		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+targetURL+" or specify --service-url / -u")
+		fatalf("failed to resolve AgentCard", err, "Ensure the A2A server is running at "+serviceURL+" or specify --service-url / -u")
 	}
 	verboseLog("resolved AgentCard: name=%q version=%q skills=%d interfaces=%d",
 		card.Name, card.Version, len(card.Skills), len(card.SupportedInterfaces))
