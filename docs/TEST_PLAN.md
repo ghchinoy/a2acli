@@ -385,11 +385,10 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 ## 7. Automation Strategy & CI Integration
 
 1. **Automated E2E Suite (`e2e/conformance_test.go`):**
-   - Integrate Tier 0 journey cases (TP-2.1, TP-3.1, TP-3.2, TP-4.1, TP-4.2, TP-4.3, TP-5.1, TP-7.1) into `e2e/conformance_test.go` as a new `t.Run("JourneySuites", ...)` test block.
-   - Configure `Makefile` target:
-     ```makefile
-     test-journey: build
-     	A2A_SIMPLE_SRC=/workspace/a2a-experiments go test -v ./e2e/... -run TestJourneySuites
+   - All Tier 0 journey cases (TP-2.1, TP-3.1, TP-3.2, TP-4.1, TP-4.2, TP-4.3, TP-5.1, TP-7.1) are integrated into `e2e/conformance_test.go` as `TestConformance/JourneySuites`.
+   - Executable via Makefile target:
+     ```bash
+     make test-journey
      ```
 2. **Local/Manual Utility Integration (Tier 1 & Tier 2):**
-   - Keep Tier 1/2 tests (Gemini/Vertex AI dependent) gated with `t.Skipf` when `GOOGLE_CLOUD_PROJECT` or `GEMINI_API_KEY` are absent, preserving fast, offline CI builds.
+   - Tier 1/2 tests (Gemini/Vertex AI dependent) gate with `t.Skipf` when `GOOGLE_CLOUD_PROJECT` or `GEMINI_API_KEY` are absent, preserving fast, offline CI builds.
