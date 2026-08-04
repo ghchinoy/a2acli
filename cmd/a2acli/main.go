@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -45,6 +44,8 @@ var (
 	authToken        string
 	targetTaskID     string
 	refTaskID        string
+	contextID        string
+	strictMode       bool
 	outDir           string
 	outFile          string
 	instructionFile  string
@@ -75,12 +76,13 @@ var (
 
 // Standard machine-readable error codes emitted in non-interactive JSON mode.
 const (
-	ErrCodeUnauthenticated = "UNAUTHENTICATED"
-	ErrCodeTimeout         = "TIMEOUT"
-	ErrCodeTaskFailed      = "TASK_FAILED"
-	ErrCodeInvalidArgument = "INVALID_ARGUMENT"
-	ErrCodeNotFound        = "NOT_FOUND"
-	ErrCodeInternal        = "INTERNAL_ERROR"
+	ErrCodeUnauthenticated    = "UNAUTHENTICATED"
+	ErrCodeTimeout            = "TIMEOUT"
+	ErrCodeTaskFailed         = "TASK_FAILED"
+	ErrCodeInvalidArgument    = "INVALID_ARGUMENT"
+	ErrCodeNotFound           = "NOT_FOUND"
+	ErrCodeInternal           = "INTERNAL_ERROR"
+	ErrCodeFailedPrecondition = "FAILED_PRECONDITION"
 )
 
 func fatalf(format string, err error, hint string) {
@@ -379,11 +381,23 @@ func resolveOutputMode() {
 
 // runText prints a human-readable stream of events to stdout without the Bubble Tea TUI.
 // Used when --output text is set.
-func runText(stream chan streamMsg, outDir string) {
+func runText(stream chan streamMsg, outDir string) (streamSummary, error) {
+	var summary streamSummary
 	for msg := range stream {
 		if msg.Err != nil {
-			fatalf("stream error", msg.Err, "")
+			return summary, msg.Err
 		}
+		summary.events++
+		if msg.Event != nil {
+			info := msg.Event.TaskInfo()
+			if info.TaskID != "" {
+				summary.taskID = string(info.TaskID)
+			}
+			if info.ContextID != "" {
+				summary.contextID = info.ContextID
+			}
+		}
+
 		switch e := msg.Event.(type) {
 		case *a2a.TaskStatusUpdateEvent:
 			verboseLog("event: TaskStatusUpdate state=%s", e.Status.State)
@@ -402,6 +416,9 @@ func runText(stream chan streamMsg, outDir string) {
 			}
 		}
 	}
+
+	printContinuationFooter(summary.taskID, summary.contextID)
+	return summary, nil
 }
 
 func fetchExtendedCard(ctx context.Context, card *a2a.AgentCard) *a2a.AgentCard {
@@ -585,7 +602,13 @@ func handleSendImmediate(ctx context.Context, client *a2aclient.Client, params *
 		fmt.Println(string(b))
 	} else if task, ok := result.(*a2a.Task); ok {
 		fmt.Printf("Task submitted: %s\n", task.ID)
-		fmt.Printf("Use 'a2acli subscribe %s' to follow progress\n", task.ID)
+		if task.ContextID != "" {
+			fmt.Printf("Context ID:     %s\n", task.ContextID)
+		}
+		fmt.Printf("\nUse 'a2acli subscribe %s' to follow progress\n", task.ID)
+		if task.ContextID != "" {
+			fmt.Printf("Use 'a2acli send --context %s \"...\"' to continue this conversation\n", task.ContextID)
+		}
 	}
 }
 
@@ -614,7 +637,7 @@ func handleSendWait(ctx context.Context, client *a2aclient.Client, params *a2a.S
 	}
 	if task, ok := result.(*a2a.Task); ok {
 		displayTaskResult(task, outDir)
-		fmt.Printf("\nTask ID: %s (use --task %s to continue, or --ref %s to reference)\n", task.ID, task.ID, task.ID)
+		printContinuationFooter(string(task.ID), task.ContextID)
 	} else if msg, ok := result.(*a2a.Message); ok {
 		fmt.Printf("Received simple message from agent (Task ID: %s)\n", msg.TaskID)
 		for _, p := range msg.Parts {
@@ -622,6 +645,7 @@ func handleSendWait(ctx context.Context, client *a2aclient.Client, params *a2a.S
 				fmt.Printf("Agent: %s\n", string(tp))
 			}
 		}
+		printContinuationFooter(string(msg.TaskID), msg.ContextID)
 	} else {
 		fmt.Printf("Unknown result type received: %T\n", result)
 	}
@@ -665,13 +689,40 @@ func runSend(_ *cobra.Command, args []string) {
 	if err != nil {
 		fatalf("failed to build message", err, "Check --json/--parts/--attach/--data flags for valid input")
 	}
+
 	if targetTaskID != "" {
 		msg.TaskID = a2a.TaskID(targetTaskID)
 		verboseLog("continuing task: %s", targetTaskID)
+
+		// Pre-flight GetTask check to validate task state and auto-populate context ID
+		t, getErr := client.GetTask(ctx, &a2a.GetTaskRequest{ID: a2a.TaskID(targetTaskID)})
+		if getErr == nil && t != nil {
+			if contextID == "" && t.ContextID != "" {
+				contextID = t.ContextID
+			}
+			if checkErr := checkTaskContinuable(t); checkErr != nil {
+				if strictMode {
+					fatalCode(ErrCodeFailedPrecondition, "cannot continue task", checkErr,
+						fmt.Sprintf("Use --context %s to continue the conversation thread", t.ContextID))
+				} else {
+					fmt.Fprintf(os.Stderr, "Warning: %v. Use --context %s to continue the conversation thread.\n\n", checkErr, t.ContextID)
+				}
+			}
+		}
+
 		if !disableTUI {
 			fmt.Printf("Continuing Task: %s\n", targetTaskID)
 		}
 	}
+
+	if contextID != "" {
+		msg.ContextID = contextID
+		verboseLog("setting context ID: %s", contextID)
+		if !disableTUI {
+			fmt.Printf("Context ID: %s\n", contextID)
+		}
+	}
+
 	if refTaskID != "" {
 		msg.ReferenceTasks = []a2a.TaskID{a2a.TaskID(refTaskID)}
 		verboseLog("referencing task: %s", refTaskID)
@@ -687,8 +738,8 @@ func runSend(_ *cobra.Command, args []string) {
 		params.Metadata = map[string]any{"skillId": skillID}
 		verboseLog("targeting skill: %s", skillID)
 	}
-	verboseLog("sending message: text_len=%d task=%q ref=%q immediate=%v wait=%v",
-		len(messageText), targetTaskID, refTaskID, immediate, wait)
+	verboseLog("sending message: text_len=%d task=%q context=%q ref=%q immediate=%v wait=%v",
+		len(messageText), targetTaskID, contextID, refTaskID, immediate, wait)
 
 	// --immediate: fire-and-forget — return the task ID without waiting or streaming
 	if immediate {
@@ -718,13 +769,25 @@ func runSend(_ *cobra.Command, args []string) {
 		}
 	}()
 
+	var summary streamSummary
+	var renderErr error
+
 	switch outputMode {
 	case "json":
-		runRaw(stream, outDir)
+		summary, renderErr = runRaw(stream, outDir)
 	case "text":
-		runText(stream, outDir)
+		summary, renderErr = runText(stream, outDir)
 	default:
-		runTUI(stream)
+		summary, renderErr = runTUI(stream)
+	}
+
+	if renderErr != nil {
+		fatalCode(ErrCodeFailedPrecondition, "streaming failed", renderErr, "Ensure the service is accessible and the task is active")
+	}
+
+	if summary.events == 0 {
+		fatalCode(ErrCodeFailedPrecondition, "agent returned no events", fmt.Errorf("stream closed with 0 events received"),
+			"The agent did not emit any status or artifact events. Verify that the task is active or use --context for multi-turn conversations.")
 	}
 }
 
@@ -881,8 +944,10 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token")
 	rootCmd.PersistentFlags().StringSliceVar(&authHeaders, "auth", nil, "Authorization headers to send (e.g. 'Bearer ...')")
 	rootCmd.PersistentFlags().StringSliceVar(&svcParams, "svc-param", nil, "Service parameters to send (e.g. 'key=value')")
-	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (must be non-terminal)")
-	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference as context (works for completed tasks)")
+	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (for active tasks)")
+	rootCmd.PersistentFlags().StringVar(&contextID, "context", "", "Context ID for multi-turn conversation thread")
+	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference for cross-task artifact chaining (does not continue conversation)")
+	rootCmd.PersistentFlags().BoolVar(&strictMode, "strict", false, "Fail fast on warnings (e.g. continuing terminal tasks)")
 	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI — alias for --output json (backwards compat)")
 	rootCmd.PersistentFlags().StringVar(&outputMode, "output", "", "Output mode: tui (default), text (plain, no animations), json (NDJSON for scripting)")
 	rootCmd.PersistentFlags().DurationVar(&requestTimeout, "timeout", 0, "Request timeout, e.g. 30s, 2m (0 = no timeout)")
@@ -926,8 +991,8 @@ the agent. Use the --wait flag to perform a blocking call instead.
 
 You can save artifacts produced by the task using the --out-dir flag.`,
 		Example: `  a2acli send "Write a simple CLI in Go"
-  a2acli send "Add error handling to that CLI" --task <taskID>
-  a2acli send "Summarize this task" --ref <taskID>
+  a2acli send "Add error handling to that CLI" --context <contextID>
+  a2acli send "Summarize this report" --skill summarize --ref <taskID>
   a2acli send "Generate report" --skill reports --wait --out-dir ./reports`,
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 && !isStdinPiped() && !hasMultimodalInput() {
@@ -1053,23 +1118,85 @@ already have completed or be in a non-cancelable state.`,
 	}
 }
 
-func runTUI(stream chan streamMsg) {
-	p := tea.NewProgram(initialModel(stream, outDir))
-	finalModel, err := p.Run()
-	if err != nil {
-		log.Fatalf("Alas, there's been an error: %v", err)
-	}
+type streamSummary struct {
+	taskID    string
+	contextID string
+	events    int
+}
 
-	if m, ok := finalModel.(model); ok && m.taskID != "" {
-		fmt.Printf("\nTask ID: %s (use --task %s to continue, or --ref %s to reference)\n", m.taskID, m.taskID, m.taskID)
+func checkTaskContinuable(task *a2a.Task) error {
+	if task == nil || task.Status.State == "" {
+		return nil
+	}
+	if task.Status.State.Terminal() {
+		return fmt.Errorf("task %s is in terminal state %s and cannot be continued", task.ID, task.Status.State)
+	}
+	return nil
+}
+
+func printContinuationFooter(taskID, contextID string) {
+	if disableTUI || outputMode == "json" {
+		return
+	}
+	if taskID == "" && contextID == "" {
+		return
+	}
+	fmt.Println()
+	if taskID != "" {
+		fmt.Printf("Task ID:    %s\n", StyleID.Render(taskID))
+	}
+	if contextID != "" {
+		fmt.Printf("Context ID: %s\n", StyleID.Render(contextID))
+	}
+	if contextID != "" {
+		fmt.Printf("\nContinue this conversation:\n  a2acli send --context %s \"your next message\"\n", contextID)
+	} else if taskID != "" {
+		fmt.Printf("\nContinue this task:\n  a2acli send --task %s \"your next message\"\n", taskID)
 	}
 }
 
-func runRaw(stream chan streamMsg, outDir string) {
+func runTUI(stream chan streamMsg) (streamSummary, error) {
+	p := tea.NewProgram(initialModel(stream, outDir))
+	finalModel, err := p.Run()
+	if err != nil {
+		return streamSummary{}, err
+	}
+
+	m, ok := finalModel.(model)
+	if !ok {
+		return streamSummary{}, fmt.Errorf("unexpected TUI model type")
+	}
+
+	if m.err != nil {
+		return streamSummary{taskID: m.taskID, contextID: m.contextID, events: m.eventCount}, m.err
+	}
+
+	summary := streamSummary{
+		taskID:    m.taskID,
+		contextID: m.contextID,
+		events:    m.eventCount,
+	}
+
+	printContinuationFooter(summary.taskID, summary.contextID)
+	return summary, nil
+}
+
+func runRaw(stream chan streamMsg, outDir string) (streamSummary, error) {
+	var summary streamSummary
 	for msg := range stream {
 		if msg.Err != nil {
 			fmt.Fprintf(os.Stderr, "{\"error\": %q}\n", msg.Err.Error())
-			os.Exit(1)
+			return summary, msg.Err
+		}
+		summary.events++
+		if msg.Event != nil {
+			info := msg.Event.TaskInfo()
+			if info.TaskID != "" {
+				summary.taskID = string(info.TaskID)
+			}
+			if info.ContextID != "" {
+				summary.contextID = info.ContextID
+			}
 		}
 
 		switch e := msg.Event.(type) {
@@ -1090,6 +1217,8 @@ func runRaw(stream chan streamMsg, outDir string) {
 		}
 		fmt.Println(string(b))
 	}
+
+	return summary, nil
 }
 
 func displayTaskResult(task *a2a.Task, outDir string) {

@@ -36,15 +36,17 @@ type streamMsg struct {
 }
 
 type model struct {
-	sub      <-chan streamMsg
-	messages []string
-	spinner  spinner.Model
-	status   string
-	taskID   string
-	quitting bool
-	err      error
-	outDir   string
-	width    int
+	sub        <-chan streamMsg
+	messages   []string
+	spinner    spinner.Model
+	status     string
+	taskID     string
+	contextID  string
+	eventCount int
+	quitting   bool
+	err        error
+	outDir     string
+	width      int
 }
 
 type eventMsg streamMsg
@@ -122,9 +124,13 @@ func (m model) handleEvent(msg eventMsg) (tea.Model, tea.Cmd) {
 
 	// Handle A2A Events
 	event := msg.Event
+	m.eventCount++
 
 	if event.TaskInfo().TaskID != "" {
 		m.taskID = string(event.TaskInfo().TaskID)
+	}
+	if event.TaskInfo().ContextID != "" {
+		m.contextID = event.TaskInfo().ContextID
 	}
 
 	cmds := []tea.Cmd{m.waitForActivity()} // Continue listening
@@ -223,6 +229,9 @@ func (m model) View() string {
 	statusLine := fmt.Sprintf("%s%s", spin, StyleAccent.Render(state))
 	if m.taskID != "" {
 		statusLine += fmt.Sprintf(" | Task: %s", StyleID.Render(m.taskID))
+	}
+	if m.contextID != "" {
+		statusLine += fmt.Sprintf(" | Context: %s", StyleID.Render(m.contextID))
 	}
 
 	// History

@@ -23,11 +23,15 @@ a2acli send "Generate a project plan" \
 a2acli send "Generate report" --skill reports \
   --service-url http://localhost:9001 --output json --wait
 
-# Continue an existing task
+# Continue a multi-turn conversation thread
+a2acli send "Add more detail to section 2" \
+  --context <ContextID> --service-url http://localhost:9001 --output json --wait
+
+# Continue an active task
 a2acli send "Add more detail to section 2" \
   --task <TaskID> --service-url http://localhost:9001 --output json --wait
 
-# Reference a completed task as context
+# Reference a completed task's artifacts
 a2acli send "Summarize the previous result" \
   --ref <TaskID> --service-url http://localhost:9001 --output json --wait
 

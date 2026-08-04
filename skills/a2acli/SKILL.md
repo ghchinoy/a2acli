@@ -48,8 +48,10 @@ metadata:
 | `--wait` | `-w` | false | **Required with `send` for agents.** Block until task completes |
 | `--token` | `-t` | — | Bearer token. If omitted, stored token from `auth login` is used automatically |
 | `--auth` | — | — | Raw auth header, e.g. `ApiKey secret` (repeatable) |
-| `--task` | `-k` | — | Existing Task ID to continue (must be non-terminal) |
-| `--ref` | `-r` | — | Completed Task ID to pass as context |
+| `--task` | `-k` | — | Existing Task ID to continue (for active tasks) |
+| `--context` | — | — | Context ID for multi-turn conversation thread |
+| `--ref` | `-r` | — | Task ID to reference for cross-task artifact chaining |
+| `--strict` | — | false | Fail fast on warnings (e.g. continuing terminal tasks) |
 | `--protocol` | `-p` | `1.0.0` | A2A protocol version (`1.0.0` or `0.3.0`) |
 | `--transport` | — | auto | Force transport: `grpc`, `jsonrpc`, or `rest` |
 | `--env` | `-e` | — | Named environment from config file |

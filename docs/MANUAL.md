@@ -324,8 +324,10 @@ Environment variables follow the pattern `A2ACLI_<FLAG>` (e.g.
 | `-t, --token` | Authorization token (if omitted, stored token from `auth login` is used automatically) |
 | `--auth` | Authorization headers, e.g. `Bearer …` (repeatable) |
 | `--svc-param` | Service parameters, e.g. `key=value` (repeatable) |
-| `-k, --task` | Existing Task ID to continue (must be non-terminal) |
-| `-r, --ref` | Task ID to reference as context |
+| `-k, --task` | Existing Task ID to continue (for active tasks) |
+| `--context` | Context ID for multi-turn conversation thread |
+| `-r, --ref` | Task ID to reference for cross-task artifact chaining (does not continue conversation) |
+| `--strict` | Fail fast on warnings (e.g. continuing terminal tasks) |
 | `-n, --no-tui` | Output JSON/NDJSON instead of the interactive TUI |
 | `--output` | Output mode: `tui` (default), `text` (plain/CI), `json` (NDJSON for scripting) |
 | `-v, --verbose` | Print diagnostic info to stderr (transport, token resolution, events) |

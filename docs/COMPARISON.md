@@ -61,8 +61,9 @@ on an official canonical CLI:
 | `--immediate` | ✓ | ✓ | Aligned. |
 | `--wait` / `--sync` | — | ✓ | a2acli addition. |
 | `--stream` | ✓ | default | a2acli streams by default; no explicit flag needed. |
-| `--task` | `--task` | `--task / -k` | Aligned. |
-| `--context` | `--context` | `--ref / -r` | Different semantics: `--ref` references a *completed* task, not a context ID. |
+| `--task` | `--task` | `--task / -k` | Aligned. Used for active tasks. |
+| `--context` | `--context` | `--context` | Aligned. Thread ID for multi-turn conversation. |
+| `--ref` | — | `--ref / -r` | a2acli addition for cross-task artifact referencing. |
 | `--skill` | — | `--skill / -s` | a2acli addition. |
 | `--instruction-file` | `-f file` | `--instruction-file / -i` | Similar. #306 reads a full JSON Message; a2acli appends plain text. |
 | `--parts` / `--json` / `--file` (input) | ✓ | `--parts` / `--json` / `--attach` / `--data` | Multi-modal input. a2acli uses `--attach` for input files (`--file` is output filename). |

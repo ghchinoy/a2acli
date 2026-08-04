@@ -3,7 +3,7 @@
 
 # Default path to the a2a-go SDK repository, required for conformance tests.
 A2A_GO_SRC ?= ../../github/a2a-go
-A2A_SIMPLE_SRC ?= ../../a2a-simple
+A2A_SIMPLE_SRC ?= $(shell test -d /workspace/a2a-experiments && echo "/workspace/a2a-experiments" || echo "../../a2a-simple")
 
 # Version details for binary
 VERSION ?= $(shell git describe --tags --always --dirty)

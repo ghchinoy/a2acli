@@ -58,7 +58,7 @@ func TestConformance(t *testing.T) {
 
 	sutDir := a2aGoSrc + "/e2e/tck"
 	if _, err := os.Stat(sutDir); os.IsNotExist(err) {
-		t.Fatalf("a2a-go SDK source not found at %s", a2aGoSrc)
+		t.Skipf("a2a-go SDK source not found at %s (set A2A_GO_SRC to enable TCK tests)", a2aGoSrc)
 	}
 
 	simpleSrc := os.Getenv("A2A_SIMPLE_SRC")
@@ -66,8 +66,12 @@ func TestConformance(t *testing.T) {
 		simpleSrc = "../../a2a-simple"
 	}
 	if _, err := os.Stat(simpleSrc); os.IsNotExist(err) {
-		home, _ := os.UserHomeDir()
-		simpleSrc = filepath.Join(home, "projects/a2a-simple")
+		if _, err := os.Stat("/workspace/a2a-experiments"); err == nil {
+			simpleSrc = "/workspace/a2a-experiments"
+		} else {
+			home, _ := os.UserHomeDir()
+			simpleSrc = filepath.Join(home, "projects/a2a-simple")
+		}
 	}
 	if abs, err := filepath.Abs(simpleSrc); err == nil {
 		simpleSrc = abs

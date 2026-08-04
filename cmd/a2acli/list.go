@@ -79,6 +79,8 @@ func runListTasks(_ *cobra.Command, _ []string) {
 
 	if listContext != "" {
 		req.ContextID = listContext
+	} else if contextID != "" {
+		req.ContextID = contextID
 	}
 
 	if listStatus != "" {
@@ -115,18 +117,18 @@ func runListTasks(_ *cobra.Command, _ []string) {
 		return
 	}
 
-	fmt.Printf("%-36s | %-12s | %s\n", "TASK ID", "STATUS", "CREATED AT")
-	fmt.Println("--------------------------------------------------------------------------------")
+	fmt.Printf("%-36s | %-36s | %-12s | %s\n", "TASK ID", "CONTEXT ID", "STATUS", "CREATED AT")
+	fmt.Println("-------------------------------------------------------------------------------------------------------------------")
 	for _, t := range resp.Tasks {
 		createdAt := ""
 		if t.Status.Timestamp != nil {
 			createdAt = t.Status.Timestamp.Format("2006-01-02 15:04:05")
 		}
-		status := string(t.Status.State)
+		status := strings.TrimPrefix(string(t.Status.State), "TASK_STATE_")
 		if status == "" {
 			status = "unknown"
 		}
-		fmt.Printf("%-36s | %-12s | %s\n", t.ID, status, createdAt)
+		fmt.Printf("%-36s | %-36s | %-12s | %s\n", t.ID, t.ContextID, status, createdAt)
 	}
 
 	if resp.NextPageToken != "" {
