@@ -1,53 +1,53 @@
 # A2A CLI Journey & UX Test Plan
 
 **Document Version:** 1.0  
-**Target:** `a2acli` v1.9.0+  
+**Target:** `a2acli` v1.10.0+  
 **Scope:** End-to-end user-experience validation, conversation continuity, error handling, argument validation, and output contract verification.
 
 ---
 
 ## 1. Purpose & Relationship to Existing Test Suites
 
-This test plan defines a **UX Journey Suite** for `a2acli`. It complements the existing protocol-conformance suite in `e2e/conformance_test.go` (558 lines, 6 sub-suites).
+This test plan defines a **UX Journey Suite** for `a2acli`. It complements the existing protocol-conformance suite in `e2e/conformance_test.go` (692 lines, 7 sub-suites).
 
 - **Conformance Suite (`e2e/conformance_test.go`):** Validates wire-level protocol correctness against A2A v1.0 / v0.3.0 specs (JSON-RPC, gRPC, REST, A2UI schemas, transport auto-selection). Answers: *"Does the CLI generate valid protocol frames?"*
 - **UX Journey Suite (This Plan):** Validates the developer experience, multi-turn conversation workflows, command-line ergonomics, exit codes, and output clarity against real-world test agents. Answers: *"Can a developer accomplish a multi-turn task without hitting CLI footguns or needing to patch a server?"*
 
 ---
 
-## 2. Inferred Evaluator Methodology (Sampath's Friction Log)
+## 2. Empirically Derived Testing Methodology
 
-The friction report (`A2AFriction.md`) did not explicitly define a formal test plan, but analysis of its execution reveals an 8-point empirical testing methodology:
+The testing methodology incorporates an 8-point empirical evaluation framework:
 
-1. **Comparative A/B Baseline:** Evaluated `a2acli` against the legacy `a2a-go-sdk` CLI side-by-side using identical prompts and agents.
+1. **Comparative A/B Baseline:** Evaluated `a2acli` against legacy CLI tools side-by-side using identical prompts and agents.
 2. **Server-Side Ground Truth Verification:** Inspected server logs during execution to verify actual wire parameters (`task_id`, `context_id`, `referenceTaskIds`) sent by the client.
-3. **Agent Instrumentation as Last Resort:** Hand-patched `print('Context ID ===>')` into the Python agent executor when stdout/stderr omitted critical context identifiers.
-4. **Latency Injection for Stream Observation:** Added `time.sleep(5)` in agent handlers to make streaming vs blocking (`--wait`) semantics and spinner states observable.
-5. **Wall-Clock Timing:** Used `time a2a send ...` on every command to benchmark overhead and execution duration.
+3. **Wire-Level Payload Logging:** Enabled server payload logging (`-payload`) to observe complete request/response structures.
+4. **Latency Injection for Stream Observation:** Utilized delayed response handlers (`time.sleep`) to make streaming vs blocking (`--wait`) semantics and spinner states observable.
+5. **Wall-Clock Timing:** Used timing benchmarks on every command to evaluate client overhead and execution duration.
 6. **Complexity Escalation:** Tested in progression: minimal echo -> delayed sleep echo -> stateful Gemini LLM.
-7. **Horizontal Concurrency Scaling:** Opened 1 -> 6 -> 9 concurrent terminal sessions to test session isolation, stream multiplexing, and server load handling.
-8. **Clean-Room & Restart Resilience:** Cleared caches (`go clean -modcache`, `rm -rf ~/go/bin`), rebuilt binaries, and restarted agent processes mid-conversation to test stale ID handling.
+7. **Horizontal Concurrency Scaling:** Opened multiple concurrent terminal sessions to test session isolation, stream multiplexing, and server load handling.
+8. **Clean-Room & Restart Resilience:** Cleared caches (`go clean -modcache`), rebuilt binaries, and restarted agent processes mid-conversation to test stale ID handling.
 
 ---
 
-## 3. Reconstructed Original Evaluation Cases
+## 3. Baseline User Journey Evaluation Cases
 
-The table below formalizes the evaluation runs performed in `A2AFriction.md`:
+The table below formalizes the baseline user journey evaluation cases:
 
-| Case ID | Evaluator Step | Command / Prompt | Observed Outcome | Evaluator Assessment | Friction Raised |
-|---|---|---|---|---|---|
-| **UC01.1** | Install & Discovery | `a2a discover http://127.0.0.1:9999` | Error: `connect: connection refused` on `127.0.0.1:9001` | **FAIL** (swallowed positional URL) | **B1** |
-| **UC01.2** | Discovery with Flag | `a2a discover --service-url http://127.0.0.1:9999` | Displays agent name, version, skills | **PASS** (well-formatted) | — |
-| **UC01.3** | Extended Agent Card | `a2a discover -u http://127.0.0.1:9999 --extended` | Error: `authentication required: no credentials` | **FAIL** (client-side pre-flight block) | **C3** |
-| **UC01.4** | Single-turn Streaming | `time a2a send -u http://127.0.0.1:9999 "Hello"` | Completed in 5.47s; displayed preview artifact | **PASS** (5x faster than legacy SDK CLI) | **D1** |
-| **UC01.5** | Single-turn Blocking | `time a2a send -u http://127.0.0.1:9999 --wait "Hello"` | Completed in 5.42s; printed Task ID footer | **PASS** | — |
-| **UC02.1** | Continuing Task | `a2a send -u http://127.0.0.1:9999 "Hello" --task <completed-id>` | Prints `INITIALIZING...` and exits 0 in 0.49s | **FAIL** (silent no-op exit 0) | **A3, C2** |
-| **UC02.2** | Task History Check | `a2a list tasks -u http://127.0.0.1:9999` | Output table truncated status column | **PARTIAL** (broken formatting, missing contextId) | **A5, D4** |
-| **UC02.3** | Referencing Task | `a2a send -u http://127.0.0.1:9999 "Write haiku" --ref <task-id>` | Created NEW context and task IDs on server | **FAIL** (conflated `--ref` with continuation) | **A4** |
-| **UC03.1** | 9-Terminal Scale | `a2a send -u http://127.0.0.1:9999 "Hello"` (x9) | All 9 completed concurrently | **PASS** | — |
-| **UC03.2** | Gemini LLM Upgrade | Multi-terminal send to Gemini-backed agent | Returned witticisms from Gemini | **PASS** | — |
-| **UC03.3** | Multi-turn Conversation | Attempt multi-turn chat across terminals | **ABANDONED** (no `--context` flag available) | **FAIL** (blocking usability defect) | **A1, A2** |
-| **Extra** | JSON Output Mode | `a2a send -u http://127.0.0.1:9999 "Hello" -o json` | Created local directory named `JSON/` | **FAIL** (flag shorthand collision) | **B3** |
+| Case ID | User Journey Step | Command / Prompt | Expected Behavior | Category |
+|---|---|---|---|---|
+| **UC01.1** | Install & Discovery | `a2a discover http://127.0.0.1:9999` | Accepts positional URL argument without error | Discovery Grammar |
+| **UC01.2** | Discovery with Flag | `a2a discover --service-url http://127.0.0.1:9999` | Displays agent name, version, skills | Discovery Output |
+| **UC01.3** | Extended Agent Card | `a2a discover -u http://127.0.0.1:9999 --extended` | Resolves extended card without client-side auth pre-flight | Discovery Auth |
+| **UC01.4** | Single-turn Streaming | `time a2a send -u http://127.0.0.1:9999 "Hello"` | Streams response and displays preview artifact | Streaming UX |
+| **UC01.5** | Single-turn Blocking | `time a2a send -u http://127.0.0.1:9999 "Hello" --wait` | Returns blocking result with Task ID footer | Blocking UX |
+| **UC02.1** | Continuing Task | `a2a send -u http://127.0.0.1:9999 "Hello" --task <completed-id>` | Warns on terminal task state and fails non-zero on error | Task State Handling |
+| **UC02.2** | Task History Check | `a2a list tasks -u http://127.0.0.1:9999` | Displays formatted table with CONTEXT ID column | History Output |
+| **UC02.3** | Referencing Task | `a2a send -u http://127.0.0.1:9999 "Write haiku" --ref <task-id>` | References prior task artifacts for cross-task chaining | Artifact Chaining |
+| **UC03.1** | Multi-Terminal Scale | `a2a send -u http://127.0.0.1:9999 "Hello"` (x9) | Executes concurrent streaming sessions cleanly | Concurrency |
+| **UC03.2** | Gemini LLM Interaction | Multi-terminal send to Gemini-backed agent | Handles multi-turn streaming LLM output | Model Integration |
+| **UC03.3** | Multi-turn Conversation | `a2a send --context <context-id> "Followup"` | Maintains conversation thread across multi-turn messages | Thread Continuity |
+| **Extra** | JSON Output Mode | `a2a send -u http://127.0.0.1:9999 "Hello" -o json` | Outputs NDJSON without local directory collision | Flag Grammar |
 
 ---
 
@@ -87,10 +87,10 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 
 ## 5. Expanded Journey Test Suites (TP-1 through TP-7)
 
-### Suite TP-1: Onboarding, Installation & Binary Environment (E1, E2)
+### Suite TP-1: Onboarding, Installation & Binary Environment
 
 #### Test Case TP-1.1: `go install` Version Fallback Verification
-- **Traceability:** Friction E1
+- **CLI Domain:** Installation & Versioning
 - **Target:** Clean Go environment
 - **Tier:** Tier 0
 - **Preconditions:** Go 1.22+ installed; `a2acli` not present in `GOBIN`.
@@ -101,11 +101,11 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
   ```
 - **Assertions:**
   - Standard output MUST NOT contain `version dev`, `commit: none`, or `built at: unknown`.
-  - Version line MUST match module release tag or VCS commit info (e.g. `v1.9.0` or commit hash).
+  - Version line MUST match module release tag or VCS commit info (e.g. `v1.10.0` or commit hash).
   - Exit code MUST be `0`.
 
 #### Test Case TP-1.2: PATH & Alias Guidance Verification
-- **Traceability:** Friction E2
+- **CLI Domain:** Shell Environment & Setup
 - **Target:** Documentation
 - **Tier:** Tier 0
 - **Command:** `grep -i "GOPATH" /workspace/a2acli/README.md`
@@ -115,10 +115,10 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 
 ---
 
-### Suite TP-2: Agent Discovery, Grammar & Argument Validation (B1, B2, C3)
+### Suite TP-2: Agent Discovery, Grammar & Argument Validation
 
 #### Test Case TP-2.1: Ergonomic Positional URL on `discover`
-- **Traceability:** Friction B1
+- **CLI Domain:** Discovery Positional Arguments
 - **Target:** `cmd/grpc-echo` (port 9002)
 - **Tier:** Tier 0
 - **Command:**
@@ -136,7 +136,7 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
   - Exit code MUST be `0`.
 
 #### Test Case TP-2.2: Strict Argument Validation on Zero-Arg Commands
-- **Traceability:** Friction B2
+- **CLI Domain:** Argument Validation
 - **Target:** Local CLI
 - **Tier:** Tier 0
 - **Command:** `/workspace/a2acli/bin/a2acli version invalid_extra_arg 2>&1`
@@ -145,7 +145,7 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
   - Process MUST exit with non-zero status code (`1`).
 
 #### Test Case TP-2.3: Unauthenticated Extended Card Resolution
-- **Traceability:** Friction C3
+- **CLI Domain:** Extended Card Resolution
 - **Target:** Python `helloworld` sample (port 9999)
 - **Tier:** Tier 0
 - **Preconditions:** `uv` installed; Python 3.10+ available.
@@ -164,10 +164,10 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 
 ---
 
-### Suite TP-3: Single-Turn Execution & Output Formatting (D1, D2, D3)
+### Suite TP-3: Single-Turn Execution & Output Formatting
 
 #### Test Case TP-3.1: Suppressing Selection Chrome in Standard Mode
-- **Traceability:** Friction D3
+- **CLI Domain:** Clean Output Formatting
 - **Target:** `cmd/grpc-echo` (port 9002)
 - **Tier:** Tier 0
 - **Command:**
@@ -183,7 +183,7 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
   - TUI / output MUST render cleanly without preceding console noise.
 
 #### Test Case TP-3.2: Complete Output Contract in Text Mode (`--output text`)
-- **Traceability:** Friction D2
+- **CLI Domain:** Output Summary Footers
 - **Target:** `cmd/grpc-echo` (port 9002)
 - **Tier:** Tier 0
 - **Command:**
@@ -201,10 +201,10 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 
 ---
 
-### Suite TP-4: Conversation Continuity & Context Management (A1, A2, A3, A4, A5)
+### Suite TP-4: Conversation Continuity & Context Management
 
 #### Test Case TP-4.1: Initiating and Continuing Multi-Turn Conversation (`--context`)
-- **Traceability:** Friction A1, A2
+- **CLI Domain:** Conversation Thread Continuity
 - **Target:** `cmd/multimodal` (port 9004)
 - **Tier:** Tier 0
 - **Command:**
@@ -226,7 +226,7 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
   - Wire logs MUST confirm `msg.ContextID` was transmitted in request payload.
 
 #### Test Case TP-4.2: Terminal Task State Handling (`--task` Validation)
-- **Traceability:** Friction A3
+- **CLI Domain:** Task State Validation
 - **Target:** `cmd/grpc-echo` (port 9002)
 - **Tier:** Tier 0
 - **Command:**
@@ -250,7 +250,7 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
   - `--strict` mode MUST exit with non-zero status code (`1`) and output error message `ErrCodeFailedPrecondition`.
 
 #### Test Case TP-4.3: Task Listing Table Formatting & Context Visibility
-- **Traceability:** Friction A5, D4
+- **CLI Domain:** Task History Table Output
 - **Target:** `cmd/grpc-echo` (port 9002)
 - **Tier:** Tier 0
 - **Command:**
@@ -268,7 +268,7 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
   - Table headers and separator lines align properly without overflow.
 
 #### Test Case TP-4.4: Disambiguating `--ref` Artifact Reference
-- **Traceability:** Friction A4
+- **CLI Domain:** Artifact Reference Chaining
 - **Target:** `cmd/server` (port 9001)
 - **Tier:** Tier 1
 - **Command:**
@@ -283,10 +283,10 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 
 ---
 
-### Suite TP-5: Error Handling, Exit Codes & Robustness (C1, C2)
+### Suite TP-5: Error Handling, Exit Codes & Robustness
 
 #### Test Case TP-5.1: Streaming Failure Non-Zero Exit Code
-- **Traceability:** Friction C1
+- **CLI Domain:** Streaming Error Codes
 - **Target:** `cmd/multimodal` (port 9004)
 - **Tier:** Tier 0
 - **Command:**
@@ -303,7 +303,7 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
   - `stderr` (or TUI error block) MUST display failure state details.
 
 #### Test Case TP-5.2: Zero-Event Stream Failure Detection
-- **Traceability:** Friction C2
+- **CLI Domain:** Empty Stream Detection
 - **Target:** Invalid endpoint / unresponsive server
 - **Tier:** Tier 0
 - **Command:**
@@ -317,10 +317,10 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 
 ---
 
-### Suite TP-6: Concurrency, Session Isolation & Scale (UC03)
+### Suite TP-6: Concurrency, Session Isolation & Scale
 
 #### Test Case TP-6.1: High-Concurrency Session Isolation
-- **Traceability:** Friction UC03.1, UC03.2
+- **CLI Domain:** Concurrency & Session Isolation
 - **Target:** `cmd/grpc-echo` (port 9002)
 - **Tier:** Tier 0
 - **Command:**
@@ -340,10 +340,10 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 
 ---
 
-### Suite TP-7: Output Contracts & Scripting Safety (B3, D4)
+### Suite TP-7: Output Contracts & Scripting Safety
 
 #### Test Case TP-7.1: Flag Collision Protection (`-o` vs `-d`)
-- **Traceability:** Friction B3
+- **CLI Domain:** Flag Shorthand Collision Guard
 - **Target:** Local CLI
 - **Tier:** Tier 0
 - **Command:**
@@ -358,27 +358,27 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
 
 ---
 
-## 6. Traceability Matrix
+## 6. Capability & Test Matrix
 
-| Friction Finding | Short Description | Test Case(s) | Primary Target | Tier |
+| Requirement / Feature | Short Description | Test Case(s) | Primary Target | Tier |
 |---|---|---|---|---|
-| **A1** | Missing `--context` flag on `send` | **TP-4.1** | `cmd/multimodal` | Tier 0 |
-| **A2** | Missing `Context ID` in stdout | **TP-3.2, TP-4.1** | `cmd/grpc-echo` | Tier 0 |
-| **A3** | `--task` on completed task exits 0 | **TP-4.2** | `cmd/grpc-echo` | Tier 0 |
-| **A4** | Misleading `--ref` hint | **TP-4.4** | `cmd/server` | Tier 1 |
-| **A5** | `list tasks` missing `CONTEXT ID` | **TP-4.3** | `cmd/grpc-echo` | Tier 0 |
-| **B1** | Swallowed positional URL on `discover` | **TP-2.1** | `cmd/grpc-echo` | Tier 0 |
-| **B2** | Unvalidated args on zero-arg commands | **TP-2.2** | Local CLI | Tier 0 |
-| **B3** | `-o JSON` directory creation collision | **TP-7.1** | Local CLI | Tier 0 |
-| **C1** | TUI streaming errors exit code 0 | **TP-5.1** | `cmd/multimodal` | Tier 0 |
-| **C2** | Zero-event streams exit code 0 | **TP-5.2** | Unresponsive Port | Tier 0 |
-| **C3** | Pre-flight auth block on `--extended` | **TP-2.3** | py `helloworld` | Tier 0 |
-| **D1** | TUI output clarity / compact format | **TP-3.2** | `cmd/grpc-echo` | Tier 0 |
-| **D2** | `--output text` missing summary footer | **TP-3.2** | `cmd/grpc-echo` | Tier 0 |
-| **D3** | Transport banner stdout noise | **TP-3.1** | `cmd/grpc-echo` | Tier 0 |
-| **D4** | `list tasks` table column overflow | **TP-4.3** | `cmd/grpc-echo` | Tier 0 |
-| **E1** | `go install` version reports `dev/none` | **TP-1.1** | Go Toolchain | Tier 0 |
-| **E2** | Missing GOPATH/PATH & alias docs | **TP-1.2** | Documentation | Tier 0 |
+| **Multi-turn Context** | Persistent `--context` flag on `send` | **TP-4.1** | `cmd/multimodal` | Tier 0 |
+| **Context Surfacing** | Display `Context ID` in all output footers | **TP-3.2, TP-4.1** | `cmd/grpc-echo` | Tier 0 |
+| **Terminal Task Guard** | Pre-flight check and warning for `--task` | **TP-4.2** | `cmd/grpc-echo` | Tier 0 |
+| **Artifact Chaining** | `--ref` for referencing prior task artifacts | **TP-4.4** | `cmd/server` | Tier 1 |
+| **Task History Table** | `list tasks` CONTEXT ID column & formatting | **TP-4.3** | `cmd/grpc-echo` | Tier 0 |
+| **Positional URL** | Positional URL argument on `discover` | **TP-2.1** | `cmd/grpc-echo` | Tier 0 |
+| **Strict Arg Check** | `cobra.NoArgs` on zero-arg subcommands | **TP-2.2** | Local CLI | Tier 0 |
+| **Flag Shorthands** | `-o` for output, `-d` for out-dir | **TP-7.1** | Local CLI | Tier 0 |
+| **Streaming Exit Code** | Non-zero exit code on stream failure | **TP-5.1** | `cmd/multimodal` | Tier 0 |
+| **Zero-Event Stream** | Non-zero exit code on empty stream | **TP-5.2** | Unresponsive Port | Tier 0 |
+| **Extended Card** | Unconditional `discover --extended` RPC | **TP-2.3** | py `helloworld` | Tier 0 |
+| **Compact Output** | Single-frame `--output compact` mode | **TP-3.2** | `cmd/grpc-echo` | Tier 0 |
+| **Text Mode Summary** | Summary footer in `--output text` mode | **TP-3.2** | `cmd/grpc-echo` | Tier 0 |
+| **Transport Banner** | Clean TUI output without banner noise | **TP-3.1** | `cmd/grpc-echo` | Tier 0 |
+| **Table Alignment** | Formatted `STATUS` column in `list tasks` | **TP-4.3** | `cmd/grpc-echo` | Tier 0 |
+| **Version Fallback** | `ReadBuildInfo` version fallback | **TP-1.1** | Go Toolchain | Tier 0 |
+| **PATH Setup Docs** | GOPATH/bin and alias guidance | **TP-1.2** | Documentation | Tier 0 |
 
 ---
 
@@ -391,4 +391,4 @@ The table below formalizes the evaluation runs performed in `A2AFriction.md`:
      make test-journey
      ```
 2. **Local/Manual Utility Integration (Tier 1 & Tier 2):**
-   - Tier 1/2 tests (Gemini/Vertex AI dependent) gate with `t.Skipf` when `GOOGLE_CLOUD_PROJECT` or `GEMINI_API_KEY` are absent, preserving fast, offline CI builds.
+   - Tier 1/2 tests (Gemini/Vertex AI dependent) gate with `t.Skipf` when `GOOGLE_CLOUD_PROJECT` or `GOOGLE_CLOUD_LOCATION` environment variables are absent, preserving fast, offline CI builds.
