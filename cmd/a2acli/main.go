@@ -376,7 +376,7 @@ func isStdinPiped() bool {
 // Priority: --output flag > -n/--no-tui > A2ACLI_NO_TUI env > NO_COLOR env > no-TTY > default (tui)
 func resolveOutputMode() {
 	switch outputMode {
-	case "tui", "text", "json":
+	case "tui", "text", "json", "compact":
 		// explicit --output value is valid; honour it even in a non-TTY context
 		// (the user knows what they asked for)
 	case "":
@@ -399,7 +399,7 @@ func resolveOutputMode() {
 			outputMode = "tui"
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "Error: invalid --output value %q (must be tui, text, or json)\n", outputMode)
+		fmt.Fprintf(os.Stderr, "Error: invalid --output value %q (must be tui, text, json, or compact)\n", outputMode)
 		os.Exit(1)
 	}
 	// Sync disableTUI for any existing code that checks it directly.
@@ -812,6 +812,8 @@ func runSend(_ *cobra.Command, args []string) {
 		summary, renderErr = runRaw(stream, outDir)
 	case "text":
 		summary, renderErr = runText(stream, outDir)
+	case "compact":
+		summary, renderErr = runCompact(stream, outDir)
 	default:
 		summary, renderErr = runTUI(stream)
 	}
@@ -1270,6 +1272,27 @@ func runRaw(stream chan streamMsg, outDir string) (streamSummary, error) {
 }
 
 func displayTaskResult(task *a2a.Task, outDir string) {
+	if outputMode == "compact" {
+		var hist []string
+		if task.History != nil {
+			for _, m := range task.History {
+				role := strings.ToLower(string(m.Role))
+				role = strings.TrimPrefix(role, "role_")
+				for _, p := range m.Parts {
+					if tp, ok := p.Content.(a2a.Text); ok {
+						hist = append(hist, fmt.Sprintf("[%s] %s", role, string(tp)))
+					}
+				}
+			}
+		}
+		renderCompactBlock(string(task.ID), task.ContextID, &task.Status, task.Artifacts, hist)
+		if outDir != "" || outFile != "" {
+			for i, art := range task.Artifacts {
+				_, _ = saveArtifact(outDir, outFile, *art, i)
+			}
+		}
+		return
+	}
 	if disableTUI {
 		b, err := json.MarshalIndent(task, "", "  ")
 		if err == nil {
