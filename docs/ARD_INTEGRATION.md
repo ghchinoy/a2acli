@@ -185,6 +185,14 @@ Dependency keystone: **a2ac-alu.1** blocks .2/.3/.4/.5/.6; **a2ac-alu.2** blocks
 .3/.5/.7/.8; **a2ac-alu.4** blocks .6/.7/.8. Build the resolver + static catalog
 first.
 
+> **Fast-Follow Slice Idea (Local File Target):** A scoped subset of `a2ac-alu.1`
+> can implement *only* the `Local file` target resolution branch (`./card.json` -> `AgentCard`).
+> This directly enables `a2acli send "hi" ./card.json` and `a2acli discover ./card.json`
+> without waiting for full catalog/registry/URN resolution machinery. Motivated by
+> real-world testing against Cloud AI's Managed Agents A2A Bridge, where agents are
+> fully reachable over A2A but do not yet host a public `.well-known/agent-card.json`
+> discovery URL.
+
 ## Related
 
 - [docs/COMPARISON.md](COMPARISON.md) — a2acli vs the community CLIs and proposals

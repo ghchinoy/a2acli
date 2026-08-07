@@ -79,6 +79,13 @@ To ensure the CLI's GitHub Actions CI is fast, reliable, and bulletproof, we enf
 - **Conformance value:** **High and unique** — the only OAuth2/PKCE target, only Firestore-backed persistent store, only per-skill scope enforcement, **only live `extendedAgentCard` target** (`eldamo-server-lde`, shipped). Drives the entire auth feature set and validated `discover --extended` (`a2ac-o2i`).
 - **Missing / valuable to add:** audio artifacts (TTS of generated names would add Raw/URL coverage, `eldamo-server-zhw`).
 
+### Google Cloud Managed Agents (Native A2A Bridge)
+- **Status:** Live Private Preview on Cloud AI endpoints (e.g. `antigravity-preview-05-2026` or `genmedia-cost-agent` on `genai-blackbelt-fishfooding`).
+- **Exercises in a2acli:** **REST / HTTP+JSON transport** (`--transport rest`), Application Default Credentials bearer tokens (`-t $(gcloud auth application-default print-access-token)`), multi-part streaming tasks (`--wait`), and structured `https://aiplatform.googleapis.com/Agent` extension metadata on tool execution artifacts (`provision_sandbox`, `list_dir`, `run_command`, `function_result`).
+- **Utility value:** **Highest** — live, production-grade cloud agents with code execution, search, and MCP tools.
+- **Conformance value:** **High and unique** — native server-side A2A Bridge. Requires pre-seeding `a2acli`'s disk cache (`~/.cache/a2acli/cards/<sha256>.json`) or discovery via `agents serve` because the native endpoint does not yet host a public `.well-known/agent-card.json`.
+- **Note:** Private & real-world utility — excluded from public CI to prevent GCP credential/quota requirements.
+
 ### read-aloud / Fabulae — (planned)
 - **Will exercise in a2acli:** binary artifact save (`a2ac-mfd` — the MP3 Raw/FileURL path, already implemented in anticipation), **REST/HTTP+JSON transport** (the only planned non-JSONRPC target), `audio/mpeg` output modes, `--out-dir` for media.
 - **Utility value:** **High** (planned) — real product (text→audio).
