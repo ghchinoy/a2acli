@@ -1,6 +1,6 @@
 # watch — Subscribe to a Task's Event Stream
 
-Maps to the A2A Protocol's `SubscribeToTask` RPC. Streams live status updates and artifacts from an active task. Use when you initiated a task without `--wait` and want to observe it to completion.
+Maps to the A2A Protocol's `SubscribeToTask` RPC. Streams live status updates and artifacts from an active task. Use when you initiated a task with `--immediate` (or another client started it) and want to observe it to completion.
 
 ## Flags
 

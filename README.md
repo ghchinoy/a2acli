@@ -102,20 +102,33 @@ a2acli serve --echo --port 9001
 a2acli discover --service-url http://localhost:9001
 ```
 
-**3. Send it a message** and stream the response in real time:
+**3. Send it a message.** By default `send` blocks until the task reaches a
+terminal (or interrupted) state and prints a single result:
 
 ```bash
 a2acli send "Hello, agent!" --service-url http://localhost:9001
 ```
 
+Add `--stream` to follow live updates as they arrive (JSONL in `-o json` mode):
+
+```bash
+a2acli send "Hello, agent!" --service-url http://localhost:9001 --stream
+```
+
 That's the full loop: **serve → discover → send**. The echo agent simply returns
 your message, which is exactly what you want when learning the mechanics.
 
+> **Note:** As of the Tier-1 conformance update, streaming is opt-in via
+> `--stream` (SPEC §11.3). Earlier versions streamed by default and used
+> `--wait` to block; `--wait`/`--sync` are still accepted as hidden, deprecated
+> no-ops so existing scripts keep working.
+
 **4. Get a single JSON result** instead of the interactive UI — this is the form
-scripts and AI agents use:
+scripts and AI agents use (blocking is already the default, so no extra flag is
+needed):
 
 ```bash
-a2acli send "Hello, agent!" --service-url http://localhost:9001 --output json --wait
+a2acli send "Hello, agent!" --service-url http://localhost:9001 --output json
 ```
 
 ### Graduating to a real agent
@@ -161,9 +174,10 @@ output schemas for each.
 | [`config`](docs/MANUAL.md#client-configuration) | Config | Manage named environments |
 
 **Output modes** are controlled by `--output`: `tui` (default interactive),
-`text` (plain, for CI/pipes), and `json` (NDJSON for scripting). `a2acli`
-auto-degrades from `tui` to `text` when output isn't a terminal. See
-[Output Modes](docs/MANUAL.md#output-modes).
+`text` (plain, for CI/pipes), and `json` (for scripting). Without `--stream`,
+`-o json` emits a single JSON document; with `--stream` it emits JSONL (one
+event object per line). `a2acli` auto-degrades from `tui` to `text` when output
+isn't a terminal. See [Output Modes](docs/MANUAL.md#output-modes).
 
 For the complete grammar, every flag, global flags, shell completion, and
 automation guidance, see the **[Reference Manual](docs/MANUAL.md)**.

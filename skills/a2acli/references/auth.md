@@ -21,7 +21,7 @@ a2acli auth login --service-url https://agent.example.com
 # → browser opens → user signs in → token stored
 
 # 2. All subsequent commands auto-use the stored token
-a2acli send "hello" --service-url https://agent.example.com --output json --wait
+a2acli send "hello" --service-url https://agent.example.com --output json
 a2acli conformance --service-url https://agent.example.com --output json
 
 # 3. Check token validity
@@ -50,7 +50,7 @@ a2acli auth login --service-url https://agent.example.com
 # Agent retrieves the stored token for use in scripts
 TOKEN=$(a2acli auth token --service-url https://agent.example.com)
 a2acli send "do work" --service-url https://agent.example.com \
-  --token "$TOKEN" --output json --wait
+  --token "$TOKEN" --output json
 ```
 
 If no valid token is stored and `auth login` cannot be run (non-interactive),
@@ -64,7 +64,7 @@ itself. Coordinate with the human operator to pre-authenticate.
 a2acli auth login --env mithlond
 
 # All commands with --env mithlond then auto-authenticate
-a2acli send "name star silver quenya" --env mithlond --skill name-generate --output json --wait
+a2acli send "name star silver quenya" --env mithlond --skill name-generate --output json
 ```
 
 ## How it works (PKCE + CIMD)

@@ -27,5 +27,5 @@ Once running, point any `a2acli` command at it:
 
 ```bash
 a2acli describe --service-url http://127.0.0.1:9001 --output json
-a2acli send "Hello" --service-url http://127.0.0.1:9001 --output json --wait
+a2acli send "Hello" --service-url http://127.0.0.1:9001 --output json
 ```
