@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -127,6 +128,17 @@ func exitCodeForError(code string) int {
 // classifyError picks a CLI-local error code from an error's shape when the
 // caller did not supply an explicit code.
 func classifyError(err error) string {
+	// SPEC §11.4: a condition the A2A protocol already names MUST carry the
+	// protocol error name (e.g. TASK_NOT_FOUND, METHOD_NOT_FOUND) unchanged,
+	// rather than being remapped into the A2ACLI_ERR_ namespace. Protocol
+	// errors decoded by the SDK are *a2a.Error whose underlying sentinel maps
+	// to a stable reason via a2a.ErrorReason. Transport/CLI-local failures
+	// (connection refused, raw HTTP 401, timeouts) are not *a2a.Error and fall
+	// through to the A2ACLI_ERR_ classification below.
+	var ae *a2a.Error
+	if errors.As(err, &ae) {
+		return a2a.ErrorReason(ae.Err)
+	}
 	switch {
 	case is401(err):
 		return ErrAuthFailed
@@ -887,11 +899,11 @@ func runSend(_ *cobra.Command, args []string) {
 		fmt.Printf("Invoking A2A Service (Streaming)...\n\n")
 	}
 
-	stream := make(chan streamMsg)
+	events := make(chan streamMsg)
 	go func() {
-		defer close(stream)
+		defer close(events)
 		for event, err := range client.SendStreamingMessage(ctx, params) {
-			stream <- streamMsg{Event: event, Err: err}
+			events <- streamMsg{Event: event, Err: err}
 			if err != nil {
 				return
 			}
@@ -903,17 +915,20 @@ func runSend(_ *cobra.Command, args []string) {
 
 	switch outputMode {
 	case "json":
-		summary, renderErr = runRaw(stream, outDir)
+		summary, renderErr = runRaw(events, outDir)
 	case "text":
-		summary, renderErr = runText(stream, outDir)
+		summary, renderErr = runText(events, outDir)
 	case "compact":
-		summary, renderErr = runCompact(stream, outDir)
+		summary, renderErr = runCompact(events, outDir)
 	default:
-		summary, renderErr = runTUI(stream)
+		summary, renderErr = runTUI(events)
 	}
 
 	if renderErr != nil {
-		fatalCode(ErrInternal, "streaming failed", renderErr, "Ensure the service is accessible and the task is active")
+		// Route through classifyError (empty code) so a mid-stream unreachable /
+		// timeout failure gets the correct A2ACLI_ERR_* code instead of always
+		// being reported as A2ACLI_ERR_INTERNAL.
+		fatalCode("", "streaming failed", renderErr, "Ensure the service is accessible and the task is active")
 	}
 
 	if summary.events == 0 {

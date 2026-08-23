@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/a2aproject/a2a-go/v2/a2a"
 )
 
 // TestExitCodeForError verifies SPEC §11.6: usage errors MUST exit 2, and
@@ -59,6 +61,31 @@ func TestClassifyError(t *testing.T) {
 		{"deadline exceeded", fmt.Errorf("context deadline exceeded"), ErrTimeout},
 		{"generic", fmt.Errorf("something odd happened"), ErrInternal},
 		{"nil", nil, ErrInternal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := classifyError(tt.err); got != tt.want {
+				t.Errorf("classifyError(%v) = %q, want %q", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestClassifyErrorProtocolPassthrough verifies SPEC §11.4: a condition the A2A
+// protocol already names carries the protocol error name unchanged, rather than
+// being remapped into the A2ACLI_ERR_ namespace. The SDK decodes protocol errors
+// as *a2a.Error wrapping a sentinel, which a2a.ErrorReason resolves to a stable
+// reason string.
+func TestClassifyErrorProtocolPassthrough(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"task not found", a2a.NewError(a2a.ErrTaskNotFound, "task 123 not found"), "TASK_NOT_FOUND"},
+		{"method not found", a2a.NewError(a2a.ErrMethodNotFound, "no such method"), "METHOD_NOT_FOUND"},
+		{"unsupported operation", a2a.NewError(a2a.ErrUnsupportedOperation, "nope"), "UNSUPPORTED_OPERATION"},
+		{"wrapped protocol error", fmt.Errorf("send failed: %w", a2a.NewError(a2a.ErrTaskNotCancelable, "x")), "TASK_NOT_CANCELABLE"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
