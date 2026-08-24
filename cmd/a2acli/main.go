@@ -97,6 +97,20 @@ const (
 	ErrInternal           = "A2ACLI_ERR_INTERNAL"            // unexpected tool-side failure / no better code
 )
 
+// ErrFailedPrecondition names a client-side precondition failure — e.g. an
+// attempt to continue a task that is already in a terminal state. It is not an
+// A2ACLI_ERR_ code: like the A2A protocol error names (§11.4), it carries the
+// canonical classification the A2A conformance suite expects for this condition
+// (gRPC FAILED_PRECONDITION / HTTP 400, see TaskNotCancelableError) so it is
+// surfaced unchanged in the error envelope's code field rather than being
+// remapped to A2ACLI_ERR_INTERNAL.
+const ErrFailedPrecondition = "FAILED_PRECONDITION"
+
+// errTaskTerminal is the sentinel wrapped by checkTaskContinuable when a task is
+// in a terminal state. classifyError matches it to classify the failure as
+// FAILED_PRECONDITION.
+var errTaskTerminal = errors.New("task is in a terminal state and cannot be continued")
+
 // errorEnvelope is the SPEC §11.4 / Appendix B machine-readable error shape.
 // It is the ONLY schema the spec defines of its own; the payload is emitted on
 // stdout in -o json mode while diagnostics stay on stderr (§11.1).
@@ -138,6 +152,11 @@ func classifyError(err error) string {
 	var ae *a2a.Error
 	if errors.As(err, &ae) {
 		return a2a.ErrorReason(ae.Err)
+	}
+	// A terminal-state task that cannot be continued is a precondition failure,
+	// not an internal error (SPEC §11.4; gRPC FAILED_PRECONDITION / HTTP 400).
+	if errors.Is(err, errTaskTerminal) {
+		return ErrFailedPrecondition
 	}
 	switch {
 	case is401(err):
@@ -841,7 +860,9 @@ func runSend(_ *cobra.Command, args []string) {
 			}
 			if checkErr := checkTaskContinuable(t); checkErr != nil {
 				if strictMode {
-					fatalCode(ErrInternal, "cannot continue task", checkErr,
+					// Empty code → classifyError maps errTaskTerminal to
+					// FAILED_PRECONDITION (was A2ACLI_ERR_INTERNAL).
+					fatalCode("", "cannot continue task", checkErr,
 						fmt.Sprintf("Use --context %s to continue the conversation thread", t.ContextID))
 				} else {
 					fmt.Fprintf(os.Stderr, "Warning: %v. Use --context %s to continue the conversation thread.\n\n", checkErr, t.ContextID)
@@ -1296,7 +1317,7 @@ func checkTaskContinuable(task *a2a.Task) error {
 		return nil
 	}
 	if task.Status.State.Terminal() {
-		return fmt.Errorf("task %s is in terminal state %s and cannot be continued", task.ID, task.Status.State)
+		return fmt.Errorf("task %s (state %s): %w", task.ID, task.Status.State, errTaskTerminal)
 	}
 	return nil
 }

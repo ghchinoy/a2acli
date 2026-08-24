@@ -61,6 +61,7 @@ func TestClassifyError(t *testing.T) {
 		{"deadline exceeded", fmt.Errorf("context deadline exceeded"), ErrTimeout},
 		{"generic", fmt.Errorf("something odd happened"), ErrInternal},
 		{"nil", nil, ErrInternal},
+		{"terminal task", fmt.Errorf("task X (state TASK_STATE_COMPLETED): %w", errTaskTerminal), ErrFailedPrecondition},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -93,6 +94,34 @@ func TestClassifyErrorProtocolPassthrough(t *testing.T) {
 				t.Errorf("classifyError(%v) = %q, want %q", tt.err, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestCheckTaskContinuableClassification locks the regression fix for the
+// conformance JourneySuites/TerminalTaskStrict journey: an attempt to continue a
+// task already in a terminal state MUST be classified FAILED_PRECONDITION (gRPC
+// FAILED_PRECONDITION / HTTP 400, SPEC §11.4), NOT A2ACLI_ERR_INTERNAL. This
+// pins the production path (checkTaskContinuable → classifyError → envelope code)
+// at the unit level so it cannot silently regress outside the heavy e2e suite.
+func TestCheckTaskContinuableClassification(t *testing.T) {
+	// Non-terminal / empty state: no error, nothing to classify.
+	if err := checkTaskContinuable(&a2a.Task{Status: a2a.TaskStatus{State: a2a.TaskStateWorking}}); err != nil {
+		t.Fatalf("checkTaskContinuable(working) = %v, want nil", err)
+	}
+
+	// Terminal state: error must classify as FAILED_PRECONDITION.
+	err := checkTaskContinuable(&a2a.Task{ID: "abc", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted}})
+	if err == nil {
+		t.Fatal("checkTaskContinuable(completed) = nil, want error")
+	}
+	if got := classifyError(err); got != ErrFailedPrecondition {
+		t.Errorf("classifyError(terminal) = %q, want %q", got, ErrFailedPrecondition)
+	}
+	// The envelope code must literally carry FAILED_PRECONDITION (the conformance
+	// suite string-matches on it).
+	env := buildErrorEnvelope(classifyError(err), err.Error(), "", err)
+	if env.Error.Code != "FAILED_PRECONDITION" {
+		t.Errorf("envelope code = %q, want FAILED_PRECONDITION", env.Error.Code)
 	}
 }
 
