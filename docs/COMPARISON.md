@@ -15,9 +15,9 @@ on an official canonical CLI:
 |---|---|---|---|---|
 | Agent discovery | `discover` | `discover` | `discover` | Aligned. `describe` kept as alias. |
 | Send message | `send` | `send` | `send` | Aligned. |
-| Stream response | — | `send --stream` | default | a2acli streams by default; auto-degrades to text when no TTY. |
+| Stream response | — | `send --stream` | `send --stream` | Opt-in via `--stream` (SPEC §11.3); auto-degrades to text when no TTY. |
 | Fire-and-forget | `send --return-immediately` | `send --immediate` | `send --immediate` | Aligned with #306. |
-| Blocking send | — | — | `send --wait` | a2acli addition. |
+| Blocking send | — | `send` (default) | `send` (default) | Blocking is the default; `--wait`/`--sync` kept as hidden deprecated no-ops. |
 | Get task | `task get` | `get task` | `get` | Same operation; a2acli drops the noun (only gets tasks). |
 | List tasks | `task list` | `list tasks` | `list tasks` | Aligned. Supports `--context`, `--status` filters. |
 | Extended agent card | — | — | `discover --extended` | a2acli addition; `GetExtendedAgentCard` RPC for authenticated callers. |
@@ -59,8 +59,8 @@ on an official canonical CLI:
 | Flag | #306 | a2acli | Notes |
 |---|---|---|---|
 | `--immediate` | ✓ | ✓ | Aligned. |
-| `--wait` / `--sync` | — | ✓ | a2acli addition. |
-| `--stream` | ✓ | default | a2acli streams by default; no explicit flag needed. |
+| `--wait` / `--sync` | — | deprecated | Hidden no-ops; blocking is now the default. |
+| `--stream` | ✓ | ✓ | Explicit opt-in for streaming (SPEC §11.3). |
 | `--task` | `--task` | `--task / -k` | Aligned. Used for active tasks. |
 | `--context` | `--context` | `--context` | Aligned. Thread ID for multi-turn conversation. |
 | `--ref` | — | `--ref / -r` | a2acli addition for cross-task artifact referencing. |
@@ -116,7 +116,7 @@ or structured context that exceeds comfortable shell quoting.
 **agentskills.io compliant skill files**
 `skills/a2acli/` provides a spec-compliant skill directory with progressive disclosure
 (top-level SKILL.md + per-command `references/` files). AI coding agents load these
-to learn correct `--output json` and `--wait` usage without manual configuration.
+to learn correct `--output json` usage (blocking by default) without manual configuration.
 
 **TCK conformance testing + live smoke check**
 Two conformance layers: an automated e2e suite against the official A2A TCK SUT
@@ -151,8 +151,8 @@ asynchronous webhook callbacks.
 
 **stdin piping on send**
 ```bash
-echo "Summarize Q3" | a2acli send --skill summarize --wait
-cat prompt.txt | a2acli send --wait --output json
+echo "Summarize Q3" | a2acli send --skill summarize --output json
+cat prompt.txt | a2acli send --output json
 ```
 Auto-detected when stdout is not a TTY (same TTY-detection logic as the output mode).
 

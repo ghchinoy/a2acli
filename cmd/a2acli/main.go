@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -53,6 +54,7 @@ var (
 	outputMode       string
 	requestTimeout   time.Duration
 	wait             bool
+	stream           bool
 	immediate        bool
 	verbose          bool
 	showFull         bool
@@ -66,6 +68,11 @@ var (
 	rootCmd = &cobra.Command{
 		Use:   "a2acli",
 		Short: "A2A CLI Client",
+		// Cobra's default error/usage dump is suppressed so usage errors are
+		// reported through the single machine-readable error envelope and exit
+		// with code 2 (SPEC §11.6). See the rootCmd.Execute() handler in main().
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	// Command group IDs for help organization
@@ -75,16 +82,117 @@ var (
 	GroupServer    = "server"
 )
 
-// Standard machine-readable error codes emitted in non-interactive JSON mode.
+// CLI-local error codes (SPEC §11.4 / Appendix D). These live in the
+// A2ACLI_ERR_ namespace and are emitted, unchanged, in the machine-readable
+// error envelope. Conditions the A2A protocol already names carry the
+// protocol's own error rather than an A2ACLI_ERR_ code.
 const (
-	ErrCodeUnauthenticated    = "UNAUTHENTICATED"
-	ErrCodeTimeout            = "TIMEOUT"
-	ErrCodeTaskFailed         = "TASK_FAILED"
-	ErrCodeInvalidArgument    = "INVALID_ARGUMENT"
-	ErrCodeNotFound           = "NOT_FOUND"
-	ErrCodeInternal           = "INTERNAL_ERROR"
-	ErrCodeFailedPrecondition = "FAILED_PRECONDITION"
+	ErrUsage              = "A2ACLI_ERR_USAGE"               // invalid arguments, flags, or flag combination (exit 2)
+	ErrCardNotFound       = "A2ACLI_ERR_CARD_NOT_FOUND"      // --agent-card ref could not be resolved
+	ErrCardInvalid        = "A2ACLI_ERR_CARD_INVALID"        // card fetched but malformed/schema-invalid
+	ErrUnreachable        = "A2ACLI_ERR_UNREACHABLE"         // agent unreachable — DNS, connection, or TLS
+	ErrCredentialsMissing = "A2ACLI_ERR_CREDENTIALS_MISSING" // credentials required but not supplied
+	ErrAuthFailed         = "A2ACLI_ERR_AUTH_FAILED"         // credentials supplied but rejected
+	ErrTimeout            = "A2ACLI_ERR_TIMEOUT"             // --timeout expired before a terminal state
+	ErrInternal           = "A2ACLI_ERR_INTERNAL"            // unexpected tool-side failure / no better code
 )
+
+// ErrFailedPrecondition names a client-side precondition failure — e.g. an
+// attempt to continue a task that is already in a terminal state. It is not an
+// A2ACLI_ERR_ code: like the A2A protocol error names (§11.4), it carries the
+// canonical classification the A2A conformance suite expects for this condition
+// (gRPC FAILED_PRECONDITION / HTTP 400, see TaskNotCancelableError) so it is
+// surfaced unchanged in the error envelope's code field rather than being
+// remapped to A2ACLI_ERR_INTERNAL.
+const ErrFailedPrecondition = "FAILED_PRECONDITION"
+
+// errTaskTerminal is the sentinel wrapped by checkTaskContinuable when a task is
+// in a terminal state. classifyError matches it to classify the failure as
+// FAILED_PRECONDITION.
+var errTaskTerminal = errors.New("task is in a terminal state and cannot be continued")
+
+// errorEnvelope is the SPEC §11.4 / Appendix B machine-readable error shape.
+// It is the ONLY schema the spec defines of its own; the payload is emitted on
+// stdout in -o json mode while diagnostics stay on stderr (§11.1).
+type errorEnvelope struct {
+	Error errorBody `json:"error"`
+}
+
+type errorBody struct {
+	Code    string  `json:"code"`    // REQUIRED: A2A error name OR A2ACLI_ERR_<SYMBOL>
+	Message string  `json:"message"` // REQUIRED: human-readable
+	Hint    *string `json:"hint"`    // RECOMMENDED: actionable next step (may be null)
+	A2ACode any     `json:"a2aCode"` // underlying transport-level code, else null
+}
+
+// exitCodeForError maps a CLI-local error code to a process exit code.
+// Per SPEC §11.6: usage errors MUST exit 2, generic failures exit 1. The
+// reserved codes 3/4/5 (unreachable/auth/timeout) are OPTIONAL; when a tool
+// does not implement them it MUST report 1, which is what we do here. The
+// A2ACLI_ERR_* code in the envelope still classifies the condition correctly.
+func exitCodeForError(code string) int {
+	switch code {
+	case ErrUsage:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// classifyError picks a CLI-local error code from an error's shape when the
+// caller did not supply an explicit code.
+func classifyError(err error) string {
+	// SPEC §11.4: a condition the A2A protocol already names MUST carry the
+	// protocol error name (e.g. TASK_NOT_FOUND, METHOD_NOT_FOUND) unchanged,
+	// rather than being remapped into the A2ACLI_ERR_ namespace. Protocol
+	// errors decoded by the SDK are *a2a.Error whose underlying sentinel maps
+	// to a stable reason via a2a.ErrorReason. Transport/CLI-local failures
+	// (connection refused, raw HTTP 401, timeouts) are not *a2a.Error and fall
+	// through to the A2ACLI_ERR_ classification below.
+	var ae *a2a.Error
+	if errors.As(err, &ae) {
+		return a2a.ErrorReason(ae.Err)
+	}
+	// A terminal-state task that cannot be continued is a precondition failure,
+	// not an internal error (SPEC §11.4; gRPC FAILED_PRECONDITION / HTTP 400).
+	if errors.Is(err, errTaskTerminal) {
+		return ErrFailedPrecondition
+	}
+	switch {
+	case is401(err):
+		return ErrAuthFailed
+	case isUnreachable(err):
+		return ErrUnreachable
+	case isTimeout(err):
+		return ErrTimeout
+	default:
+		return ErrInternal
+	}
+}
+
+// a2aCodeFromError surfaces the underlying transport-level code when one is
+// discernible from the error, else nil (rendered as JSON null).
+func a2aCodeFromError(err error) any {
+	if is401(err) {
+		return 401
+	}
+	return nil
+}
+
+// buildErrorEnvelope constructs the spec error envelope for a failure.
+func buildErrorEnvelope(code, message, hint string, err error) errorEnvelope {
+	var hintPtr *string
+	if hint != "" {
+		h := hint
+		hintPtr = &h
+	}
+	return errorEnvelope{Error: errorBody{
+		Code:    code,
+		Message: message,
+		Hint:    hintPtr,
+		A2ACode: a2aCodeFromError(err),
+	}}
+}
 
 func fatalf(format string, err error, hint string) {
 	fatalCode("", format, err, hint)
@@ -101,32 +209,47 @@ func fatalCode(code string, format string, err error, hint string) {
 	}
 
 	if code == "" {
-		if is401(err) {
-			code = ErrCodeUnauthenticated
-		} else if isTimeout(err) {
-			code = ErrCodeTimeout
-		} else {
-			code = ErrCodeInternal
-		}
+		code = classifyError(err)
 	}
 
 	if outputMode == "json" || disableTUI {
-		out := map[string]string{
-			"error": msg,
-			"code":  code,
-		}
-		if hint != "" {
-			out["hint"] = hint
-		}
-		b, _ := json.Marshal(out)
-		fmt.Fprintln(os.Stderr, string(b))
+		// The error envelope IS the structured payload — emit it on stdout so
+		// -o json consumers can parse it (SPEC §11.1 / §11.4).
+		b, _ := json.Marshal(buildErrorEnvelope(code, msg, hint, err))
+		fmt.Fprintln(os.Stdout, string(b))
 	} else {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
 		if hint != "" {
 			fmt.Fprintf(os.Stderr, "Hint: %s\n", hint)
 		}
 	}
-	os.Exit(1)
+	os.Exit(exitCodeForError(code))
+}
+
+// isUnreachable reports whether an error indicates the agent or its card could
+// not be reached — DNS, connection, or TLS failure.
+func isUnreachable(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	for _, p := range []string{
+		"connection refused",
+		"no such host",
+		"dial tcp",
+		"network is unreachable",
+		"no route to host",
+		"connection reset",
+		"server misbehaving",
+		"tls:",
+		"x509:",
+		"certificate",
+	} {
+		if strings.Contains(s, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // is401 reports whether an error is an HTTP 401 Unauthorized response.
@@ -684,7 +807,7 @@ func handleSendWait(ctx context.Context, client *a2aclient.Client, params *a2a.S
 
 func runSend(_ *cobra.Command, args []string) {
 	if err := validateOutDir(outDir); err != nil {
-		fatalCode(ErrCodeInvalidArgument, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
+		fatalCode(ErrUsage, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
 	}
 
 	var messageText string
@@ -737,7 +860,9 @@ func runSend(_ *cobra.Command, args []string) {
 			}
 			if checkErr := checkTaskContinuable(t); checkErr != nil {
 				if strictMode {
-					fatalCode(ErrCodeFailedPrecondition, "cannot continue task", checkErr,
+					// Empty code → classifyError maps errTaskTerminal to
+					// FAILED_PRECONDITION (was A2ACLI_ERR_INTERNAL).
+					fatalCode("", "cannot continue task", checkErr,
 						fmt.Sprintf("Use --context %s to continue the conversation thread", t.ContextID))
 				} else {
 					fmt.Fprintf(os.Stderr, "Warning: %v. Use --context %s to continue the conversation thread.\n\n", checkErr, t.ContextID)
@@ -773,8 +898,8 @@ func runSend(_ *cobra.Command, args []string) {
 		params.Metadata = map[string]any{"skillId": skillID}
 		verboseLog("targeting skill: %s", skillID)
 	}
-	verboseLog("sending message: text_len=%d task=%q context=%q ref=%q immediate=%v wait=%v",
-		len(messageText), targetTaskID, contextID, refTaskID, immediate, wait)
+	verboseLog("sending message: text_len=%d task=%q context=%q ref=%q immediate=%v stream=%v",
+		len(messageText), targetTaskID, contextID, refTaskID, immediate, stream)
 
 	// --immediate: fire-and-forget — return the task ID without waiting or streaming
 	if immediate {
@@ -782,22 +907,24 @@ func runSend(_ *cobra.Command, args []string) {
 		return
 	}
 
-	// --wait: blocking call
-	if wait {
+	// Default (SPEC §11.3): block and emit a single terminal document. Streaming
+	// is caller-controlled and MUST be requested explicitly via --stream; it is
+	// never inferred from configuration, an environment variable, or a TTY.
+	if !stream {
 		handleSendWait(ctx, client, params, card)
 		return
 	}
 
-	// Default: streaming
+	// --stream: follow live updates (JSONL in -o json).
 	if outputMode == "tui" {
 		fmt.Printf("Invoking A2A Service (Streaming)...\n\n")
 	}
 
-	stream := make(chan streamMsg)
+	events := make(chan streamMsg)
 	go func() {
-		defer close(stream)
+		defer close(events)
 		for event, err := range client.SendStreamingMessage(ctx, params) {
-			stream <- streamMsg{Event: event, Err: err}
+			events <- streamMsg{Event: event, Err: err}
 			if err != nil {
 				return
 			}
@@ -809,28 +936,31 @@ func runSend(_ *cobra.Command, args []string) {
 
 	switch outputMode {
 	case "json":
-		summary, renderErr = runRaw(stream, outDir)
+		summary, renderErr = runRaw(events, outDir)
 	case "text":
-		summary, renderErr = runText(stream, outDir)
+		summary, renderErr = runText(events, outDir)
 	case "compact":
-		summary, renderErr = runCompact(stream, outDir)
+		summary, renderErr = runCompact(events, outDir)
 	default:
-		summary, renderErr = runTUI(stream)
+		summary, renderErr = runTUI(events)
 	}
 
 	if renderErr != nil {
-		fatalCode(ErrCodeFailedPrecondition, "streaming failed", renderErr, "Ensure the service is accessible and the task is active")
+		// Route through classifyError (empty code) so a mid-stream unreachable /
+		// timeout failure gets the correct A2ACLI_ERR_* code instead of always
+		// being reported as A2ACLI_ERR_INTERNAL.
+		fatalCode("", "streaming failed", renderErr, "Ensure the service is accessible and the task is active")
 	}
 
 	if summary.events == 0 {
-		fatalCode(ErrCodeFailedPrecondition, "agent returned no events", fmt.Errorf("stream closed with 0 events received"),
+		fatalCode(ErrInternal, "agent returned no events", fmt.Errorf("stream closed with 0 events received"),
 			"The agent did not emit any status or artifact events. Verify that the task is active or use --context for multi-turn conversations.")
 	}
 }
 
 func runWatch(_ *cobra.Command, args []string) {
 	if err := validateOutDir(outDir); err != nil {
-		fatalCode(ErrCodeInvalidArgument, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
+		fatalCode(ErrUsage, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
 	}
 
 	taskID := args[0]
@@ -889,7 +1019,7 @@ func runWatch(_ *cobra.Command, args []string) {
 
 func runGet(cmd *cobra.Command, args []string) {
 	if err := validateOutDir(outDir); err != nil {
-		fatalCode(ErrCodeInvalidArgument, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
+		fatalCode(ErrUsage, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
 	}
 
 	taskID := args[0]
@@ -1032,17 +1162,20 @@ GetExtendedAgentCard protocol RPC.
 		Use:     "send [message]",
 		GroupID: GroupMessaging,
 		Aliases: []string{"invoke", "SendMessage"},
-		Short:   "Send a message to an agent (streaming)",
+		Short:   "Send a message to an agent (blocking by default)",
 		Long: `Initiate a new task or continue an existing one by sending a message to the agent.
 
-By default, this command uses streaming to provide real-time updates from 
-the agent. Use the --wait flag to perform a blocking call instead.
+By default, this command blocks until the task reaches a terminal or
+interrupted state and emits a single result document (a single JSON object in
+-o json mode). To follow live updates as they arrive, pass --stream, which
+emits a JSONL event stream in -o json mode (SPEC §11.3).
 
 You can save artifacts produced by the task using the --out-dir flag.`,
 		Example: `  a2acli send "Write a simple CLI in Go"
   a2acli send "Add error handling to that CLI" --context <contextID>
+  a2acli send "Stream live updates" --stream
   a2acli send "Summarize this report" --skill summarize --ref <taskID>
-  a2acli send "Generate report" --skill reports --wait --out-dir ./reports`,
+  a2acli send "Generate report" --skill reports --out-dir ./reports`,
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 && !isStdinPiped() && !hasMultimodalInput() {
 				return fmt.Errorf("message text required: provide as argument, pipe via stdin, or use --json/--parts/--attach/--data")
@@ -1103,8 +1236,13 @@ download artifacts to a directory.`,
 	sendCmd.Flags().StringVarP(&outDir, "out-dir", "d", "", "Directory to save artifacts to")
 	sendCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 	sendCmd.Flags().StringVarP(&instructionFile, "instruction-file", "i", "", "Path to a file with supplemental instructions")
-	sendCmd.Flags().BoolVarP(&wait, "wait", "w", false, "Block and wait for task completion instead of streaming (maps to A2A Blocking:true)")
-	sendCmd.Flags().BoolVar(&wait, "sync", false, "Alias for --wait")
+	sendCmd.Flags().BoolVar(&stream, "stream", false, "Follow live updates as a JSONL event stream (opt-in; SPEC §11.3). Default blocks and emits a single JSON document.")
+	// --wait/--sync are retained as hidden, deprecated aliases: blocking is now
+	// the default, so they are accepted (no-op) to avoid breaking existing users.
+	sendCmd.Flags().BoolVarP(&wait, "wait", "w", false, "Deprecated: blocking is now the default (this flag is a no-op).")
+	sendCmd.Flags().BoolVar(&wait, "sync", false, "Deprecated alias for --wait (no-op; blocking is the default).")
+	_ = sendCmd.Flags().MarkHidden("wait")
+	_ = sendCmd.Flags().MarkHidden("sync")
 	sendCmd.Flags().BoolVar(&immediate, "immediate", false, "Fire-and-forget: submit task and return ID immediately without waiting or streaming")
 	sendCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating (default preview is 500 chars)")
 	sendCmd.Flags().StringVar(&messagePartsJSON, "parts", "", "Message parts as a JSON array, e.g. '[{\"text\":\"hello\"},{\"data\":{\"k\":\"v\"}}]'")
@@ -1164,7 +1302,7 @@ already have completed or be in a non-cancelable state.`,
 
 	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, setupConfigCmd(), versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd(), setupA2UICmd(), setupAuthCmd())
 	if err := rootCmd.Execute(); err != nil {
-		fatalCode(ErrCodeInvalidArgument, "command execution failed", err, "")
+		fatalCode(ErrUsage, "command execution failed", err, "")
 	}
 }
 
@@ -1179,7 +1317,7 @@ func checkTaskContinuable(task *a2a.Task) error {
 		return nil
 	}
 	if task.Status.State.Terminal() {
-		return fmt.Errorf("task %s is in terminal state %s and cannot be continued", task.ID, task.Status.State)
+		return fmt.Errorf("task %s (state %s): %w", task.ID, task.Status.State, errTaskTerminal)
 	}
 	return nil
 }
@@ -1235,7 +1373,8 @@ func runRaw(stream chan streamMsg, outDir string) (streamSummary, error) {
 	var summary streamSummary
 	for msg := range stream {
 		if msg.Err != nil {
-			fmt.Fprintf(os.Stderr, "{\"error\": %q}\n", msg.Err.Error())
+			// Return the error so the caller can emit the spec error envelope
+			// as the final JSONL line via fatalCode (SPEC §11.3, §11.4).
 			return summary, msg.Err
 		}
 		summary.events++

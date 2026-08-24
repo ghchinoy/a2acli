@@ -6,7 +6,8 @@ Maps to the A2A Protocol's `SendMessage` RPC. Initiates a new task or continues 
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--wait` / `--sync` | `-w` | false | Block until task completes. **Required for agents.** |
+| `--stream` | — | false | Opt into the live JSONL event stream (SPEC §11.3). Default blocks and returns a single document — **agents should omit this**. |
+| `--wait` / `--sync` | `-w` | false | Deprecated no-op (hidden): blocking is now the default. |
 | `--skill` | `-s` | — | Target a specific skill ID on the agent |
 | `--out-dir` | `-d` | — | Save artifacts to a directory automatically |
 | `--file` | `-f` | — | Save artifact to a specific filename |
@@ -15,39 +16,39 @@ Maps to the A2A Protocol's `SendMessage` RPC. Initiates a new task or continues 
 ## Usage
 
 ```bash
-# Basic: initiate a task and wait for completion
+# Basic: initiate a task and block for the result (default)
 a2acli send "Generate a project plan" \
-  --service-url http://localhost:9001 --output json --wait
+  --service-url http://localhost:9001 --output json
 
 # Target a specific skill
 a2acli send "Generate report" --skill reports \
-  --service-url http://localhost:9001 --output json --wait
+  --service-url http://localhost:9001 --output json
 
 # Continue a multi-turn conversation thread
 a2acli send "Add more detail to section 2" \
-  --context <ContextID> --service-url http://localhost:9001 --output json --wait
+  --context <ContextID> --service-url http://localhost:9001 --output json
 
 # Continue an active task
 a2acli send "Add more detail to section 2" \
-  --task <TaskID> --service-url http://localhost:9001 --output json --wait
+  --task <TaskID> --service-url http://localhost:9001 --output json
 
 # Reference a completed task's artifacts
 a2acli send "Summarize the previous result" \
-  --ref <TaskID> --service-url http://localhost:9001 --output json --wait
+  --ref <TaskID> --service-url http://localhost:9001 --output json
 
 # Pass a large instruction file
 a2acli send "Fix the bugs" \
   --instruction-file ./instructions.txt \
-  --service-url http://localhost:9001 --output json --wait
+  --service-url http://localhost:9001 --output json
 
 # Save artifacts to disk
 a2acli send "Generate image" \
-  --out-dir ./output/ --service-url http://localhost:9001 --output json --wait
+  --out-dir ./output/ --service-url http://localhost:9001 --output json
 ```
 
 ## Output Schema
 
-With `-n --wait`, output is a JSON `Task` object:
+With `-n` (default blocking), output is a single JSON `Task` object:
 
 ```json
 {

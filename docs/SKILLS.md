@@ -70,8 +70,8 @@ The `a2acli` skill teaches coding agents how to run `a2acli` in non-interactive 
 
 ### Core Determinism Rules
 When driving `a2acli`, agents MUST adhere to two critical rules:
-1. **Always pass `--output json` (or `-n`):** Disables the interactive Bubble Tea TUI and emits parseable NDJSON/JSON.
-2. **Always pass `--wait` with `send`:** Blocks execution until task reaches a terminal state (`TASK_STATE_COMPLETED` or `TASK_STATE_FAILED`).
+1. **Always pass `--output json` (or `-n`):** Disables the interactive Bubble Tea TUI and emits a single parseable JSON document (JSONL with `--stream`).
+2. **`send` blocks by default:** It waits until the task reaches a terminal state (`TASK_STATE_COMPLETED` or `TASK_STATE_FAILED`) and returns a single document — no flag needed. Pass `--stream` only to observe the live event stream.
 
 ### Capability Summary
 - Agent card discovery (`a2acli discover --extended`)
@@ -222,7 +222,7 @@ The three skills work together across the software development lifecycle:
 1. `a2acli` skill activates.
 2. Agent runs `a2acli discover -u http://localhost:9001 --output json`.
 3. Agent inspects card, finds skill `summarize`, and runs:
-   `a2acli send "Summarize this text" -u http://localhost:9001 --skill summarize --wait --output json`.
+   `a2acli send "Summarize this text" -u http://localhost:9001 --skill summarize --output json`.
 
 ---
 

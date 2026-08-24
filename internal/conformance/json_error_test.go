@@ -32,9 +32,13 @@ func TestStructuredJSONErrorOutput(t *testing.T) {
 		t.Fatalf("failed to build test binary: %v\nOutput: %s", err, string(out))
 	}
 
-	// Invoke a failing command (invalid service URL) with --output json
+	// Invoke a failing command (invalid service URL) with --output json.
+	// Per SPEC §11.1/§11.4 the machine-readable error envelope is the
+	// structured payload and MUST be emitted on stdout; diagnostics stay on
+	// stderr.
 	cmd := exec.Command(binPath, "discover", "-u", "http://127.0.0.1:1", "--output", "json")
-	var stderr bytes.Buffer
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
@@ -42,18 +46,33 @@ func TestStructuredJSONErrorOutput(t *testing.T) {
 		t.Fatal("expected command to fail, but it succeeded")
 	}
 
-	stderrStr := stderr.String()
-	t.Logf("Captured stderr: %s", stderrStr)
+	stdoutStr := stdout.String()
+	t.Logf("Captured stdout: %s", stdoutStr)
+	t.Logf("Captured stderr: %s", stderr.String())
 
-	var errPayload map[string]string
-	if err := json.Unmarshal(stderr.Bytes(), &errPayload); err != nil {
-		t.Fatalf("stderr does not parse as valid JSON: %v\nRaw stderr: %s", err, stderrStr)
+	// The error envelope (SPEC Appendix B) is a nested object:
+	//   {"error":{"code","message","hint","a2aCode"}}
+	var payload struct {
+		Error struct {
+			Code    string  `json:"code"`
+			Message string  `json:"message"`
+			Hint    *string `json:"hint"`
+			A2ACode any     `json:"a2aCode"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout does not parse as valid JSON error envelope: %v\nRaw stdout: %s", err, stdoutStr)
 	}
 
-	if errPayload["error"] == "" {
-		t.Error("expected 'error' field in JSON error payload")
+	if payload.Error.Message == "" {
+		t.Error("expected non-empty 'error.message' field in JSON error envelope")
 	}
-	if errPayload["code"] == "" {
-		t.Error("expected 'code' field in JSON error payload")
+	if payload.Error.Code == "" {
+		t.Error("expected non-empty 'error.code' field in JSON error envelope")
+	}
+	// CLI-local failures MUST use the A2ACLI_ERR_ namespace (SPEC §11.4 / App. D).
+	const ns = "A2ACLI_ERR_"
+	if len(payload.Error.Code) < len(ns) || payload.Error.Code[:len(ns)] != ns {
+		t.Errorf("expected code in %s namespace, got %q", ns, payload.Error.Code)
 	}
 }

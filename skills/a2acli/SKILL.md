@@ -13,8 +13,8 @@ metadata:
 
 ## Critical Rules for Agents
 
-1. **Always pass `--output json`** (or `-n`) — disables the interactive TUI and emits JSON/NDJSON instead. Errors emit structured JSON objects on `stderr` (`{"code": "...", "error": "...", "hint": "..."}`). Without this flag the CLI degrades in non-TTY contexts.
-2. **Always pass `--wait` with `send`** — makes the call blocking and returns the final task result. Without `--wait`, `send` streams indefinitely.
+1. **Always pass `--output json`** (or `-n`) — disables the interactive TUI and emits machine-readable JSON. On failure, the spec error envelope is printed on **stdout** (`{"error": {"code": "A2ACLI_ERR_...", "message": "...", "hint": "...", "a2aCode": ...}}`) while diagnostics stay on `stderr`. Without this flag the CLI degrades in non-TTY contexts.
+2. **`send` blocks by default** and emits a single JSON document — no flag needed. Only pass `--stream` if you want the live JSONL event stream. (Exit codes: `0` success, `2` usage error, `1` other failures.)
 3. **Check `status.state`** in the JSON output to determine success (`TASK_STATE_COMPLETED`) or failure (`TASK_STATE_FAILED`).
 4. **For OAuth-protected agents** — run `auth login` once interactively (requires a browser). For non-interactive agent use, retrieve the stored token via `auth token` and pass it as `--token`.
 5. **Verify binary availability first** — run `a2acli version` before execution. If missing, follow [references/install.md](references/install.md) or fail cleanly.
@@ -46,7 +46,7 @@ metadata:
 | `--service-url` | `-u` | `http://127.0.0.1:9001` | Base URL of the A2A service |
 | `--output` | `-o` | tui | **`-o json` / `-n` required for agents.** Output mode: `tui`, `text`, or `json` |
 | `--no-cache` | — | false | Bypass AgentCard disk cache and fetch fresh |
-| `--wait` | `-w` | false | **Required with `send` for agents.** Block until task completes |
+| `--stream` | — | false | Opt into the live JSONL event stream for `send`. Default blocks and returns a single document |
 | `--token` | `-t` | — | Bearer token. If omitted, stored token from `auth login` is used automatically |
 | `--auth` | — | — | Raw auth header, e.g. `ApiKey secret` (repeatable) |
 | `--task` | `-k` | — | Existing Task ID to continue (for active tasks) |
@@ -67,11 +67,11 @@ For OAuth 2.1-protected agents:
 a2acli auth login --service-url https://agent.example.com
 
 # After login, all commands use the stored token automatically — no --token needed
-a2acli send "hello" --service-url https://agent.example.com --output json --wait
+a2acli send "hello" --service-url https://agent.example.com --output json
 
 # For non-interactive agent use, retrieve the token explicitly
 TOKEN=$(a2acli auth token --service-url https://agent.example.com)
-a2acli send "hello" --service-url https://agent.example.com --token "$TOKEN" --output json --wait
+a2acli send "hello" --service-url https://agent.example.com --token "$TOKEN" --output json
 ```
 
 See [references/auth.md](references/auth.md) for the full auth workflow.
@@ -83,10 +83,10 @@ See [references/auth.md](references/auth.md) for the full auth workflow.
 a2acli discover --service-url http://localhost:9001 --output json
 
 # Send a task and get JSON result (no auth)
-a2acli send "Summarize this document" --service-url http://localhost:9001 --output json --wait
+a2acli send "Summarize this document" --service-url http://localhost:9001 --output json
 
 # Send a task with auto-authentication (after auth login)
-a2acli send "translate 'hello' to Sindarin" --env mithlond --skill translate --output json --wait
+a2acli send "translate 'hello' to Sindarin" --env mithlond --skill translate --output json
 
 # Check status of a running task
 a2acli get <task_id> --service-url http://localhost:9001 --output json

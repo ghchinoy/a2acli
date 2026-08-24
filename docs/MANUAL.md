@@ -47,19 +47,34 @@ Output modes are controlled by `--output`:
 |---|---|---|
 | `tui` | default | Interactive terminal with streaming UI |
 | `text` | `--output text` | Non-interactive, human-readable (CI logs, piped output) |
-| `json` | `--output json` | Machine-readable NDJSON (scripts, agents); errors emit structured JSON objects on `stderr` |
+| `json` | `--output json` | Machine-readable (scripts, agents). Single JSON document by default; JSONL when `--stream` is passed |
 
 `-n` / `--no-tui` is a backwards-compatible shorthand for `--output json`.
 
-In `--output json` mode, errors on `stderr` are emitted as structured JSON objects:
+In `--output json` mode, the result is a **single JSON document** unless
+`--stream` is given, in which case each event is emitted as its own line
+(JSONL). The `--stream` switch is caller-controlled and is never inferred from
+configuration, an environment variable, or terminal detection (SPEC §11.3).
+
+**Error envelope.** On failure in `--output json` mode, `a2acli` emits the A2A
+CLI spec error envelope (SPEC §11.4 / Appendix B) as the structured payload on
+**stdout**; human diagnostics stay on `stderr`:
 ```json
 {
-  "code": "UNAUTHENTICATED",
-  "error": "SendMessage failed: unexpected HTTP status: 401 Unauthorized",
-  "hint": "Stored token for https://agent.example.com is expired. Run: a2acli auth login -u https://agent.example.com"
+  "error": {
+    "code": "A2ACLI_ERR_AUTH_FAILED",
+    "message": "SendMessage failed: unexpected HTTP status: 401 Unauthorized",
+    "hint": "Stored token for https://agent.example.com is expired. Run: a2acli auth login -u https://agent.example.com",
+    "a2aCode": 401
+  }
 }
 ```
-Machine-readable error codes include `UNAUTHENTICATED`, `TIMEOUT`, `TASK_FAILED`, `INVALID_ARGUMENT`, `NOT_FOUND`, and `INTERNAL_ERROR`.
+CLI-local failures use the `A2ACLI_ERR_*` namespace (SPEC Appendix D):
+`A2ACLI_ERR_USAGE`, `A2ACLI_ERR_CARD_NOT_FOUND`, `A2ACLI_ERR_CARD_INVALID`,
+`A2ACLI_ERR_UNREACHABLE`, `A2ACLI_ERR_CREDENTIALS_MISSING`,
+`A2ACLI_ERR_AUTH_FAILED`, `A2ACLI_ERR_TIMEOUT`, and `A2ACLI_ERR_INTERNAL`.
+Usage errors (unknown command/flag, bad flag combination) exit with code `2`;
+other failures exit `1`; success exits `0` (SPEC §11.6).
 
 When stdout is not a terminal, `a2acli` automatically degrades from `tui` to
 `text`, so streaming works correctly in pipes, CI, and agent contexts without any
@@ -94,19 +109,26 @@ Send a message to initiate or continue a task. *(Maps to the A2A Protocol's
 a2acli send "Generate a project plan" --out-dir ./output/
 ```
 
-By default, `send` streams real-time updates. Use `--wait` (`-w`) for a blocking
-call that returns the final result only. When stdin is not a terminal, the message
-is read from stdin:
+By default, `send` **blocks** until the task reaches a terminal or interrupted
+state and returns a single result document. Pass `--stream` to follow live
+updates instead (JSONL in `-o json` mode; SPEC §11.3). When stdin is not a
+terminal, the message is read from stdin:
 
 ```bash
-echo "Summarize Q3 results" | a2acli send --skill summarize --wait --output json
-cat prompt.txt | a2acli send --wait
+echo "Summarize Q3 results" | a2acli send --skill summarize --output json
+cat prompt.txt | a2acli send
+a2acli send "Generate a project plan" --stream        # follow live updates
 ```
+
+> **Deprecation:** `--wait` / `--sync` were used to opt out of the old
+> stream-by-default behavior. Blocking is now the default, so these flags are
+> hidden, deprecated no-ops retained only for backwards compatibility.
 
 | Flag | Short | Description |
 |---|---|---|
 | `--skill` | `-s` | Target a specific skill on the agent |
-| `--wait` / `--sync` | `-w` | Block until task completes (returns final JSON) |
+| `--stream` | — | Follow live updates as a JSONL event stream (opt-in; SPEC §11.3). Default blocks and emits a single document |
+| `--wait` / `--sync` | `-w` | Deprecated no-op (hidden) — blocking is now the default |
 | `--full` | — | Show complete artifact content without truncation (default: 500 char preview) |
 | `--out-dir` | `-d` | Save artifacts to a directory |
 | `--file` | `-f` | Save artifact to a specific filename |
@@ -426,7 +448,7 @@ Hint: Ensure the A2A server is running at http://localhost:9001
 
 This repository ships three [`agentskills.io`](https://agentskills.io/) compliant agent skills in [`skills/`](../skills/):
 
-- [`a2acli`](../skills/a2acli/SKILL.md) — Teaches agents how to drive `a2acli` using `--output json` and `--wait`.
+- [`a2acli`](../skills/a2acli/SKILL.md) — Teaches agents how to drive `a2acli` using `--output json` (blocking by default; `--stream` for JSONL).
 - [`a2a-expose`](../skills/a2a-expose/SKILL.md) — Guides agents in adding an A2A Protocol v1.0 exposure layer to an API or service.
 - [`a2a-conformance`](../skills/a2a-conformance/SKILL.md) — Evaluates A2A servers against normative spec rules, stable check IDs, and TCK orchestration.
 
