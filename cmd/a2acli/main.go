@@ -22,6 +22,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,8 @@ var (
 	serviceURL       string
 	skillID          string
 	authToken        string
+	bearerToken      string
+	apiKey           string
 	targetTaskID     string
 	refTaskID        string
 	contextID        string
@@ -194,6 +197,14 @@ func buildErrorEnvelope(code, message, hint string, err error) errorEnvelope {
 	}}
 }
 
+// marshalSendResult renders a `send` result as the A2A protocol's App-B
+// SendMessageResponse wrapper (SPEC §11.3 L421 / Appendix B L567): {"task":…}
+// for a Task, {"message":…} for a Message. a2a.StreamResponse is the SDK's
+// discriminated union that produces exactly this shape.
+func marshalSendResult(result a2a.SendMessageResult) ([]byte, error) {
+	return json.MarshalIndent(a2a.StreamResponse{Event: result}, "", "  ")
+}
+
 func fatalf(format string, err error, hint string) {
 	fatalCode("", format, err, hint)
 }
@@ -319,17 +330,38 @@ func init() {
 type paramInterceptor struct {
 	a2aclient.PassthroughInterceptor
 	token       string
+	bearer      string
+	apiKey      string
+	apiKeyLoc   string // "header", "query", or "cookie" (A2A §4.5.2)
+	apiKeyName  string // header/query/cookie parameter name
 	authHeaders []string
 	svcParams   []string
 }
 
 func (i *paramInterceptor) Before(ctx context.Context, req *a2aclient.Request) (context.Context, any, error) {
-	if i.token != "" || len(i.authHeaders) > 0 || len(i.svcParams) > 0 {
+	if i.token != "" || i.bearer != "" || i.apiKey != "" || len(i.authHeaders) > 0 || len(i.svcParams) > 0 {
 		if req.ServiceParams == nil {
 			req.ServiceParams = make(a2aclient.ServiceParams)
 		}
 		if i.token != "" {
 			req.ServiceParams["authorization"] = append(req.ServiceParams["authorization"], "Bearer "+i.token)
+		}
+		// SPEC §12.1: --bearer attaches Authorization: Bearer <token>.
+		if i.bearer != "" {
+			req.ServiceParams["authorization"] = append(req.ServiceParams["authorization"], "Bearer "+i.bearer)
+		}
+		// SPEC §12.1: --api-key is attached per the card's declared scheme —
+		// an HTTP header (default X-Api-Key), a cookie, or a query parameter
+		// (A2A §4.5.2). ServiceParams keys become HTTP headers on the wire.
+		if i.apiKey != "" {
+			switch i.apiKeyLoc {
+			case string(a2a.APIKeySecuritySchemeLocationCookie):
+				req.ServiceParams["Cookie"] = append(req.ServiceParams["Cookie"], i.apiKeyName+"="+i.apiKey)
+			case string(a2a.APIKeySecuritySchemeLocationQuery):
+				req.BaseURL = appendQueryParam(req.BaseURL, i.apiKeyName, i.apiKey)
+			default: // header (and default)
+				req.ServiceParams[i.apiKeyName] = append(req.ServiceParams[i.apiKeyName], i.apiKey)
+			}
 		}
 		if len(i.authHeaders) > 0 {
 			req.ServiceParams["authorization"] = append(req.ServiceParams["authorization"], i.authHeaders...)
@@ -344,6 +376,42 @@ func (i *paramInterceptor) Before(ctx context.Context, req *a2aclient.Request) (
 		}
 	}
 	return ctx, nil, nil
+}
+
+// apiKeyAttachment determines where an --api-key credential is carried, based on
+// the agent card's declared API-key security scheme (A2A §4.5.2 permits header,
+// query, or cookie). When the card declares no API-key scheme it defaults to the
+// HTTP header X-Api-Key (SPEC §12.1). It returns the location and parameter name.
+func apiKeyAttachment(card *a2a.AgentCard) (location, name string) {
+	if card != nil {
+		for _, scheme := range card.SecuritySchemes {
+			if s, ok := scheme.(a2a.APIKeySecurityScheme); ok {
+				loc := string(s.Location)
+				n := s.Name
+				if loc == "" {
+					loc = string(a2a.APIKeySecuritySchemeLocationHeader)
+				}
+				if n == "" {
+					n = "X-Api-Key"
+				}
+				return loc, n
+			}
+		}
+	}
+	return string(a2a.APIKeySecuritySchemeLocationHeader), "X-Api-Key"
+}
+
+// appendQueryParam adds key=value to a URL's query string, preserving any
+// existing query. On a parse failure it returns the URL unchanged.
+func appendQueryParam(rawURL, key, value string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	q := u.Query()
+	q.Set(key, value)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func getResolver() *agentcard.Resolver {
@@ -372,6 +440,15 @@ func resolveAgentCard(ctx context.Context, targetURL string) (*a2a.AgentCard, er
 	var opts []agentcard.ResolveOption
 	if authToken != "" {
 		opts = append(opts, agentcard.WithRequestHeader("Authorization", "Bearer "+authToken))
+	}
+	// SPEC §12.1 credential flags also apply to the card fetch. The card is not
+	// yet known here, so --api-key falls back to the default X-Api-Key header
+	// (the declared scheme name is resolved for the request path in createClient).
+	if bearerToken != "" {
+		opts = append(opts, agentcard.WithRequestHeader("Authorization", "Bearer "+bearerToken))
+	}
+	if apiKey != "" {
+		opts = append(opts, agentcard.WithRequestHeader("X-Api-Key", apiKey))
 	}
 	for _, h := range authHeaders {
 		parts := strings.SplitN(h, ":", 2)
@@ -468,9 +545,20 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 	}
 
 	opts := []a2aclient.FactoryOption{transportOpt}
-	if resolvedToken != "" || len(authHeaders) > 0 || len(svcParams) > 0 {
+	if resolvedToken != "" || bearerToken != "" || apiKey != "" || len(authHeaders) > 0 || len(svcParams) > 0 {
+		apiKeyLoc, apiKeyName := apiKeyAttachment(card)
+		if bearerToken != "" {
+			verboseLog("attaching bearer credential (value redacted)")
+		}
+		if apiKey != "" {
+			verboseLog("attaching api-key credential via %s %q (value redacted)", apiKeyLoc, apiKeyName)
+		}
 		opts = append(opts, a2aclient.WithCallInterceptors(&paramInterceptor{
 			token:       resolvedToken,
+			bearer:      bearerToken,
+			apiKey:      apiKey,
+			apiKeyLoc:   apiKeyLoc,
+			apiKeyName:  apiKeyName,
 			authHeaders: authHeaders,
 			svcParams:   svcParams,
 		}))
@@ -752,7 +840,9 @@ func handleSendImmediate(ctx context.Context, client *a2aclient.Client, params *
 		fatalf("SendMessage failed", err, hint)
 	}
 	if outputMode == "json" {
-		b, _ := json.MarshalIndent(result, "", "  ")
+		// SPEC §11.3 (L421) / Appendix B (L567): `send` MUST emit the A2A
+		// protocol's SendMessageResponse wrapper — {"task":…} or {"message":…}.
+		b, _ := marshalSendResult(result)
 		fmt.Println(string(b))
 	} else if task, ok := result.(*a2a.Task); ok {
 		fmt.Printf("Task submitted: %s\n", task.ID)
@@ -780,7 +870,9 @@ func handleSendWait(ctx context.Context, client *a2aclient.Client, params *a2a.S
 		fatalf("SendMessage failed", err, hint)
 	}
 	if outputMode == "json" {
-		b, _ := json.MarshalIndent(result, "", "  ")
+		// SPEC §11.3 (L421) / Appendix B (L567): `send` MUST emit the A2A
+		// protocol's SendMessageResponse wrapper — {"task":…} or {"message":…}.
+		b, _ := marshalSendResult(result)
 		fmt.Println(string(b))
 		if task, ok := result.(*a2a.Task); ok && (outDir != "" || outFile != "") {
 			for i, art := range task.Artifacts {
@@ -1110,13 +1202,35 @@ func runCancel(_ *cobra.Command, args []string) {
 	fmt.Printf("Task %s has been requested to cancel. Current state: %s\n", task.ID, task.Status.State)
 }
 
+// resolveCredentials fills the canonical credential flags from their env
+// equivalents when the flag was not passed (SPEC §7.2 L191 / §12.1). Precedence
+// is flag > environment variable: a non-empty flag value is left untouched, so
+// an explicit --bearer/--api-key overrides A2ACLI_BEARER/A2ACLI_API_KEY. The
+// values are never logged (SPEC §12.1 redaction MUST).
+func resolveCredentials() {
+	if bearerToken == "" {
+		bearerToken = os.Getenv("A2ACLI_BEARER")
+	}
+	if apiKey == "" {
+		apiKey = os.Getenv("A2ACLI_API_KEY")
+	}
+}
+
 func main() {
-	cobra.OnInitialize(initConfig, resolveOutputMode)
+	cobra.OnInitialize(initConfig, resolveOutputMode, resolveCredentials)
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.config/a2acli/config.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&envName, "env", "e", "", "environment name to load from config")
 	rootCmd.PersistentFlags().StringVarP(&serviceURL, "service-url", "u", "http://127.0.0.1:9001", "Base URL of the A2A service")
 	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token")
+	// Canonical Tier-1 credential flags (SPEC §12.1 / §7.2). --bearer attaches
+	// an Authorization: Bearer <token> header; --api-key attaches the API-key
+	// header named by the agent card's declared APIKeySecurityScheme (default
+	// X-Api-Key). Each has a canonical env equivalent (A2ACLI_BEARER /
+	// A2ACLI_API_KEY); an explicit flag overrides the env. These are additive to
+	// the existing --token/--auth mechanisms (back-compat).
+	rootCmd.PersistentFlags().StringVar(&bearerToken, "bearer", "", "Bearer token credential (Authorization: Bearer <token>); env A2ACLI_BEARER")
+	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "API key credential attached per the card's declared scheme (default header X-Api-Key); env A2ACLI_API_KEY")
 	rootCmd.PersistentFlags().StringSliceVar(&authHeaders, "auth", nil, "Authorization headers to send (e.g. 'Bearer ...')")
 	rootCmd.PersistentFlags().StringSliceVar(&svcParams, "svc-param", nil, "Service parameters to send (e.g. 'key=value')")
 	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (for active tasks)")

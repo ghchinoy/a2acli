@@ -97,6 +97,14 @@ func TestTier1CLIContract(t *testing.T) {
 		if err := json.Unmarshal(out, &doc); err != nil {
 			t.Fatalf("default send did not emit a single JSON document: %v\nOutput:\n%s", err, out)
 		}
+		// SPEC §11.3 (L421) / Appendix B (L567): `send` MUST emit the App-B
+		// SendMessageResponse wrapper — the terminal object under "task" (a task
+		// was created) or "message" — never a bare Task/Message.
+		if _, hasTask := doc["task"]; !hasTask {
+			if _, hasMsg := doc["message"]; !hasMsg {
+				t.Fatalf("send -o json must use the App-B SendMessageResponse wrapper (top-level \"task\" or \"message\"); got keys %v\nOutput:\n%s", keysOf(doc), out)
+			}
+		}
 	})
 
 	t.Run("StreamSendIsJSONL", func(t *testing.T) {
@@ -121,6 +129,14 @@ func TestTier1CLIContract(t *testing.T) {
 			t.Errorf("--stream output parsed as a single JSON document; expected JSONL\nOutput:\n%s", out)
 		}
 	})
+}
+
+func keysOf(m map[string]any) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 func nonEmptyLines(b []byte) []string {
