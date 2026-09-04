@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -343,12 +344,14 @@ func (i *paramInterceptor) Before(ctx context.Context, req *a2aclient.Request) (
 		if req.ServiceParams == nil {
 			req.ServiceParams = make(a2aclient.ServiceParams)
 		}
-		if i.token != "" {
-			req.ServiceParams["authorization"] = append(req.ServiceParams["authorization"], "Bearer "+i.token)
-		}
-		// SPEC §12.1: --bearer attaches Authorization: Bearer <token>.
+		// SPEC §12.1: --bearer attaches Authorization: Bearer <token> and is the
+		// canonical flag. When both --bearer and the legacy --token are supplied,
+		// --bearer wins so exactly one Authorization value is emitted (never two,
+		// which would be undefined on the wire).
 		if i.bearer != "" {
 			req.ServiceParams["authorization"] = append(req.ServiceParams["authorization"], "Bearer "+i.bearer)
+		} else if i.token != "" {
+			req.ServiceParams["authorization"] = append(req.ServiceParams["authorization"], "Bearer "+i.token)
 		}
 		// SPEC §12.1: --api-key is attached per the card's declared scheme —
 		// an HTTP header (default X-Api-Key), a cookie, or a query parameter
@@ -382,23 +385,65 @@ func (i *paramInterceptor) Before(ctx context.Context, req *a2aclient.Request) (
 // the agent card's declared API-key security scheme (A2A §4.5.2 permits header,
 // query, or cookie). When the card declares no API-key scheme it defaults to the
 // HTTP header X-Api-Key (SPEC §12.1). It returns the location and parameter name.
+//
+// Selection is deterministic even when a card declares more than one
+// APIKeySecurityScheme (SecuritySchemes is a map, so raw iteration order is
+// nondeterministic across runs). The rule is:
+//  1. Prefer an API-key scheme named by the card's SecurityRequirements — the
+//     requirements are what actually apply to requests. Requirement options are
+//     evaluated in declared list order; within an option, matching scheme names
+//     are sorted so ties are broken deterministically.
+//  2. Otherwise fall back to the first APIKeySecurityScheme in SecuritySchemes
+//     by sorted scheme name.
+//  3. Otherwise default to the HTTP header X-Api-Key.
 func apiKeyAttachment(card *a2a.AgentCard) (location, name string) {
-	if card != nil {
-		for _, scheme := range card.SecuritySchemes {
-			if s, ok := scheme.(a2a.APIKeySecurityScheme); ok {
-				loc := string(s.Location)
-				n := s.Name
-				if loc == "" {
-					loc = string(a2a.APIKeySecuritySchemeLocationHeader)
-				}
-				if n == "" {
-					n = "X-Api-Key"
-				}
-				return loc, n
+	if card == nil {
+		return string(a2a.APIKeySecuritySchemeLocationHeader), "X-Api-Key"
+	}
+
+	// (1) Prefer a scheme referenced by the card's security requirements.
+	for _, req := range card.SecurityRequirements {
+		names := make([]string, 0, len(req))
+		for schemeName := range req {
+			if _, ok := card.SecuritySchemes[schemeName].(a2a.APIKeySecurityScheme); ok {
+				names = append(names, string(schemeName))
 			}
 		}
+		if len(names) > 0 {
+			sort.Strings(names)
+			return apiKeySchemeAttachment(card.SecuritySchemes[a2a.SecuritySchemeName(names[0])].(a2a.APIKeySecurityScheme))
+		}
 	}
+
+	// (2) Fall back to the first APIKeySecurityScheme by sorted scheme name.
+	names := make([]string, 0, len(card.SecuritySchemes))
+	for schemeName, scheme := range card.SecuritySchemes {
+		if _, ok := scheme.(a2a.APIKeySecurityScheme); ok {
+			names = append(names, string(schemeName))
+		}
+	}
+	if len(names) > 0 {
+		sort.Strings(names)
+		return apiKeySchemeAttachment(card.SecuritySchemes[a2a.SecuritySchemeName(names[0])].(a2a.APIKeySecurityScheme))
+	}
+
+	// (3) No API-key scheme declared.
 	return string(a2a.APIKeySecuritySchemeLocationHeader), "X-Api-Key"
+}
+
+// apiKeySchemeAttachment returns the location and parameter name for a single
+// APIKeySecurityScheme, applying the X-Api-Key header defaults when the scheme
+// leaves them unset.
+func apiKeySchemeAttachment(s a2a.APIKeySecurityScheme) (location, name string) {
+	loc := string(s.Location)
+	n := s.Name
+	if loc == "" {
+		loc = string(a2a.APIKeySecuritySchemeLocationHeader)
+	}
+	if n == "" {
+		n = "X-Api-Key"
+	}
+	return loc, n
 }
 
 // appendQueryParam adds key=value to a URL's query string, preserving any
@@ -438,15 +483,19 @@ func resolveAgentCard(ctx context.Context, targetURL string) (*a2a.AgentCard, er
 	}
 
 	var opts []agentcard.ResolveOption
-	if authToken != "" {
-		opts = append(opts, agentcard.WithRequestHeader("Authorization", "Bearer "+authToken))
-	}
-	// SPEC §12.1 credential flags also apply to the card fetch. The card is not
-	// yet known here, so --api-key falls back to the default X-Api-Key header
-	// (the declared scheme name is resolved for the request path in createClient).
+	// SPEC §12.1 credential flags also apply to the card fetch. --bearer is the
+	// canonical bearer flag; when both --bearer and the legacy --token are set,
+	// --bearer wins so only one Authorization header is attached (two would be
+	// undefined on the wire).
 	if bearerToken != "" {
 		opts = append(opts, agentcard.WithRequestHeader("Authorization", "Bearer "+bearerToken))
+	} else if authToken != "" {
+		opts = append(opts, agentcard.WithRequestHeader("Authorization", "Bearer "+authToken))
 	}
+	// The card is not known yet at fetch time, so --api-key falls back to the
+	// default X-Api-Key header here. Cookie/query API-key-protected card fetch is
+	// not supported (the declared scheme name and location are only resolved for
+	// the request path in createClient, once the card has been parsed).
 	if apiKey != "" {
 		opts = append(opts, agentcard.WithRequestHeader("X-Api-Key", apiKey))
 	}
@@ -1222,14 +1271,15 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.config/a2acli/config.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&envName, "env", "e", "", "environment name to load from config")
 	rootCmd.PersistentFlags().StringVarP(&serviceURL, "service-url", "u", "http://127.0.0.1:9001", "Base URL of the A2A service")
-	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token")
+	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token (legacy alias for --bearer; --bearer wins if both are set)")
 	// Canonical Tier-1 credential flags (SPEC §12.1 / §7.2). --bearer attaches
 	// an Authorization: Bearer <token> header; --api-key attaches the API-key
 	// header named by the agent card's declared APIKeySecurityScheme (default
 	// X-Api-Key). Each has a canonical env equivalent (A2ACLI_BEARER /
 	// A2ACLI_API_KEY); an explicit flag overrides the env. These are additive to
-	// the existing --token/--auth mechanisms (back-compat).
-	rootCmd.PersistentFlags().StringVar(&bearerToken, "bearer", "", "Bearer token credential (Authorization: Bearer <token>); env A2ACLI_BEARER")
+	// the existing --token/--auth mechanisms (back-compat). When both --bearer and
+	// the legacy --token are supplied, --bearer takes precedence.
+	rootCmd.PersistentFlags().StringVar(&bearerToken, "bearer", "", "Bearer token credential (Authorization: Bearer <token>); env A2ACLI_BEARER. Takes precedence over --token when both are set")
 	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "API key credential attached per the card's declared scheme (default header X-Api-Key); env A2ACLI_API_KEY")
 	rootCmd.PersistentFlags().StringSliceVar(&authHeaders, "auth", nil, "Authorization headers to send (e.g. 'Bearer ...')")
 	rootCmd.PersistentFlags().StringSliceVar(&svcParams, "svc-param", nil, "Service parameters to send (e.g. 'key=value')")

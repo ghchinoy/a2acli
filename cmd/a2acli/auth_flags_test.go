@@ -67,6 +67,102 @@ func TestApiKeyAttachment(t *testing.T) {
 	}
 }
 
+// TestApiKeyAttachmentDeterministic verifies that a card declaring more than one
+// APIKeySecurityScheme yields a stable, documented choice regardless of the map
+// iteration order (SecuritySchemes is a Go map). The rule: prefer a scheme named
+// by SecurityRequirements (list order, ties broken by sorted scheme name), else
+// the first APIKeySecurityScheme by sorted scheme name.
+func TestApiKeyAttachmentDeterministic(t *testing.T) {
+	t.Run("multiple schemes, no requirements: first by sorted name", func(t *testing.T) {
+		card := &a2a.AgentCard{SecuritySchemes: a2a.NamedSecuritySchemes{
+			"zeta":  a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationCookie, Name: "zsid"},
+			"alpha": a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationHeader, Name: "X-Alpha-Key"},
+			"mid":   a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationQuery, Name: "mkey"},
+		}}
+		// Run repeatedly: map order varies but the result must not.
+		for i := 0; i < 20; i++ {
+			loc, name := apiKeyAttachment(card)
+			if loc != "header" || name != "X-Alpha-Key" {
+				t.Fatalf("iteration %d: apiKeyAttachment() = (%q, %q), want (header, X-Alpha-Key)", i, loc, name)
+			}
+		}
+	})
+
+	t.Run("requirement-referenced scheme wins over sorted fallback", func(t *testing.T) {
+		card := &a2a.AgentCard{
+			SecuritySchemes: a2a.NamedSecuritySchemes{
+				"alpha": a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationHeader, Name: "X-Alpha-Key"},
+				"zeta":  a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationCookie, Name: "zsid"},
+			},
+			// The requirement names "zeta"; it must win even though "alpha" sorts first.
+			SecurityRequirements: a2a.SecurityRequirementsOptions{
+				a2a.SecurityRequirements{a2a.SecuritySchemeName("zeta"): a2a.SecuritySchemeScopes{}},
+			},
+		}
+		for i := 0; i < 20; i++ {
+			loc, name := apiKeyAttachment(card)
+			if loc != "cookie" || name != "zsid" {
+				t.Fatalf("iteration %d: apiKeyAttachment() = (%q, %q), want (cookie, zsid)", i, loc, name)
+			}
+		}
+	})
+
+	t.Run("multiple api-key schemes in one requirement: sorted tiebreak", func(t *testing.T) {
+		card := &a2a.AgentCard{
+			SecuritySchemes: a2a.NamedSecuritySchemes{
+				"beta":  a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationHeader, Name: "X-Beta-Key"},
+				"gamma": a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationQuery, Name: "gkey"},
+			},
+			SecurityRequirements: a2a.SecurityRequirementsOptions{
+				a2a.SecurityRequirements{
+					a2a.SecuritySchemeName("gamma"): a2a.SecuritySchemeScopes{},
+					a2a.SecuritySchemeName("beta"):  a2a.SecuritySchemeScopes{},
+				},
+			},
+		}
+		for i := 0; i < 20; i++ {
+			loc, name := apiKeyAttachment(card)
+			if loc != "header" || name != "X-Beta-Key" {
+				t.Fatalf("iteration %d: apiKeyAttachment() = (%q, %q), want (header, X-Beta-Key)", i, loc, name)
+			}
+		}
+	})
+
+	t.Run("requirement names only non-api-key scheme: fall back to sorted api-key", func(t *testing.T) {
+		card := &a2a.AgentCard{
+			SecuritySchemes: a2a.NamedSecuritySchemes{
+				"oauth": a2a.OAuth2SecurityScheme{},
+				"zeta":  a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationCookie, Name: "zsid"},
+				"alpha": a2a.APIKeySecurityScheme{Location: a2a.APIKeySecuritySchemeLocationHeader, Name: "X-Alpha-Key"},
+			},
+			SecurityRequirements: a2a.SecurityRequirementsOptions{
+				a2a.SecurityRequirements{a2a.SecuritySchemeName("oauth"): a2a.SecuritySchemeScopes{}},
+			},
+		}
+		for i := 0; i < 20; i++ {
+			loc, name := apiKeyAttachment(card)
+			if loc != "header" || name != "X-Alpha-Key" {
+				t.Fatalf("iteration %d: apiKeyAttachment() = (%q, %q), want (header, X-Alpha-Key)", i, loc, name)
+			}
+		}
+	})
+}
+
+// TestBearerTokenPrecedence verifies that when both --bearer and the legacy
+// --token are supplied, --bearer wins and exactly one Authorization value is
+// emitted (never two, which would be undefined on the wire).
+func TestBearerTokenPrecedence(t *testing.T) {
+	i := &paramInterceptor{token: "legacy", bearer: "canonical"}
+	req := &a2aclient.Request{}
+	if _, _, err := i.Before(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	got := req.ServiceParams["authorization"]
+	if len(got) != 1 || got[0] != "Bearer canonical" {
+		t.Errorf("authorization = %v, want [Bearer canonical]", got)
+	}
+}
+
 // TestParamInterceptorAttachesCredentials verifies the interceptor places bearer
 // and API-key credentials into the correct ServiceParams / URL location.
 func TestParamInterceptorAttachesCredentials(t *testing.T) {
