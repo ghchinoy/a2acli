@@ -46,6 +46,25 @@ func runSUT(t *testing.T, sutDir string, mode string) (*exec.Cmd, string, *bytes
 
 type runnerFunc func(args ...string) *exec.Cmd
 
+// unwrapSendTask extracts the Task from a `send -o json` result. The CLI emits
+// it as the A2A protocol's App-B SendMessageResponse wrapper — {"task":{…}} for
+// a Task (SPEC §11.3 L421 / Appendix B L567) — so the task's fields (including
+// "status") live one level down under the top-level "task" key, not at the root.
+// It fails the test cleanly (t.Fatalf) when the wrapper or its task object is
+// absent, instead of panicking on an unchecked type assertion.
+func unwrapSendTask(t *testing.T, out []byte) map[string]any {
+	t.Helper()
+	var resp map[string]any
+	if err := json.Unmarshal(out, &resp); err != nil {
+		t.Fatalf("failed to parse send JSON: %v\nOutput: %s", err, out)
+	}
+	task, ok := resp["task"].(map[string]any)
+	if !ok {
+		t.Fatalf("send output missing App-B \"task\" wrapper object: %s", out)
+	}
+	return task
+}
+
 func TestConformance(t *testing.T) {
 	cmdBuild := exec.Command("go", "build", "-o", "../bin/a2acli", "../cmd/a2acli")
 	if out, err := cmdBuild.CombinedOutput(); err != nil {
@@ -119,11 +138,11 @@ func testJSONRPCSuite(t *testing.T, sutDir string, runCLI runnerFunc, cliPath st
 		if err != nil {
 			t.Fatalf("send --wait failed: %v\nOutput: %s", err, out)
 		}
-		var task map[string]any
-		if err := json.Unmarshal(out, &task); err != nil {
-			t.Fatalf("failed to parse JSON: %v", err)
+		task := unwrapSendTask(t, out)
+		status, ok := task["status"].(map[string]any)
+		if !ok {
+			t.Fatalf("send --wait output missing status object: %s", out)
 		}
-		status := task["status"].(map[string]any)
 		if status["state"] != "TASK_STATE_COMPLETED" {
 			t.Errorf("expected TASK_STATE_COMPLETED, got %v", status["state"])
 		}
@@ -137,11 +156,11 @@ func testJSONRPCSuite(t *testing.T, sutDir string, runCLI runnerFunc, cliPath st
 		if err != nil {
 			t.Fatalf("send via stdin failed: %v\nOutput: %s", err, out)
 		}
-		var task map[string]any
-		if err := json.Unmarshal(out, &task); err != nil {
-			t.Fatalf("failed to parse JSON from stdin send: %v\nOutput: %s", err, out)
+		task := unwrapSendTask(t, out)
+		status, ok := task["status"].(map[string]any)
+		if !ok {
+			t.Fatalf("send via stdin output missing status object: %s", out)
 		}
-		status := task["status"].(map[string]any)
 		if status["state"] != "TASK_STATE_COMPLETED" {
 			t.Errorf("expected TASK_STATE_COMPLETED, got %v", status["state"])
 		}
@@ -188,11 +207,11 @@ func testGRPCSuite(t *testing.T, sutDir string, runCLI runnerFunc) {
 		if err != nil {
 			t.Fatalf("send --wait (gRPC) failed: %v\nOutput: %s", err, out)
 		}
-		var task map[string]any
-		if err := json.Unmarshal(out, &task); err != nil {
-			t.Fatalf("failed to parse JSON: %v", err)
+		task := unwrapSendTask(t, out)
+		status, ok := task["status"].(map[string]any)
+		if !ok {
+			t.Fatalf("send --wait (gRPC) output missing status object: %s", out)
 		}
-		status := task["status"].(map[string]any)
 		if status["state"] != "TASK_STATE_COMPLETED" {
 			t.Errorf("expected TASK_STATE_COMPLETED, got %v", status["state"])
 		}
@@ -396,17 +415,22 @@ func testMultiTransportSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) 
 		if err != nil {
 			t.Fatalf("send (%s) failed: %v\nOutput: %s", transport, err, out)
 		}
-		var task struct {
-			Status struct {
-				State string `json:"state"`
-			} `json:"status"`
-			Artifacts []struct {
-				Name string `json:"name"`
-			} `json:"artifacts"`
+		// send -o json emits the App-B SendMessageResponse wrapper {"task":{…}}
+		// (SPEC §11.3 / Appendix B), so the Task fields live under "task".
+		var resp struct {
+			Task struct {
+				Status struct {
+					State string `json:"state"`
+				} `json:"status"`
+				Artifacts []struct {
+					Name string `json:"name"`
+				} `json:"artifacts"`
+			} `json:"task"`
 		}
-		if err := json.Unmarshal(out, &task); err != nil {
+		if err := json.Unmarshal(out, &resp); err != nil {
 			t.Fatalf("failed to parse task JSON (%s): %v\nOutput: %s", transport, err, out)
 		}
+		task := resp.Task
 		if task.Status.State != "TASK_STATE_COMPLETED" {
 			t.Errorf("[%s] expected TASK_STATE_COMPLETED, got %q", transport, task.Status.State)
 		}
@@ -464,25 +488,30 @@ func testMultimodalSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
 			t.Fatalf("send all-artifacts failed: %v\nOutput: %s", err, out)
 		}
 
-		var task struct {
-			Status struct {
-				State string `json:"state"`
-			} `json:"status"`
-			Artifacts []struct {
-				Name        string `json:"name"`
-				Description string `json:"description"`
-				Parts       []struct {
-					Text      string `json:"text,omitempty"`
-					Data      any    `json:"data,omitempty"`
-					Raw       string `json:"raw,omitempty"`
-					URL       string `json:"url,omitempty"`
-					MediaType string `json:"mediaType"`
-				} `json:"parts"`
-			} `json:"artifacts"`
+		// send -o json emits the App-B SendMessageResponse wrapper {"task":{…}}
+		// (SPEC §11.3 / Appendix B), so the Task fields live under "task".
+		var resp struct {
+			Task struct {
+				Status struct {
+					State string `json:"state"`
+				} `json:"status"`
+				Artifacts []struct {
+					Name        string `json:"name"`
+					Description string `json:"description"`
+					Parts       []struct {
+						Text      string `json:"text,omitempty"`
+						Data      any    `json:"data,omitempty"`
+						Raw       string `json:"raw,omitempty"`
+						URL       string `json:"url,omitempty"`
+						MediaType string `json:"mediaType"`
+					} `json:"parts"`
+				} `json:"artifacts"`
+			} `json:"task"`
 		}
-		if err := json.Unmarshal(out, &task); err != nil {
+		if err := json.Unmarshal(out, &resp); err != nil {
 			t.Fatalf("failed to parse task JSON: %v\nOutput: %s", err, out)
 		}
+		task := resp.Task
 
 		if task.Status.State != "TASK_STATE_COMPLETED" {
 			t.Errorf("expected TASK_STATE_COMPLETED, got %q", task.Status.State)
@@ -551,14 +580,19 @@ func testMultimodalSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
 					t.Fatalf("send %q failed: %v\nOutput: %s", tc.input, err, out)
 				}
 
-				var task struct {
-					Status struct {
-						State string `json:"state"`
-					} `json:"status"`
+				// send -o json emits the App-B SendMessageResponse wrapper
+				// {"task":{…}} (SPEC §11.3 / Appendix B).
+				var resp struct {
+					Task struct {
+						Status struct {
+							State string `json:"state"`
+						} `json:"status"`
+					} `json:"task"`
 				}
-				if err := json.Unmarshal(out, &task); err != nil {
+				if err := json.Unmarshal(out, &resp); err != nil {
 					t.Fatalf("failed to parse task JSON: %v\nOutput: %s", err, out)
 				}
+				task := resp.Task
 
 				if task.Status.State != tc.want {
 					t.Errorf("expected task state %q, got %q", tc.want, task.Status.State)
