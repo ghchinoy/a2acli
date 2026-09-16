@@ -171,13 +171,21 @@ output schemas for each.
 | [`auth`](docs/MANUAL.md#authentication) | Config | OAuth 2.1 login/status/token/logout |
 | [`conformance`](docs/MANUAL.md#conformance--a2a-conformance-smoke-check) | Server | Run A2A conformance smoke checks against a live server |
 | [`a2ui validate`](docs/MANUAL.md#a2ui-validate--a2ui-extension-conformance) | Server | Validate A2UI v1.0 extension wire conformance |
-| [`config`](docs/MANUAL.md#client-configuration) | Config | Manage named environments |
+| [`config`](docs/MANUAL.md#client-configuration) | Config | Manage named environments; `config show` prints effective settings and their sources |
 
 **Output modes** are controlled by `--output`: `tui` (default interactive),
-`text` (plain, for CI/pipes), and `json` (for scripting). Without `--stream`,
-`-o json` emits a single JSON document; with `--stream` it emits JSONL (one
-event object per line). `a2acli` auto-degrades from `tui` to `text` when output
-isn't a terminal. See [Output Modes](docs/MANUAL.md#output-modes).
+`text` (plain, for CI/pipes), and `json` (for scripting; `jsonl` is accepted as
+an alias of `json`). Without `--stream`, `-o json` emits a single JSON document;
+with `--stream` it emits JSONL (one event object per line). `a2acli`
+auto-degrades from `tui` to `text` when output isn't a terminal. See
+[Output Modes](docs/MANUAL.md#output-modes).
+
+**Canonical flag spellings.** Alongside its original flags, `a2acli` accepts the
+A2A spec / official-CLI spellings as aliases: `--agent-card`/`-a` and
+`--endpoint` (for `--service-url`/`-u`), `--context-id` (for `--context`),
+`--task-id` (for `--task`/`-k`), `--a2a-version` (for `--protocol`/`-p`), and
+`--async` (for `--immediate`). Both spellings work; see
+[Global Flags](docs/MANUAL.md#global-flags).
 
 For the complete grammar, every flag, global flags, shell completion, and
 automation guidance, see the **[Reference Manual](docs/MANUAL.md)**.

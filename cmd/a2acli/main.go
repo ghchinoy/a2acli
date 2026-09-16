@@ -59,12 +59,15 @@ var (
 	requestTimeout   time.Duration
 	wait             bool
 	stream           bool
+	getWait          bool
+	pollInterval     time.Duration
+	historyLen       int
 	immediate        bool
 	verbose          bool
 	showFull         bool
 	discoverExtended bool
 	noCache          bool
-	transport        string
+	transports       []string
 	protocol         string
 	authHeaders      []string
 	svcParams        []string
@@ -523,33 +526,10 @@ func resolveAgentCard(ctx context.Context, targetURL string) (*a2a.AgentCard, er
 func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, error) {
 	httpClient := &http.Client{Timeout: 15 * time.Minute}
 
-	// Determine transport
-	selectedTransport := a2a.TransportProtocolJSONRPC // Default
-	if transport != "" {
-		switch strings.ToLower(transport) {
-		case "grpc":
-			selectedTransport = a2a.TransportProtocolGRPC
-		case "jsonrpc":
-			selectedTransport = a2a.TransportProtocolJSONRPC
-		case "rest", "httpjson":
-			selectedTransport = a2a.TransportProtocolHTTPJSON
-		default:
-			return nil, fmt.Errorf("unsupported transport: %s", transport)
-		}
-	} else {
-		// Dynamic selection based on priority: gRPC > JSON-RPC > HTTP+JSON
-		available := make(map[a2a.TransportProtocol]bool)
-		for _, iface := range card.SupportedInterfaces {
-			available[iface.ProtocolBinding] = true
-		}
-
-		if available[a2a.TransportProtocolGRPC] {
-			selectedTransport = a2a.TransportProtocolGRPC
-		} else if available[a2a.TransportProtocolJSONRPC] {
-			selectedTransport = a2a.TransportProtocolJSONRPC
-		} else if available[a2a.TransportProtocolHTTPJSON] {
-			selectedTransport = a2a.TransportProtocolHTTPJSON
-		}
+	// Determine transport, honoring an ordered --transport preference list (A3).
+	selectedTransport, forced, err := selectTransport(transports, card)
+	if err != nil {
+		return nil, err
 	}
 
 	var transportOpt a2aclient.FactoryOption
@@ -572,7 +552,7 @@ func createClient(ctx context.Context, card *a2a.AgentCard) (*a2aclient.Client, 
 		}
 	}
 
-	if transport == "" {
+	if !forced {
 		verboseLog("auto-selected transport: %s", selectedTransport)
 		if outputMode == "tui" && verbose {
 			fmt.Printf("Auto-selected transport: %s\n", StyleAccent.Render(string(selectedTransport)))
@@ -635,6 +615,13 @@ func isStdinPiped() bool {
 // resolveOutputMode determines the effective output mode from flags and env vars.
 // Priority: --output flag > -n/--no-tui > A2ACLI_NO_TUI env > NO_COLOR env > no-TTY > default (tui)
 func resolveOutputMode() {
+	// -o jsonl is accepted as an alias for the machine-readable JSON form
+	// (Roadmap A1 / OFFICIAL vocabulary text|json|jsonl). OURS already emits
+	// JSONL from -o json under --stream and a single JSON document otherwise, so
+	// jsonl maps onto the existing json behavior.
+	if strings.EqualFold(outputMode, "jsonl") {
+		outputMode = "json"
+	}
 	switch outputMode {
 	case "tui", "text", "json", "compact":
 		// explicit --output value is valid; honour it even in a non-TTY context
@@ -659,7 +646,7 @@ func resolveOutputMode() {
 			outputMode = "tui"
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "Error: invalid --output value %q (must be tui, text, json, or compact)\n", outputMode)
+		fmt.Fprintf(os.Stderr, "Error: invalid --output value %q (must be tui, text, json, jsonl, or compact)\n", outputMode)
 		os.Exit(1)
 	}
 	// Sync disableTUI for any existing code that checks it directly.
@@ -669,8 +656,8 @@ func resolveOutputMode() {
 	if os.Getenv("A2ACLI_VERBOSE") == "true" {
 		verbose = true
 	}
-	verboseLog("output mode: %s, protocol: %s, transport: %q, timeout: %s",
-		outputMode, protocol, transport, requestTimeout)
+	verboseLog("output mode: %s, protocol: %s, transport: %v, timeout: %s",
+		outputMode, protocol, transports, requestTimeout)
 }
 
 // runText prints a human-readable stream of events to stdout without the Bubble Tea TUI.
@@ -1186,15 +1173,49 @@ func runGet(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: tid})
-	if err != nil {
-		hint := "Check the task ID or verify the server state"
-		if is401(err) {
-			hint = authHintFromCard(card)
-		}
-		fatalf("failed to retrieve task", err, hint)
+	req := &a2a.GetTaskRequest{ID: tid}
+	// --history <n> requests up to n history messages (A2A historyLength). It is
+	// sent only when explicitly given, so default behavior is unchanged (A4).
+	historyRequested := flagChanged(cmd, "history")
+	if historyRequested {
+		h := historyLen
+		req.HistoryLength = &h
 	}
-	verboseLog("GetTask response: state=%s artifacts=%d", task.Status.State, len(task.Artifacts))
+
+	var task *a2a.Task
+	if getWait {
+		// --wait: poll until terminal/interrupted (SPEC §9.3). The overall wait
+		// budget is --timeout; when unset (0), poll until a terminal state or the
+		// process is interrupted.
+		pollCtx := ctx
+		if requestTimeout > 0 {
+			var cancel context.CancelFunc
+			pollCtx, cancel = context.WithTimeout(ctx, requestTimeout)
+			defer cancel()
+		}
+		verboseLog("polling task %s every %s until terminal/interrupted", taskID, pollInterval)
+		task, err = waitForTask(pollCtx, client, req, pollInterval)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				fatalCode(ErrTimeout, "timed out waiting for task", err, "Increase --timeout, or verify the agent is making progress")
+			}
+			hint := "Check the task ID or verify the server state"
+			if is401(err) {
+				hint = authHintFromCard(card)
+			}
+			fatalf("failed while polling task", err, hint)
+		}
+	} else {
+		task, err = client.GetTask(ctx, req)
+		if err != nil {
+			hint := "Check the task ID or verify the server state"
+			if is401(err) {
+				hint = authHintFromCard(card)
+			}
+			fatalf("failed to retrieve task", err, hint)
+		}
+	}
+	verboseLog("GetTask response: state=%s artifacts=%d history=%d", task.Status.State, len(task.Artifacts), len(task.History))
 
 	if disableTUI {
 		b, err := json.MarshalIndent(task, "", "  ")
@@ -1209,8 +1230,41 @@ func runGet(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// --history: surface the conversation history in human-readable modes. In
+	// -o json the History field is already part of the marshaled Task, and the
+	// compact renderer prints history itself, so only the default/text path needs
+	// this explicit block.
+	if historyRequested && outputMode != "compact" && len(task.History) > 0 {
+		printTaskHistory(task.History)
+	}
+
 	// Always display the full result (which handles saving now!)
 	displayTaskResult(task, outDir)
+}
+
+// flagChanged reports whether the named flag exists on cmd and was set on the
+// command line. It avoids pflag's stderr warning when the flag is not defined
+// for a command (e.g. runGet is shared with the download command).
+func flagChanged(cmd *cobra.Command, name string) bool {
+	f := cmd.Flags().Lookup(name)
+	return f != nil && f.Changed
+}
+
+// printTaskHistory renders a task's message history as plain text (Roadmap A4).
+func printTaskHistory(history []*a2a.Message) {
+	fmt.Printf("\n%s\n", StyleAccent.Render(fmt.Sprintf("--- HISTORY (%d message(s)) ---", len(history))))
+	for _, m := range history {
+		if m == nil {
+			continue
+		}
+		role := strings.ToLower(string(m.Role))
+		role = strings.TrimPrefix(role, "role_")
+		for _, p := range m.Parts {
+			if tp, ok := p.Content.(a2a.Text); ok {
+				fmt.Printf("[%s] %s\n", role, string(tp))
+			}
+		}
+	}
 }
 
 func runCancel(_ *cobra.Command, args []string) {
@@ -1266,34 +1320,10 @@ func resolveCredentials() {
 }
 
 func main() {
-	cobra.OnInitialize(initConfig, resolveOutputMode, resolveCredentials)
+	cobra.OnInitialize(initConfig, resolveAliasEnv, resolveOutputMode, resolveCredentials)
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.config/a2acli/config.yaml)")
-	rootCmd.PersistentFlags().StringVarP(&envName, "env", "e", "", "environment name to load from config")
-	rootCmd.PersistentFlags().StringVarP(&serviceURL, "service-url", "u", "http://127.0.0.1:9001", "Base URL of the A2A service")
-	rootCmd.PersistentFlags().StringVarP(&authToken, "token", "t", "", "Auth token (legacy alias for --bearer; --bearer wins if both are set)")
-	// Canonical Tier-1 credential flags (SPEC §12.1 / §7.2). --bearer attaches
-	// an Authorization: Bearer <token> header; --api-key attaches the API-key
-	// header named by the agent card's declared APIKeySecurityScheme (default
-	// X-Api-Key). Each has a canonical env equivalent (A2ACLI_BEARER /
-	// A2ACLI_API_KEY); an explicit flag overrides the env. These are additive to
-	// the existing --token/--auth mechanisms (back-compat). When both --bearer and
-	// the legacy --token are supplied, --bearer takes precedence.
-	rootCmd.PersistentFlags().StringVar(&bearerToken, "bearer", "", "Bearer token credential (Authorization: Bearer <token>); env A2ACLI_BEARER. Takes precedence over --token when both are set")
-	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "API key credential attached per the card's declared scheme (default header X-Api-Key); env A2ACLI_API_KEY")
-	rootCmd.PersistentFlags().StringSliceVar(&authHeaders, "auth", nil, "Authorization headers to send (e.g. 'Bearer ...')")
-	rootCmd.PersistentFlags().StringSliceVar(&svcParams, "svc-param", nil, "Service parameters to send (e.g. 'key=value')")
-	rootCmd.PersistentFlags().StringVarP(&targetTaskID, "task", "k", "", "Existing Task ID to continue (for active tasks)")
-	rootCmd.PersistentFlags().StringVar(&contextID, "context", "", "Context ID for multi-turn conversation thread")
-	rootCmd.PersistentFlags().StringVarP(&refTaskID, "ref", "r", "", "Task ID to reference for cross-task artifact chaining (does not continue conversation)")
-	rootCmd.PersistentFlags().BoolVar(&strictMode, "strict", false, "Fail fast on warnings (e.g. continuing terminal tasks)")
-	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "Bypass agent card disk cache and fetch fresh")
-	rootCmd.PersistentFlags().BoolVarP(&disableTUI, "no-tui", "n", false, "Disable the Terminal UI — alias for --output json (backwards compat)")
-	rootCmd.PersistentFlags().StringVarP(&outputMode, "output", "o", "", "Output mode: tui (default), text (plain, no animations), json (NDJSON for scripting)")
-	rootCmd.PersistentFlags().DurationVar(&requestTimeout, "timeout", 0, "Request timeout, e.g. 30s, 2m (0 = no timeout)")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Print diagnostic info to stderr (also: A2ACLI_VERBOSE=true)")
-	rootCmd.PersistentFlags().StringVar(&transport, "transport", "", "Force a specific transport protocol (grpc, jsonrpc, rest)")
-	rootCmd.PersistentFlags().StringVarP(&protocol, "protocol", "p", "1.0.0", "A2A protocol version (1.0.0 or 0.3.0)")
+	addGlobalFlags(rootCmd)
+
 	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
 
 	var describeCmd = &cobra.Command{
@@ -1408,6 +1438,9 @@ download artifacts to a directory.`,
 	_ = sendCmd.Flags().MarkHidden("wait")
 	_ = sendCmd.Flags().MarkHidden("sync")
 	sendCmd.Flags().BoolVar(&immediate, "immediate", false, "Fire-and-forget: submit task and return ID immediately without waiting or streaming")
+	// --async is the canonical (spec/OFFICIAL) spelling of --immediate; both are
+	// accepted and bound to the same variable (Roadmap A1).
+	sendCmd.Flags().BoolVar(&immediate, "async", false, "Alias of --immediate: fire-and-forget submit, returning the task ID without waiting")
 	sendCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating (default preview is 500 chars)")
 	sendCmd.Flags().StringVar(&messagePartsJSON, "parts", "", "Message parts as a JSON array, e.g. '[{\"text\":\"hello\"},{\"data\":{\"k\":\"v\"}}]'")
 	sendCmd.Flags().StringVar(&messageBodyJSON, "json", "", "Complete Message as a JSON object (overrides text arg and other input flags)")
@@ -1420,6 +1453,12 @@ download artifacts to a directory.`,
 	getCmd.Flags().StringVarP(&outDir, "out-dir", "d", "", "Directory to save artifacts to")
 	getCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
 	getCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating")
+	// Roadmap A4: --wait turns the one-shot read into a poll loop (SPEC §9.3/§10.3),
+	// --poll-interval spaces the polls (default 2s per SPEC §9.3 RECOMMENDED; overall
+	// budget is --timeout), and --history requests up to n history messages.
+	getCmd.Flags().BoolVar(&getWait, "wait", false, "Poll until the task reaches a terminal or interrupted (input/auth-required) state (SPEC §9.3)")
+	getCmd.Flags().DurationVar(&pollInterval, "poll-interval", 2*time.Second, "Interval between polls while --wait is set; overall budget is --timeout")
+	getCmd.Flags().IntVar(&historyLen, "history", 0, "Include up to n task history messages (maps to A2A historyLength)")
 
 	var downloadCmd = &cobra.Command{
 		Use:     "download [taskID]",

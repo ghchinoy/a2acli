@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "a2acli",
+  "version": "1.10.0",
+  "description": "Drive A2A (Agent2Agent) agents from the command line with the a2acli CLI: discover an agent card, send a message, stream or poll a task, and list, resume, or cancel tasks.",
+  "author": {
+    "name": "G. H. Chinoy"
+  },
+  "homepage": "https://github.com/ghchinoy/a2acli",
+  "repository": "https://github.com/ghchinoy/a2acli",
+  "license": "Apache-2.0",
+  "keywords": [
+    "a2a",
+    "agent2agent",
+    "cli",
+    "agents",
+    "interoperability",
+    "agent-card"
+  ]
+}
