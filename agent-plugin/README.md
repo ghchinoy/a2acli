@@ -17,7 +17,7 @@ agent-plugin/
 ├── LICENSE                     # Apache-2.0
 └── skills/
     └── a2acli/
-        └── SKILL.md            # lean agent-facing usage guidance
+        └── SKILL.md            # thin pointer to the canonical root skill
 ```
 
 Skills-only: this plugin carries no MCP server, which is valid under Agent
@@ -37,8 +37,15 @@ This directory is the OFFICIAL-shaped, self-contained Agent Plugin package
 (mirroring `a2aproject/a2a-cli`'s `agent-plugin/`). The repository also ships its
 full set of Agent Skills from the root (`../plugin.json` + `../skills/`), which
 remains the canonical, richer source (it carries `references/`, `scripts/`, and
-additional skills for building and auditing A2A services). The lean skill bundled
-here defers to `a2acli --help` and the root skills for depth.
+additional skills for building and auditing A2A services).
+
+**Single source of truth.** To keep two copies of the `a2acli` skill from
+drifting, the `SKILL.md` bundled here is a deliberately thin pointer: it does
+**not** restate the command index, flag tables, or usage rules. The authoritative,
+maintained content lives once, in the repository-root skill at
+[`../skills/a2acli/SKILL.md`](../skills/a2acli/SKILL.md). This plugin's `SKILL.md`
+defers to that root skill and to `a2acli --help` for the current flag surface.
+Update the root skill; leave this plugin copy as a pointer.
 
 > Note on A2A SPEC §14.1 ("if a tool ships a skill, it MUST ship exactly one"):
 > the repository currently ships three skills under `../skills/`. Whether to
