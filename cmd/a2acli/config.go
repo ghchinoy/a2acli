@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/ghchinoy/a2acli/internal/oauth"
 	"github.com/spf13/cobra"
@@ -94,14 +95,14 @@ func initConfig() {
 
 	// 3. Override global variables if they were NOT set by explicitly passed CLI flags.
 
-	if !rootCmd.Flag("service-url").Changed && envURL != "" {
+	if !serviceURLFlagChanged() && envURL != "" {
 		serviceURL = envURL
 	}
 	if !rootCmd.Flag("token").Changed && envToken != "" {
 		authToken = envToken
 	}
-	if !rootCmd.Flag("transport").Changed && envTransport != "" {
-		transport = envTransport
+	if !transportFlagChanged() && len(transports) == 0 && envTransport != "" {
+		transports = []string{envTransport}
 	}
 }
 
@@ -207,9 +208,118 @@ and can be overridden by environment variables and command-line flags.`,
 		Run:  runConfigEnvList,
 	}
 
+	// config show (Roadmap A2): read-only effective settings + source + redaction.
+	showCmd := &cobra.Command{
+		Use:   "show",
+		Short: "Show effective settings and the source each value resolved from",
+		Long: `Print the effective value of each configuration setting alongside the source it
+resolved from — flag, env, config-file, or default (SPEC §8.3 / CONFIG_002).
+
+Precedence is flag > env > config-file > default. Credential values (token,
+bearer, api-key) are always redacted. This command is read-only and never
+mutates the configuration.`,
+		Example: `  a2acli config show
+  a2acli config show --output json
+  a2acli config show --env prod`,
+		Args: cobra.NoArgs,
+		Run:  runConfigShow,
+	}
+
 	envCmd.AddCommand(addCmd, removeCmd, useCmd, listCmd)
-	configCmd.AddCommand(envCmd)
+	configCmd.AddCommand(envCmd, showCmd)
 	return configCmd
+}
+
+// settingView is one row of `config show` output.
+type settingView struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Source string `json:"source"`
+}
+
+// activeEnvName returns the config environment profile currently in effect.
+func activeEnvName() string {
+	if envName != "" {
+		return envName
+	}
+	if v := viper.GetString("default_env"); v != "" {
+		return v
+	}
+	return "default"
+}
+
+// resolveSource reports where a setting's effective value came from, in the
+// fixed precedence flag > env > config-file > default (SPEC §8.3 / CONFIG_002).
+// flagNames are the accepted spellings (persistent flags) that set the value,
+// envVars are the environment aliases, and configKey is the per-environment
+// config-file key (empty when the setting is not config-file backed).
+func resolveSource(flagNames, envVars []string, configKey string) string {
+	for _, n := range flagNames {
+		if f := rootCmd.PersistentFlags().Lookup(n); f != nil && f.Changed {
+			return "flag"
+		}
+	}
+	for _, e := range envVars {
+		if os.Getenv(e) != "" {
+			return "env"
+		}
+	}
+	if configKey != "" {
+		if viper.GetString(fmt.Sprintf("envs.%s.%s", activeEnvName(), configKey)) != "" {
+			return "config-file"
+		}
+	}
+	return "default"
+}
+
+func runConfigShow(_ *cobra.Command, _ []string) {
+	// SPEC §12.1: credential material MUST be redacted from all output, not
+	// defeasible by any verbosity flag.
+	redact := func(v string) string {
+		if v == "" {
+			return "(unset)"
+		}
+		return "<redacted>"
+	}
+	shown := func(v string) string {
+		if v == "" {
+			return "(unset)"
+		}
+		return v
+	}
+
+	views := []settingView{
+		{"service-url", shown(serviceURL), resolveSource(serviceURLSpellings, []string{"A2ACLI_AGENT_CARD", "A2ACLI_ENDPOINT", "A2ACLI_SERVICE_URL"}, "service_url")},
+		{"protocol", shown(protocol), resolveSource([]string{"protocol", "a2a-version"}, nil, "")},
+		{"transport", shown(strings.Join(transports, ",")), resolveSource([]string{"transport"}, nil, "transport")},
+		{"timeout", shown(requestTimeout.String()), resolveSource([]string{"timeout"}, nil, "")},
+		{"output", shown(outputMode), resolveSource([]string{"output", "no-tui"}, []string{"A2ACLI_NO_TUI", "NO_COLOR", "CI"}, "")},
+		{"context", shown(contextID), resolveSource([]string{"context", "context-id"}, nil, "")},
+		{"task", shown(targetTaskID), resolveSource([]string{"task", "task-id"}, nil, "")},
+		{"token", redact(authToken), resolveSource([]string{"token"}, nil, "token")},
+		{"bearer", redact(bearerToken), resolveSource([]string{"bearer"}, []string{"A2ACLI_BEARER"}, "")},
+		{"api-key", redact(apiKey), resolveSource([]string{"api-key"}, []string{"A2ACLI_API_KEY"}, "")},
+	}
+
+	if disableTUI {
+		b, _ := json.MarshalIndent(views, "", "  ")
+		fmt.Println(string(b))
+		return
+	}
+
+	if cf := viper.ConfigFileUsed(); cf != "" {
+		fmt.Printf("Config File Used: %s\n", cf)
+	} else {
+		fmt.Printf("Config File Used: <none>\n")
+	}
+	fmt.Printf("Active Environment: %s\n\n", activeEnvName())
+
+	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(tw, "SETTING\tVALUE\tSOURCE")
+	for _, v := range views {
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", v.Name, v.Value, v.Source)
+	}
+	_ = tw.Flush()
 }
 
 func runConfig(_ *cobra.Command, _ []string) {
@@ -230,8 +340,8 @@ func runConfig(_ *cobra.Command, _ []string) {
 		tokenStr = "<set>"
 	}
 	fmt.Printf("Auth Token: %s\n", tokenStr)
-	if transport != "" {
-		fmt.Printf("Transport: %s\n", transport)
+	if t := primaryTransport(); t != "" {
+		fmt.Printf("Transport: %s\n", t)
 	}
 }
 

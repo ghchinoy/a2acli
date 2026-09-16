@@ -86,7 +86,7 @@ func runServe(_ *cobra.Command, _ []string) {
 
 	// Determine transport
 	selectedTransport := a2a.TransportProtocolHTTPJSON
-	switch transport {
+	switch primaryTransport() {
 	case "jsonrpc":
 		selectedTransport = a2a.TransportProtocolJSONRPC
 	case "grpc":

@@ -48,6 +48,7 @@ Output modes are controlled by `--output`:
 | `tui` | default | Interactive terminal with streaming UI |
 | `text` | `--output text` | Non-interactive, human-readable (CI logs, piped output) |
 | `json` | `--output json` | Machine-readable (scripts, agents). Single JSON document by default; JSONL when `--stream` is passed |
+| `jsonl` | `--output jsonl` | Alias of `json`, accepted for scripting parity with the A2A spec's `text\|json\|jsonl` vocabulary; behaves identically to `json` |
 
 `-n` / `--no-tui` is a backwards-compatible shorthand for `--output json`.
 
@@ -128,6 +129,7 @@ a2acli send "Generate a project plan" --stream        # follow live updates
 |---|---|---|
 | `--skill` | `-s` | Target a specific skill on the agent |
 | `--stream` | — | Follow live updates as a JSONL event stream (opt-in; SPEC §11.3). Default blocks and emits a single document |
+| `--immediate` / `--async` | — | Fire-and-forget: submit the task and return its ID immediately without waiting or streaming (`--async` is the canonical spec spelling) |
 | `--wait` / `--sync` | `-w` | Deprecated no-op (hidden) — blocking is now the default |
 | `--full` | — | Show complete artifact content without truncation (default: 500 char preview) |
 | `--out-dir` | `-d` | Save artifacts to a directory |
@@ -155,6 +157,8 @@ Retrieve the state and artifacts of a specific task. *(Maps to the A2A Protocol'
 
 ```bash
 a2acli get <task_id> --out-dir ./output/
+a2acli get <task_id> --wait                 # poll until terminal/interrupted
+a2acli get <task_id> --history 20 -o json   # include recent conversation history
 ```
 
 | Flag | Short | Description |
@@ -162,6 +166,9 @@ a2acli get <task_id> --out-dir ./output/
 | `--out-dir` | `-d` | Save artifacts to a directory |
 | `--file` | `-f` | Save artifact to a specific filename |
 | `--full` | — | Show complete artifact content without truncation |
+| `--wait` | — | Poll until the task reaches a terminal or interrupted (`input-required`/`auth-required`) state (SPEC §9.3). Without it, `get` returns the current state once |
+| `--poll-interval` | — | Interval between polls while `--wait` is set (default `2s`, per SPEC §9.3); the overall budget is `--timeout` (a deadline surfaces as `A2ACLI_ERR_TIMEOUT`) |
+| `--history` | — | Include up to *n* task history messages (maps to the A2A `historyLength` request field, SPEC §10.3) |
 
 ### `list` — List Tasks
 
@@ -292,12 +299,34 @@ a2acli a2ui validate -u http://localhost:9002 --output json
 
 ```bash
 a2acli config                   # Show active environment and config file location
+a2acli config show              # Show every effective setting with its resolved source
 a2acli config env list          # List configured environments and token status
 a2acli config env add <name> --service-url <url> [--transport <grpc|jsonrpc|rest>]
                                 # Add or update a named environment profile
 a2acli config env use <name>    # Set the default environment
 a2acli config env remove <name> # Delete an environment profile
 a2acli version                  # Print version information
+```
+
+`config show` prints each setting's effective **value** and the **source** it
+resolved from — `flag`, `env`, `config-file`, or `default` (SPEC §8.3 /
+CONFIG_002), following the precedence below. It is read-only. Credential values
+(`token`, `bearer`, `api-key`) are **always redacted** (`<redacted>`), regardless
+of `--output` or `--verbose` (SPEC §12.1). Add `--output json` for a
+machine-readable array.
+
+```console
+$ a2acli config show
+Config File Used: /home/me/.config/a2acli/config.yaml
+Active Environment: prod
+
+SETTING      VALUE                 SOURCE
+service-url  https://agent.corp    config-file
+protocol     1.0.0                 default
+transport    grpc                  flag
+token        <redacted>            config-file
+bearer       (unset)               default
+api-key      (unset)               default
 ```
 
 `a2acli` supports named environments via an XDG Base Directory compliant config
@@ -343,23 +372,33 @@ Environment variables follow the pattern `A2ACLI_<FLAG>` (e.g.
 | Flag | Description |
 |---|---|
 | `-u, --service-url` | Base URL of the A2A service (default: `http://127.0.0.1:9001`) |
+| `-a, --agent-card`, `--endpoint` | Aliases of `--service-url`; env `A2ACLI_AGENT_CARD` / `A2ACLI_ENDPOINT` |
 | `-t, --token` | Authorization token (if omitted, stored token from `auth login` is used automatically) |
+| `--bearer` | Bearer token credential (`Authorization: Bearer …`); env `A2ACLI_BEARER`. Wins over `--token` |
+| `--api-key` | API-key credential, attached per the card's declared scheme (default header `X-Api-Key`); env `A2ACLI_API_KEY` |
 | `--auth` | Authorization headers, e.g. `Bearer …` (repeatable) |
 | `--svc-param` | Service parameters, e.g. `key=value` (repeatable) |
-| `-k, --task` | Existing Task ID to continue (for active tasks) |
-| `--context` | Context ID for multi-turn conversation thread |
+| `-k, --task`, `--task-id` | Existing Task ID to continue (for active tasks) |
+| `--context`, `--context-id` | Context ID for multi-turn conversation thread |
 | `-r, --ref` | Task ID to reference for cross-task artifact chaining (does not continue conversation) |
 | `--strict` | Fail fast on warnings (e.g. continuing terminal tasks) |
 | `-n, --no-tui` | Output JSON/NDJSON instead of the interactive TUI (alias for `-o json`) |
-| `-o, --output` | Output mode: `tui` (default), `text` (plain/CI), `json` (NDJSON for scripting) |
+| `-o, --output` | Output mode: `tui` (default), `text` (plain/CI), `json` (NDJSON for scripting), `jsonl` (alias of `json`) |
 | `--no-cache` | Bypass AgentCard disk cache and fetch fresh |
 | `-v, --verbose` | Print diagnostic info to stderr (transport, token resolution, events) |
-| `-p, --protocol` | A2A protocol version: `1.0.0` or `0.3.0` (default: `1.0.0`) |
-| `--transport` | Force transport: `grpc`, `jsonrpc`, or `rest` |
+| `-p, --protocol`, `--a2a-version` | A2A protocol version: `1.0.0` or `0.3.0` (default: `1.0.0`) |
+| `--transport` | Preferred transport: `grpc`, `jsonrpc`, or `rest`. Repeatable and ordered — the first advertised match wins, falling back to the card's advertised transports; a single value forces that transport |
 | `--timeout` | Request timeout, e.g. `30s`, `2m` (default: no timeout) |
 | `-e, --env` | Named environment from config file |
 | `-c, --config` | Path to config file |
 | `-V, --version` | Print version information |
+
+**Canonical spellings & aliases.** The flags above marked with a second name
+(e.g. `--agent-card`/`--endpoint`, `--task-id`, `--context-id`, `--a2a-version`,
+and `--async` on `send`) are additive aliases matching the A2A spec / official
+CLI vocabulary. Each alias binds to the same value as its original flag; when a
+setting is given under two spellings on one command line the last one wins.
+Precedence across sources is **flag > env > config-file > default**.
 
 **Example: auth and service parameters**
 
@@ -430,6 +469,17 @@ capabilities, in priority order: **gRPC > JSON-RPC > REST**. Override when neede
 
 ```bash
 a2acli send "Generate video" --transport grpc
+```
+
+`--transport` is repeatable and **ordered** to express a preference list rather
+than a single override. The first requested transport the agent's card advertises
+is chosen; if none match, selection falls back to the card's advertised transports
+(same gRPC > JSON-RPC > REST priority). A single `--transport` still forces that
+transport exactly as before, even if the card does not advertise it.
+
+```bash
+# Prefer gRPC, then fall back to JSON-RPC, then REST — whichever the card offers first
+a2acli send "Generate video" --transport grpc --transport jsonrpc --transport rest
 ```
 
 > When using `--protocol 0.3.0`, only `jsonrpc` is available. gRPC is disabled for
