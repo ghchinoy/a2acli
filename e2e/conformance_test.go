@@ -275,12 +275,19 @@ func test030Suite(t *testing.T, a2aGoSrc string, runCLI runnerFunc) {
 		if err != nil {
 			t.Fatalf("send --wait 0.3.0 failed: %v\nOutput: %s", err, out)
 		}
-		var result map[string]any
-		if err := json.Unmarshal(out, &result); err != nil {
-			t.Fatalf("failed to parse JSON: %v", err)
+		// send -o json emits the App-B SendMessageResponse wrapper — a Message
+		// response arrives as {"message":{…}} (SPEC §11.3 L421 / Appendix B
+		// L567), so "messageId" lives under the "message" key, not at the root.
+		var resp map[string]any
+		if err := json.Unmarshal(out, &resp); err != nil {
+			t.Fatalf("failed to parse send JSON: %v\nOutput: %s", err, out)
 		}
-		if _, ok := result["messageId"]; !ok {
-			t.Errorf("expected Message response, got: %v", result)
+		message, ok := resp["message"].(map[string]any)
+		if !ok {
+			t.Fatalf("send output missing App-B \"message\" wrapper object: %s", out)
+		}
+		if _, ok := message["messageId"]; !ok {
+			t.Fatalf("expected Message response with messageId, got: %v", message)
 		}
 	})
 }

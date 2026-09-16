@@ -212,4 +212,3 @@ func (e *echoExec) Cancel(_ context.Context, execCtx *a2asrv.ExecutorContext) it
 		yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCanceled, nil), nil)
 	}
 }
-
