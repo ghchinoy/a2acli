@@ -3,5 +3,216 @@ title: Messaging & Tasks
 description: send, subscribe, get, list tasks, cancel, download, and push-config.
 ---
 
-_Coming soon._ `send`, `subscribe`, `get`, `list tasks`, `cancel`, `download`,
-and `push-config` (plus the `task …` grammar).
+The messaging and task commands cover the full task lifecycle: sending a
+message, watching or polling for results, listing history, cancelling, and
+downloading artifacts. Each flat verb also has a `task …` noun-verb alias (see
+[command model](/a2acli/reference/command-model/#flat-verbs-and-noun-verb-aliases)).
+
+## `send`
+
+Initiate a new task or continue an existing one by sending a message to the
+agent. Maps to the A2A Protocol's `SendMessage` RPC.
+
+**Aliases:** `invoke`, `SendMessage`.
+
+```bash
+a2acli send "Write a simple CLI in Go"
+a2acli send "Add error handling to that CLI" --context <contextID>
+a2acli send "Stream live updates" --stream
+a2acli send "Summarize this report" --skill summarize --ref <taskID>
+a2acli send "Generate report" --skill reports --out-dir ./reports
+```
+
+If stdin is not a terminal, the message is read from stdin:
+
+```bash
+echo "Summarize Q3 results" | a2acli send --skill summarize --output json
+cat prompt.txt | a2acli send
+```
+
+:::caution[send blocks by default — streaming is opt-in]
+By default, `send` **blocks** until the task reaches a terminal or interrupted
+state and emits a **single result document** (a single JSON object in `-o json`
+mode).
+
+To follow live updates as they arrive, pass **`--stream`**, which emits a
+**JSONL event stream** in `-o json` mode (SPEC §11.3). Streaming is
+caller-controlled and never inferred from configuration, environment, or
+terminal detection.
+
+`--wait` / `--sync` are **deprecated, hidden no-ops** on `send` — they are still
+accepted for backwards compatibility but do nothing, because blocking is now the
+default. Do not add `--wait` to `send`; it is only meaningful on
+[`get`](#get).
+:::
+
+| Flag | Short | Description |
+|---|---|---|
+| `--stream` | — | Follow live updates as a JSONL event stream (opt-in; SPEC §11.3). Default blocks and emits a single document |
+| `--immediate` / `--async` | — | Fire-and-forget: submit the task and return its ID immediately without waiting or streaming (`--async` is the canonical spec spelling) |
+| `--skill` | `-s` | Target a specific skill on the agent |
+| `--attach` | — | Attach a file as a message part (repeatable; MIME type auto-detected) |
+| `--data` | — | Add a JSON value as a `DataPart` (repeatable) |
+| `--parts` | — | Message parts as a JSON array, e.g. `'[{"text":"hello"},{"data":{"k":"v"}}]'` |
+| `--json` | — | Complete `Message` as a JSON object (overrides the text arg and other input flags) |
+| `--instruction-file` | `-i` | Path to a file with supplemental instructions |
+| `--out-dir` | `-d` | Directory to save artifacts to |
+| `--file` | `-f` | Specific filename to save the artifact to |
+| `--full` | — | Show complete artifact content without truncating (default preview is 500 chars) |
+
+## `subscribe`
+
+Connect to an active task's event stream to receive real-time updates. Useful
+for resuming observation of a long-running task or watching a task initiated by
+another client. If the task is already completed, the final results are
+displayed. Maps to the A2A Protocol's `SubscribeToTask` RPC.
+
+**Aliases:** `watch`, `resume`, `SubscribeToTask`.
+
+```bash
+a2acli subscribe <taskID>
+a2acli subscribe <taskID> --output json
+a2acli subscribe <taskID> --out-dir ./artifacts
+```
+
+| Flag | Short | Description |
+|---|---|---|
+| `--out-dir` | `-d` | Directory to save artifacts to as they arrive |
+| `--file` | `-f` | Specific filename to save the artifact to |
+
+## `get`
+
+Retrieve the current state and results of a task, with a preview of any
+artifacts produced. Maps to the A2A Protocol's `GetTask` RPC.
+
+**Aliases:** `status`, `GetTask`.
+
+```bash
+a2acli get <taskID>
+a2acli get <taskID> --wait                 # poll until terminal/interrupted
+a2acli get <taskID> --history 20 -o json   # include recent conversation history
+a2acli get <taskID> --out-dir ./status
+```
+
+| Flag | Short | Description |
+|---|---|---|
+| `--wait` | — | Poll until the task reaches a terminal or interrupted (`input-required` / `auth-required`) state (SPEC §9.3). Without it, `get` returns the current state once |
+| `--poll-interval` | — | Interval between polls while `--wait` is set (default `2s`); the overall budget is `--timeout` (a deadline surfaces as `A2ACLI_ERR_TIMEOUT`) |
+| `--history` | — | Include up to *n* task history messages (maps to the A2A `historyLength` request field) |
+| `--out-dir` | `-d` | Directory to save artifacts to |
+| `--file` | `-f` | Specific filename to save the artifact to |
+| `--full` | — | Show complete artifact content without truncating |
+
+:::note
+`--wait` is real and meaningful on `get` — it polls the task to a terminal or
+interrupted state. This is different from `send`, where `--wait` is a deprecated
+no-op because blocking is already the default.
+:::
+
+## `list tasks`
+
+Query the agent for a list of historical tasks it has processed. Maps to the A2A
+Protocol's `ListTasks` RPC. The server must support history for this endpoint to
+return data.
+
+```bash
+a2acli list tasks --limit 10
+a2acli list tasks --status completed
+a2acli list tasks --context ctx-123
+```
+
+The `task list` noun-verb alias is equivalent.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--limit` | `10` | Maximum number of tasks to return |
+| `--status` | — | Filter by task state: `submitted`, `working`, `completed`, `failed`, `canceled`, `rejected` |
+| `--context` | — | Filter by context ID |
+| `--page-token` | — | Pagination token |
+
+## `cancel`
+
+Request cancellation of an active task. If the task is still running, the agent
+will attempt to stop its execution. This is a best-effort request — the task may
+already have completed or be in a non-cancelable state. Maps to the A2A
+Protocol's `CancelTask` RPC.
+
+**Aliases:** `terminate`, `CancelTask`.
+
+```bash
+a2acli cancel <taskID>
+a2acli cancel <taskID> --no-tui
+```
+
+## `download`
+
+Download all artifacts produced by a specific task. A convenience command that
+retrieves the task and saves its artifacts to the current directory or a
+specified output directory.
+
+**Alias:** `retrieve`.
+
+```bash
+a2acli download <taskID>
+a2acli download <taskID> --out-dir ./results
+a2acli download <taskID> --file output.txt
+```
+
+| Flag | Short | Description |
+|---|---|---|
+| `--out-dir` | `-d` | Directory to save artifacts to |
+| `--file` | `-f` | Specific filename to save the artifact to |
+| `--full` | — | Show complete artifact content without truncating |
+
+## `push-config`
+
+Create, list, retrieve, and delete push-notification configurations for tasks.
+Push notifications let an A2A server proactively call a webhook URL when a task's
+state changes, rather than requiring the client to poll. The server must
+advertise `Capabilities.PushNotifications: true` in its AgentCard.
+
+```bash
+a2acli push-config create <taskID> https://myserver.example.com/notify
+a2acli push-config create <taskID> https://cb.example.com/notify \
+  --auth-scheme Bearer --auth-credentials mytoken --id my-config
+a2acli push-config list <taskID>
+a2acli push-config get <taskID> <configID>
+a2acli push-config delete <taskID> <configID>
+```
+
+The `task push-config …` noun-verb alias is equivalent.
+
+### `push-config create <task-id> <callback-url>`
+
+Maps to `CreateTaskPushNotificationConfig`.
+
+| Flag | Description |
+|---|---|
+| `--auth-scheme` | Auth scheme for the callback endpoint (e.g. `Bearer`, `Basic`) |
+| `--auth-credentials` | Auth credentials for the callback endpoint |
+| `--id` | Optional client-assigned ID for this push config |
+| `--token` | Optional validation token sent with every notification |
+
+### `push-config list <task-id>`
+
+Maps to `ListTaskPushNotificationConfig`.
+
+| Flag | Description |
+|---|---|
+| `--page-size` | Maximum number of configs to return |
+| `--page-token` | Pagination token |
+
+### `push-config get <task-id> <config-id>`
+
+Retrieve a specific config. Maps to `GetTaskPushNotificationConfig`.
+
+### `push-config delete <task-id> <config-id>`
+
+Delete a config (alias `rm`). Maps to `DeleteTaskPushNotificationConfig`.
+
+## Related
+
+- [Command model](/a2acli/reference/command-model/) — output modes, JSONL
+  streaming, exit codes, and the `task …` noun grammar.
+- [Global flags reference](/a2acli/reference/global-flags/) — `--context`,
+  `--task`, `--ref`, credentials, transport, and timeout.

@@ -3,6 +3,135 @@ title: Command model
 description: Flat verbs, noun-verb grammar, flag aliases, output modes, and exit codes.
 ---
 
-_Coming soon._ The command model: flat verbs, additive noun-verb grammar,
-spec-spelling flag aliases, output modes (`tui` / `text` / `json` / `jsonl`),
-and exit codes.
+`a2acli` follows a small, predictable command grammar. Every command is a
+**verb** that maps to an A2A Protocol RPC, optionally qualified by a **noun**
+and followed by positional arguments and flags.
+
+```
+a2acli <verb> [noun] [positional-args] [flags]
+```
+
+| Pattern | Example | Notes |
+|---|---|---|
+| `verb` | `a2acli discover` | Verb only — single resource type |
+| `verb message` | `a2acli send "Hello"` | Positional message text |
+| `verb id` | `a2acli get <taskID>` | Positional task ID |
+| `verb noun` | `a2acli list tasks` | Noun disambiguates the resource |
+
+The agent URL is a flag (`--service-url` / `-u`), never a positional argument.
+Combined with [named environment profiles](/a2acli/reference/configuration-auth/),
+this means you rarely need to type a URL once you have configured one.
+
+## Command groups
+
+The top-level help groups commands into the four A2A-aligned themes used
+throughout this reference:
+
+- **Discovery & Identity** — `discover`, `card get`. See
+  [Discovery & Identity](/a2acli/reference/discovery-identity/).
+- **Messaging & Tasks** — `send`, `subscribe`, `get`, `list tasks`, `cancel`,
+  `download`, `push-config`. See
+  [Messaging & Tasks](/a2acli/reference/messaging-tasks/).
+- **Server & Mocking** — `serve`. See
+  [Serving & Mocking](/a2acli/reference/serving-mocking/).
+- **Client Configuration** — `config`, `auth`, `conformance`, `a2ui`,
+  `version`. See [Configuration & Auth](/a2acli/reference/configuration-auth/)
+  and [Conformance & Validation](/a2acli/reference/conformance-validation/).
+
+## Flat verbs and noun-verb aliases
+
+Verbs are addressable in two equivalent grammars. The **flat verbs**
+(`discover`, `get`, `cancel`, …) are the primary form. For parity with the A2A
+official CLI's noun-verb grammar, the same task and card operations are also
+reachable under a `card` or `task` parent command. These are **additive
+aliases** — they share the exact flags, output, and exit codes of the flat
+verb — so either grammar works:
+
+| Noun-verb path | Flat verb |
+|---|---|
+| `a2acli card get` | `a2acli discover` |
+| `a2acli task get <taskID>` | `a2acli get <taskID>` |
+| `a2acli task cancel <taskID>` | `a2acli cancel <taskID>` |
+| `a2acli task list` | `a2acli list tasks` |
+| `a2acli task subscribe <taskID>` | `a2acli subscribe <taskID>` |
+| `a2acli task push-config …` | `a2acli push-config …` |
+
+Individual verbs also carry backwards-compatible and spec-spelling aliases —
+for example `send` accepts `invoke` and `SendMessage`, and `discover` accepts
+`describe`. These are noted on each command's reference page.
+
+## Spec-spelling flag aliases
+
+Several flags carry a second, A2A-spec / official-CLI spelling that binds to the
+same value as the original flag. When a setting is given under two spellings on
+one command line, the last one wins.
+
+| Canonical flag | Spec-spelling alias |
+|---|---|
+| `--protocol` / `-p` | `--a2a-version` |
+| `--service-url` / `-u` | `--agent-card` / `-a`, `--endpoint` |
+| `--task` / `-k` | `--task-id` |
+| `--context` | `--context-id` |
+| `--immediate` (on `send`) | `--async` |
+
+See [Global flags reference](/a2acli/reference/global-flags/) for the full flag
+table.
+
+## Output modes
+
+The output mode is controlled by `--output` / `-o`:
+
+| Mode | Flag | Use when |
+|---|---|---|
+| `tui` | default | Interactive terminal with a streaming UI |
+| `text` | `-o text` | Non-interactive, human-readable (CI logs, piped output) |
+| `json` | `-o json` | Machine-readable (scripts, agents). A single JSON document by default; JSONL when `--stream` is passed |
+| `jsonl` | `-o jsonl` | Alias of `json`, accepted for scripting parity with the spec's `text\|json\|jsonl` vocabulary; behaves identically to `json` |
+
+`-n` / `--no-tui` is a backwards-compatible shorthand for `-o json`.
+
+:::note[Single document vs. JSONL]
+In `-o json` mode the result is a **single JSON document** unless `--stream` is
+given, in which case each event is emitted as its own line (JSONL). The
+`--stream` switch is caller-controlled and is never inferred from configuration,
+an environment variable, or terminal detection (SPEC §11.3). See
+[`send`](/a2acli/reference/messaging-tasks/#send) for the full send/stream
+behavior.
+:::
+
+When stdout is not a terminal, `a2acli` automatically degrades from `tui` to
+`text`, so output works correctly in pipes, CI, and agent contexts without any
+flags. It also degrades on `CI=true` and `NO_COLOR`.
+
+### Error envelope
+
+On failure in `-o json` mode, `a2acli` emits the A2A CLI spec error envelope
+(SPEC §11.4 / Appendix B) as the structured payload on **stdout**; human
+diagnostics stay on **stderr**:
+
+```json
+{
+  "error": {
+    "code": "A2ACLI_ERR_AUTH_FAILED",
+    "message": "SendMessage failed: unexpected HTTP status: 401 Unauthorized",
+    "hint": "Stored token for https://agent.example.com is expired. Run: a2acli auth login -u https://agent.example.com",
+    "a2aCode": 401
+  }
+}
+```
+
+CLI-local failures use the `A2ACLI_ERR_*` namespace (SPEC Appendix D):
+`A2ACLI_ERR_USAGE`, `A2ACLI_ERR_CARD_NOT_FOUND`, `A2ACLI_ERR_CARD_INVALID`,
+`A2ACLI_ERR_UNREACHABLE`, `A2ACLI_ERR_CREDENTIALS_MISSING`,
+`A2ACLI_ERR_AUTH_FAILED`, `A2ACLI_ERR_TIMEOUT`, and `A2ACLI_ERR_INTERNAL`.
+
+## Exit codes
+
+Exit codes are stable and consistent across the flat verbs and their noun-verb
+aliases (SPEC §11.6):
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `2` | Usage error (unknown command or flag, bad flag combination) |
+| `1` | Any other failure (unreachable agent, auth failure, timeout, internal error) |

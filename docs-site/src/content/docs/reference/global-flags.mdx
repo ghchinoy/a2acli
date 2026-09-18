@@ -3,5 +3,81 @@ title: Global flags reference
 description: The full global-flag table that applies to every command.
 ---
 
-_Coming soon._ The full global-flag reference (service URL, output mode,
-protocol, transport, auth, task/context selectors, and more).
+These flags apply to every command. Where a flag has a second (aliased)
+spelling, both names bind to the same value — the last one on the command line
+wins. Precedence across sources is **flag > env > config-file > default**.
+
+## Service target
+
+| Flag | Short | Env | Description |
+|---|---|---|---|
+| `--service-url` | `-u` | `A2ACLI_SERVICE_URL` | Base URL of the A2A service (default `http://127.0.0.1:9001`) |
+| `--agent-card` | `-a` | `A2ACLI_AGENT_CARD` | Alias of `--service-url`; base URL or agent-card URL |
+| `--endpoint` | — | `A2ACLI_ENDPOINT` | Alias of `--service-url` (long form only; `-e` is taken by `--env`) |
+| `--no-cache` | — | — | Bypass the AgentCard disk cache and fetch fresh |
+
+## Protocol & transport
+
+| Flag | Short | Description |
+|---|---|---|
+| `--protocol` | `-p` | A2A protocol version: `1.0.0` or `0.3.0` (default `1.0.0`) |
+| `--a2a-version` | — | Alias of `--protocol` |
+| `--transport` | — | Transport preference: `grpc`, `jsonrpc`, `rest`. Repeatable and ordered, highest preference first; a single value forces that transport |
+
+## Output
+
+| Flag | Short | Env | Description |
+|---|---|---|---|
+| `--output` | `-o` | — | Output mode: `tui` (default), `text`, `json` (single doc, or JSONL with `--stream`), `jsonl` (alias of `json`) |
+| `--no-tui` | `-n` | — | Disable the TUI — alias for `--output json` (backwards compat) |
+| `--verbose` | `-v` | `A2ACLI_VERBOSE` | Print diagnostic info to stderr |
+
+See [Output modes](/a2acli/reference/command-model/#output-modes) for the full
+behavior, including the JSON error envelope.
+
+## Credentials
+
+| Flag | Short | Env | Description |
+|---|---|---|---|
+| `--token` | `-t` | — | Auth token (legacy alias for `--bearer`; `--bearer` wins if both are set). If omitted, a stored token from `auth login` is used automatically |
+| `--bearer` | — | `A2ACLI_BEARER` | Bearer token credential (`Authorization: Bearer <token>`). Takes precedence over `--token` |
+| `--api-key` | — | `A2ACLI_API_KEY` | API-key credential attached per the card's declared scheme (default header `X-Api-Key`) |
+| `--auth` | — | — | Authorization headers to send, e.g. `Bearer …` (repeatable) |
+| `--svc-param` | — | — | Service parameters to send, e.g. `key=value` (repeatable) |
+
+For obtaining and storing tokens, see
+[Configuration & Auth](/a2acli/reference/configuration-auth/).
+
+## Task & conversation selectors
+
+| Flag | Short | Description |
+|---|---|---|
+| `--task` | `-k` | Existing Task ID to continue (for active tasks) |
+| `--task-id` | — | Alias of `--task` |
+| `--context` | — | Context ID for a multi-turn conversation thread |
+| `--context-id` | — | Alias of `--context` |
+| `--ref` | `-r` | Task ID to reference for cross-task artifact chaining (does **not** continue the conversation) |
+
+## Behavior & environment
+
+| Flag | Short | Description |
+|---|---|---|
+| `--strict` | — | Fail fast on warnings (e.g. continuing terminal tasks) |
+| `--timeout` | — | Request timeout, e.g. `30s`, `2m` (`0` = no timeout) |
+| `--env` | `-e` | Named environment to load from config |
+| `--config` | `-c` | Config file (default `$HOME/.config/a2acli/config.yaml`) |
+| `--version` | `-V` | Print version information |
+| `--help` | `-h` | Help for the command |
+
+:::note[Environment variables]
+Environment variables follow the pattern `A2ACLI_<FLAG>` (for example
+`A2ACLI_SERVICE_URL`). The variables named in the tables above are the ones
+surfaced explicitly in `--help`; others follow the same pattern.
+:::
+
+## Related
+
+- [Command model](/a2acli/reference/command-model/) — grammar, output modes, and
+  exit codes.
+- [Configuration & Auth](/a2acli/reference/configuration-auth/) — how these flags
+  interact with config files and stored credentials.

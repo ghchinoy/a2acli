@@ -3,5 +3,167 @@ title: Configuration & Auth
 description: config / config show / config env and auth login | status | token | logout.
 ---
 
-_Coming soon._ `config` / `config show` / `config env` and
-`auth login | status | token | logout` (OAuth 2.1 with auth-code + PKCE).
+`a2acli` reads settings from a config file, environment variables, and flags, and
+manages OAuth 2.1 credentials so you rarely have to pass a token by hand. This
+page covers the `config` and `auth` command groups.
+
+## `config`
+
+View the active configuration or manage named environment profiles. Settings are
+loaded from `$HOME/.config/a2acli/config.yaml` and can be overridden by
+environment variables and command-line flags.
+
+```bash
+a2acli config                   # active environment + config file location
+a2acli config --env production
+a2acli config env list
+```
+
+### `config show`
+
+Print the effective value of each setting alongside the **source** it resolved
+from — `flag`, `env`, `config-file`, or `default` (SPEC §8.3 / CONFIG_002).
+Precedence is **flag > env > config-file > default**. This command is read-only
+and never mutates configuration. Credential values (`token`, `bearer`,
+`api-key`) are **always redacted**, regardless of `--output` or `--verbose`.
+
+```bash
+a2acli config show
+a2acli config show --output json
+a2acli config show --env prod
+```
+
+```console
+$ a2acli config show
+Config File Used: /home/me/.config/a2acli/config.yaml
+Active Environment: prod
+
+SETTING      VALUE                 SOURCE
+service-url  https://agent.corp    config-file
+protocol     1.0.0                 default
+transport    grpc                  flag
+token        <redacted>            config-file
+bearer       (unset)               default
+api-key      (unset)               default
+```
+
+### `config env`
+
+Add, remove, list, and select named environment profiles in `config.yaml`. Named
+environments let you switch between local, staging, and production agents without
+repeating URLs and tokens.
+
+| Command | Description |
+|---|---|
+| `config env list` | List all named environments (add `--output json` for a machine-readable list) |
+| `config env add <name>` | Add or update a named environment |
+| `config env use <name>` | Set the default environment |
+| `config env remove <name>` | Remove a named environment (alias `rm`) |
+
+`config env add` flags:
+
+| Flag | Short | Description |
+|---|---|---|
+| `--service-url` | `-u` | Base URL of the A2A service (**required**) |
+| `--transport` | — | Force transport: `grpc`, `jsonrpc`, or `rest` |
+| `--token` | — | Static auth token |
+
+```bash
+a2acli config env add staging --service-url https://staging.example.com
+a2acli config env add prod -u https://prod.example.com --transport grpc
+a2acli config env add dev -u http://127.0.0.1:9001 --token my-static-token
+a2acli config env use prod
+```
+
+Select an environment on any command with `--env` / `-e`:
+
+```bash
+a2acli send "hi" --env prod
+```
+
+A config file looks like this:
+
+```yaml
+# ~/.config/a2acli/config.yaml
+default_env: "local"
+
+envs:
+  local:
+    service_url: "http://127.0.0.1:9001"
+
+  staging:
+    service_url: "https://staging-agent.internal.corp"
+    token: "my-staging-auth-token"   # static token; or omit and use auth login
+
+  mithlond:
+    service_url: "https://candir.mithlond.com"
+    # token omitted — stored automatically by 'a2acli auth login --env mithlond'
+    # transport omitted — auto-selected from the AgentCard
+```
+
+Supported fields per environment: `service_url`, `token` (static; takes
+precedence over the token store), and `transport` (pin a specific transport).
+
+## `auth`
+
+Obtain, inspect, and revoke OAuth 2.1 tokens for A2A services that require
+authentication. Tokens are stored in `~/.config/a2acli/tokens/` (with `0600`
+permissions) and used **automatically** by `send`, `discover`, `conformance`,
+and other commands when present — no `--token` flag needed once you have logged
+in.
+
+```bash
+# Log in once — browser opens for the OAuth 2.1 auth-code + PKCE flow
+a2acli auth login --service-url https://agent.example.com
+a2acli auth login --env mithlond              # log in using a named environment
+
+a2acli auth status --service-url https://agent.example.com   # check token validity
+TOKEN=$(a2acli auth token -u https://agent.example.com)      # print raw JWT for scripts
+a2acli auth logout --service-url https://agent.example.com   # remove the stored token
+```
+
+| Subcommand | Description |
+|---|---|
+| `login` | Obtain an OAuth 2.1 token for a service |
+| `status` | Show stored token status for a service |
+| `token` | Print the stored access token (for scripting); exits non-zero if none is stored |
+| `logout` | Delete the stored token for a service |
+
+### `auth login`
+
+Drives an OAuth 2.1 **auth-code + PKCE** flow against the service's advertised
+authorization server, opening a browser for the user to authenticate. The
+service's AgentCard must advertise an `OAuth2SecurityScheme` with an
+authorization URL and token endpoint. For non-interactive **client-credentials**
+flow, pass `--client-id` / `--client-secret` instead.
+
+| Flag | Description |
+|---|---|
+| `--client-id` | Client ID for client-credentials flow (non-interactive) |
+| `--client-secret` | Client secret for client-credentials flow |
+
+The browser-based flow binds a local callback server to
+`http://127.0.0.1:8080/callback`, so port `8080` must be free.
+
+After `auth login`, all commands use the stored token automatically. If an access
+token expires and a valid refresh token is stored, `a2acli` proactively
+exchanges it for a new access token before executing requests.
+
+:::note[Client identity (CIMD)]
+`a2acli` uses the CIMD (Client ID Metadata Document) pattern: its `client_id` is
+the URL of its own metadata document,
+`https://ghchinoy.github.io/a2acli/metadata.json`.
+:::
+
+:::caution[Non-interactive contexts]
+`auth login`'s browser flow needs a display. In CI or agent contexts, use
+`auth token` to retrieve a previously stored token, or pass a JWT directly via
+`--token`.
+:::
+
+## Related
+
+- [Global flags reference](/a2acli/reference/global-flags/) — `--token`,
+  `--bearer`, `--api-key`, `--auth`, `--env`, `--config`, and precedence rules.
+- [Conformance & Validation](/a2acli/reference/conformance-validation/) —
+  `conformance` auto-uses stored tokens for auth gating.
