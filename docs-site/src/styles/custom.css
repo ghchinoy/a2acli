@@ -1,0 +1,117 @@
+/*
+ * a2acli docs — "latte / cappuccino" warm coffee theme.
+ *
+ * Idiomatic Starlight theming: we override Starlight's `--sl-color-*` custom
+ * properties. This file is wired in via `customCss` in astro.config.mjs, so it
+ * loads OUTSIDE Starlight's `@layer starlight.*` cascade layers and therefore
+ * wins over the framework defaults regardless of selector specificity.
+ *
+ * LIGHT is the default palette: the full latte palette is declared on the bare
+ * `:root` (the no-JS / pre-hydration fallback) AND on `:root[data-theme='light']`.
+ * A coherent espresso DARK variant is provided under `:root[data-theme='dark']`
+ * for visitors whose theme toggle / OS preference is dark.
+ *
+ * Semantic mappings (text, bg, hairline, etc.) are re-declared IN EACH block so
+ * each theme is fully self-contained and never inherits the "other" theme's
+ * mapping from Starlight's layered defaults.
+ *
+ * All foreground/background pairs verified for WCAG AA (>= 4.5:1 body text,
+ * >= 3:1 large text / UI). Admonition (aside) semantic hues are intentionally
+ * left to Starlight's per-theme defaults so note/tip/caution/danger stay
+ * distinguishable and internally AA-compliant.
+ */
+
+/* ------------------------------------------------------------------ *
+ * LIGHT — latte / cappuccino foam (default)
+ * ------------------------------------------------------------------ */
+:root,
+:root[data-theme='light'] {
+	color-scheme: light;
+
+	/* Raw palette ----------------------------------------------------- */
+	/* "white" = the strongest ink (headings, sidebar group labels, aside body). */
+	--sl-color-white: #2a1b10; /* espresso */
+	--sl-color-gray-1: #33261d; /* strong text */
+	--sl-color-gray-2: #4a3320; /* body text          (10.9:1 on page bg) */
+	--sl-color-gray-3: #6b4e33; /* muted text          (7.1:1 on page bg) */
+	--sl-color-gray-4: #7e6146; /* faint / large text  (5.3:1 on page bg) */
+	--sl-color-gray-5: #c9b79c; /* hairlines / borders */
+	--sl-color-gray-6: #ecdfc8; /* inline-code bg, code title bar, hairline-light */
+	--sl-color-gray-7: #f6eee0; /* nav bg, code editor surface (foam) */
+	/* "black" = the page background (a soft warm cream, NOT pure white). */
+	--sl-color-black: #fbf6ec; /* latte foam page bg */
+
+	/* Accent — caramel / warm brown (links + sidebar active state). */
+	--sl-color-accent-low: #ead7bc; /* tan wash */
+	--sl-color-accent: #7b4a1e; /* caramel-brown link  (6.9:1 on page bg) */
+	--sl-color-accent-high: #5e360f; /* deep espresso-caramel (hover, 9.7:1) */
+
+	/* Semantic mappings (light) -------------------------------------- */
+	--sl-color-text: var(--sl-color-gray-2);
+	--sl-color-text-accent: var(--sl-color-accent);
+	--sl-color-text-invert: var(--sl-color-black); /* text on the caramel active pill */
+	--sl-color-bg: var(--sl-color-black);
+	--sl-color-bg-nav: var(--sl-color-gray-7);
+	--sl-color-bg-sidebar: #f3e9d7; /* subtle tonal step from the page */
+	--sl-color-bg-inline-code: var(--sl-color-gray-6);
+	--sl-color-bg-accent: var(--sl-color-accent);
+	--sl-color-hairline-light: var(--sl-color-gray-6);
+	--sl-color-hairline: var(--sl-color-gray-5);
+	--sl-color-hairline-shade: var(--sl-color-gray-6);
+	--sl-color-backdrop-overlay: hsla(30, 22%, 30%, 0.5);
+}
+
+/* ------------------------------------------------------------------ *
+ * DARK — roasted espresso (coherent opt-in variant)
+ * ------------------------------------------------------------------ */
+:root[data-theme='dark'] {
+	color-scheme: dark;
+
+	/* Raw palette ----------------------------------------------------- */
+	--sl-color-white: #fbf6ec; /* cream ink */
+	--sl-color-gray-1: #f0e6d6;
+	--sl-color-gray-2: #e3d5c0; /* body text          (12.3:1 on page bg) */
+	--sl-color-gray-3: #c3ae92; /* muted text          (8.3:1 on page bg) */
+	--sl-color-gray-4: #8f7a61;
+	--sl-color-gray-5: #5c4b3a; /* inline-code bg / hairline-light */
+	--sl-color-gray-6: #2e241b; /* nav + sidebar bg, code title bar */
+	--sl-color-black: #1e1712; /* roasted-bean page bg */
+
+	--sl-color-accent-low: #3a2410; /* text on the active pill */
+	--sl-color-accent: #c57f3c; /* caramel */
+	--sl-color-accent-high: #e8b57a; /* light crema link    (9.5:1 on page bg) */
+
+	/* Semantic mappings (dark) --------------------------------------- */
+	--sl-color-text: var(--sl-color-gray-2);
+	--sl-color-text-accent: var(--sl-color-accent-high);
+	--sl-color-text-invert: var(--sl-color-accent-low);
+	--sl-color-bg: var(--sl-color-black);
+	--sl-color-bg-nav: var(--sl-color-gray-6);
+	--sl-color-bg-sidebar: var(--sl-color-gray-6);
+	--sl-color-bg-inline-code: var(--sl-color-gray-5);
+	--sl-color-bg-accent: var(--sl-color-accent-high);
+	--sl-color-hairline-light: var(--sl-color-gray-5);
+	--sl-color-hairline: var(--sl-color-gray-6);
+	--sl-color-hairline-shade: var(--sl-color-black);
+	--sl-color-backdrop-overlay: hsla(24, 18%, 6%, 0.66);
+}
+
+/* ------------------------------------------------------------------ *
+ * Small, low-risk polish
+ * ------------------------------------------------------------------ */
+
+/* Give links a clear, warm hover/active state (default color is the caramel
+ * accent via --sl-color-text-accent; on hover deepen it and underline). */
+.sl-markdown-content a:hover,
+.sl-markdown-content a:focus-visible {
+	color: var(--sl-color-accent-high);
+	text-decoration-thickness: 0.09em;
+	text-underline-offset: 0.16em;
+}
+
+/* Site title tinted to the espresso ink so the wordmark reads as part of the
+ * coffee palette (kept trivial — no logo image, no branding rework). */
+.site-title {
+	color: var(--sl-color-white);
+	font-weight: 650;
+}
