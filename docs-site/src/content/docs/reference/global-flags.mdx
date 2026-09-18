@@ -66,13 +66,18 @@ For obtaining and storing tokens, see
 | `--timeout` | — | Request timeout, e.g. `30s`, `2m` (`0` = no timeout) |
 | `--env` | `-e` | Named environment to load from config |
 | `--config` | `-c` | Config file (default `$HOME/.config/a2acli/config.yaml`) |
-| `--version` | `-V` | Print version information |
 | `--help` | `-h` | Help for the command |
+
+:::note[Root-only flags]
+`--version` / `-V` prints version information, but it is accepted only on the
+root command — `a2acli --version` (or `a2acli -V`) works, while passing it to a
+subcommand (e.g. `a2acli send --version`) fails with an "unknown flag" error.
+:::
 
 :::note[Environment variables]
 Environment variables follow the pattern `A2ACLI_<FLAG>` (for example
-`A2ACLI_SERVICE_URL`). The variables named in the tables above are the ones
-surfaced explicitly in `--help`; others follow the same pattern.
+`A2ACLI_SERVICE_URL`). These variables are honored when set; some, but not all,
+also appear explicitly in `--help` output. Others follow the same pattern.
 :::
 
 ## Related
