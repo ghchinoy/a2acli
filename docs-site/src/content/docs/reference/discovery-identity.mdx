@@ -3,4 +3,58 @@ title: Discovery & Identity
 description: discover / card get and the extended AgentCard.
 ---
 
-_Coming soon._ `discover` / `card get`, the AgentCard, and `--extended`.
+Discovery retrieves an agent's **AgentCard** — its identity, description,
+supported interface protocols (gRPC, JSON-RPC, REST), available skills, and the
+security requirements for each skill. Everything else you do with `a2acli`
+builds on the card.
+
+## `discover`
+
+Fetch and display the A2A AgentCard for the target service.
+
+```bash
+a2acli discover
+a2acli discover http://localhost:9001
+a2acli discover --extended
+a2acli discover --service-url http://localhost:9001 --extended
+```
+
+The agent URL can be passed either as an optional **positional argument** or via
+`--service-url` / `-u` (or its aliases `--agent-card` / `--endpoint`). With no
+URL, the default `http://127.0.0.1:9001` is used.
+
+**Aliases:** `describe` is accepted as a backwards-compatible alias, and
+`card get` is the noun-verb form (see below).
+
+| Flag | Description |
+|---|---|
+| `--extended` | Fetch the authenticated **extended** AgentCard via the `GetExtendedAgentCard` protocol RPC (requires a token; the agent must advertise `extendedAgentCard: true`) |
+
+The extended card is the richer, authenticated variant of the AgentCard. It
+requires a valid credential — see [Configuration &
+Auth](/a2acli/reference/configuration-auth/) for how to obtain one with `auth
+login`.
+
+## `card get`
+
+`card get` is the noun-verb alias of the flat `discover` verb. It behaves
+identically — same flags, same output, same exit codes.
+
+```bash
+a2acli card get
+a2acli card get http://localhost:9001
+a2acli card get --extended
+```
+
+Use whichever grammar you prefer; the flat `discover` / `describe` verb remains
+available and unchanged. See the [command
+model](/a2acli/reference/command-model/#flat-verbs-and-noun-verb-aliases) for
+more on the noun-verb grammar.
+
+## Related
+
+- [Global flags reference](/a2acli/reference/global-flags/) — `--service-url`,
+  `--protocol`, `--transport`, `--no-cache`, and the credential flags that apply
+  to discovery.
+- [Messaging & Tasks](/a2acli/reference/messaging-tasks/) — once you have the
+  card, `send` a message to the agent.

@@ -3,4 +3,36 @@ title: Serving & Mocking
 description: Run a local A2A-compliant mock agent with serve.
 ---
 
-_Coming soon._ `serve --echo` — running a local A2A-compliant mock agent.
+`serve` spins up a local, A2A-compliant mock agent for testing and development.
+It lets you exercise the full `discover → send → get` loop without a real agent.
+
+```bash
+a2acli serve --echo --port 9001
+```
+
+Point another terminal at it with `--service-url http://localhost:9001` (which is
+also the default), then run [`discover`](/a2acli/reference/discovery-identity/)
+and [`send`](/a2acli/reference/messaging-tasks/#send) against it.
+
+## Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--echo` | — | Echo mode: return the user's message as the response |
+| `--port` | `9001` | Listen port |
+| `--host` | `127.0.0.1` | Bind address |
+| `--exec` | — | Exec mode — **not yet supported** |
+| `--proxy` | — | Proxy mode — **not yet supported** |
+
+:::note[Only echo mode works today]
+`--echo` is the only working mock mode. The `--exec` and `--proxy` flags are
+present but **not yet supported** — they are accepted on the command line but do
+not yet provide those modes.
+:::
+
+## Related
+
+- [Discovery & Identity](/a2acli/reference/discovery-identity/) — inspect the
+  card your mock server advertises.
+- [Messaging & Tasks](/a2acli/reference/messaging-tasks/) — send messages to the
+  running mock.

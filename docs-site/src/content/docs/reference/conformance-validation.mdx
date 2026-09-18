@@ -3,5 +3,65 @@ title: Conformance & Validation
 description: conformance smoke checks and a2ui validate.
 ---
 
-_Coming soon._ `conformance` smoke checks and `a2ui validate` for A2UI v1.0
-wire conformance.
+Two commands let you validate a live A2A server: `conformance` for a general
+protocol smoke check, and `a2ui validate` for the A2UI v1.0 extension wire
+contract. Both exit non-zero if any check fails, so they slot cleanly into CI.
+
+## `conformance`
+
+Run a quick sequence of conformance checks against a live A2A server:
+
+1. **AgentCard** — fetch and validate that the card is well-formed.
+2. **Auth gating** — if the card declares security requirements, verify that a
+   request without credentials is rejected (and one with credentials accepted).
+   Stored tokens are used automatically.
+3. **Round-trip** — send a test message and assert a valid response is received.
+
+All checks write a `PASS` / `SKIP` / `FAIL` summary to stdout. The exit code is
+non-zero if any check fails.
+
+```bash
+a2acli conformance --service-url http://localhost:9001
+a2acli conformance --service-url https://eldamo.example.com --token mytoken
+a2acli conformance --output json
+a2acli conformance --env mithlond --output json   # uses stored token automatically
+```
+
+`conformance` takes only the [global flags](/a2acli/reference/global-flags/) —
+notably `--service-url`, `--output`, `--env`, and the credential flags. Add
+`--output json` for machine-readable results.
+
+## `a2ui validate`
+
+Validate that an A2A server emits a conformant **A2UI v1.0** extension stream.
+A2UI is transport-decoupled and rides inside A2A `DataPart`s, so `a2acli` can
+verify the byte-level contract against the official A2UI v1.0 JSON Schemas
+without a UI renderer. Schemas are vendored and embedded for reproducible,
+offline validation.
+
+The command sends a probe message, captures the returned A2UI `DataPart`s, and
+validates that:
+
+1. the AgentCard declares the A2UI v1.0 extension (and its capability params);
+2. `DataPart`s use `metadata.mimeType == application/a2ui+json`;
+3. each `DataPart`'s data is an array of v1.0 message envelopes;
+4. each message list validates against `server_to_client_list.json` (v1.0).
+
+The exit code is non-zero if any check fails.
+
+```bash
+a2acli a2ui validate --service-url http://localhost:9002
+a2acli a2ui validate -u http://localhost:9002 --probe "show me the showcase card"
+a2acli a2ui validate -u http://localhost:9002 --output json
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--probe` | `render a UI` | Message text to elicit an A2UI response |
+
+## Related
+
+- [Configuration & Auth](/a2acli/reference/configuration-auth/) — log in so
+  `conformance` can exercise auth-gated servers.
+- [Global flags reference](/a2acli/reference/global-flags/) — `--service-url`,
+  `--output`, `--env`, credentials.
