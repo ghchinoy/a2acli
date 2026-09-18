@@ -131,6 +131,10 @@ func TestNounVerbSharesFlatFlags(t *testing.T) {
 	addGetFlags(refGet)
 	assertSameFlags(t, "task get", flagNames(refGet), flagNames(leaf("task", "get")))
 
+	// task cancel <-> flat 'cancel', which registers no local flags. This case
+	// is a no-op today but guards against future flag drift between the two paths.
+	assertSameFlags(t, "task cancel", nil, flagNames(leaf("task", "cancel")))
+
 	// task subscribe <-> addSubscribeFlags
 	refSub := &cobra.Command{Use: "ref"}
 	addSubscribeFlags(refSub)
