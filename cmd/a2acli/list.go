@@ -51,13 +51,19 @@ Note: The server must support history for this endpoint to return data.`,
 		Run:  runListTasks,
 	}
 
-	tasksCmd.Flags().IntVar(&listLimit, "limit", 10, "Maximum number of tasks to return")
-	tasksCmd.Flags().StringVar(&listPageToken, "page-token", "", "Pagination token")
-	tasksCmd.Flags().StringVar(&listContext, "context", "", "Filter by context ID")
-	tasksCmd.Flags().StringVar(&listStatus, "status", "", "Filter by task state (short forms: submitted, working, completed, failed, canceled, rejected)")
+	addListTasksFlags(tasksCmd)
 
 	cmd.AddCommand(tasksCmd)
 	return cmd
+}
+
+// addListTasksFlags registers the flag set shared by `list tasks` and the
+// `task list` noun-verb alias so the two paths accept identical flags (Roadmap B).
+func addListTasksFlags(cmd *cobra.Command) {
+	cmd.Flags().IntVar(&listLimit, "limit", 10, "Maximum number of tasks to return")
+	cmd.Flags().StringVar(&listPageToken, "page-token", "", "Pagination token")
+	cmd.Flags().StringVar(&listContext, "context", "", "Filter by context ID")
+	cmd.Flags().StringVar(&listStatus, "status", "", "Filter by task state (short forms: submitted, working, completed, failed, canceled, rejected)")
 }
 
 func runListTasks(_ *cobra.Command, _ []string) {

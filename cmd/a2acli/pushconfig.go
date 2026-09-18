@@ -34,12 +34,21 @@ var (
 	pushPageToken       string
 )
 
-// setupPushConfigCmd builds the `push-config` command group and registers it
-// on the root command. Called from main().
+// setupPushConfigCmd builds the top-level `push-config` command group and
+// registers it on the root command (in the Messaging group). Called from main().
 func setupPushConfigCmd() *cobra.Command {
+	return newPushConfigCmd(GroupMessaging)
+}
+
+// newPushConfigCmd builds a `push-config` command group with the given cobra
+// group ID. The top-level flat verb passes GroupMessaging; the `task push-config`
+// noun-verb alias passes "" (no group), because its parent `task` command does
+// not register the root command groups. Both instances share the same RunE/flag
+// wiring so the two paths behave identically (Roadmap B).
+func newPushConfigCmd(groupID string) *cobra.Command {
 	pushCmd := &cobra.Command{
 		Use:     "push-config",
-		GroupID: GroupMessaging,
+		GroupID: groupID,
 		Short:   "Manage task push-notification configurations",
 		Long: `Create, list, retrieve, and delete push notification configurations for tasks.
 

@@ -1447,18 +1447,9 @@ download artifacts to a directory.`,
 	sendCmd.Flags().StringArrayVar(&attachFiles, "attach", nil, "Attach a file as a message part (repeatable; MIME type auto-detected)")
 	sendCmd.Flags().StringArrayVar(&dataArgs, "data", nil, "Add a JSON value as a DataPart (repeatable)")
 
-	watchCmd.Flags().StringVarP(&outDir, "out-dir", "d", "", "Directory to save artifacts to")
-	watchCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
+	addSubscribeFlags(watchCmd)
 
-	getCmd.Flags().StringVarP(&outDir, "out-dir", "d", "", "Directory to save artifacts to")
-	getCmd.Flags().StringVarP(&outFile, "file", "f", "", "Specific filename to save the artifact to")
-	getCmd.Flags().BoolVar(&showFull, "full", false, "Show complete artifact content without truncating")
-	// Roadmap A4: --wait turns the one-shot read into a poll loop (SPEC §9.3/§10.3),
-	// --poll-interval spaces the polls (default 2s per SPEC §9.3 RECOMMENDED; overall
-	// budget is --timeout), and --history requests up to n history messages.
-	getCmd.Flags().BoolVar(&getWait, "wait", false, "Poll until the task reaches a terminal or interrupted (input/auth-required) state (SPEC §9.3)")
-	getCmd.Flags().DurationVar(&pollInterval, "poll-interval", 2*time.Second, "Interval between polls while --wait is set; overall budget is --timeout")
-	getCmd.Flags().IntVar(&historyLen, "history", 0, "Include up to n task history messages (maps to A2A historyLength)")
+	addGetFlags(getCmd)
 
 	var downloadCmd = &cobra.Command{
 		Use:     "download [taskID]",
@@ -1504,6 +1495,9 @@ already have completed or be in a non-cancelable state.`,
 	}
 
 	rootCmd.AddCommand(describeCmd, sendCmd, watchCmd, getCmd, downloadCmd, cancelCmd, setupConfigCmd(), versionCmd, setupServeCmd(), setupListCmd(), setupPushConfigCmd(), setupConformanceCmd(), setupA2UICmd(), setupAuthCmd())
+	// Roadmap B: additive noun-verb grammar (`card get`, `task <verb>`) that aliases
+	// the flat verbs above. The flat verbs remain registered and unchanged.
+	rootCmd.AddCommand(setupNounVerbCommands()...)
 	if err := rootCmd.Execute(); err != nil {
 		fatalCode(ErrUsage, "command execution failed", err, "")
 	}
