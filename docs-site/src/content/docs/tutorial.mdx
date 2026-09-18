@@ -175,6 +175,10 @@ below links into the relevant reference page.
    a2acli send "Hello, agent!" -u http://localhost:9001 -o json
    ```
 
+   The sample below is **abridged** — long IDs are elided with `…`, and the
+   full document also carries a `history` array of the conversation's prior
+   messages, omitted here for brevity:
+
    ```json
    {
      "task": {
@@ -197,7 +201,7 @@ below links into the relevant reference page.
    { "error": {
        "code": "A2ACLI_ERR_UNREACHABLE",
        "message": "failed to resolve AgentCard: … connection refused",
-       "hint": "Ensure the A2A server is running or specify --service-url / -u",
+       "hint": "Check --service-url or A2ACLI_SERVICE_URL",
        "a2aCode": null
    } }
    ```
@@ -310,7 +314,7 @@ a2acli send "Hello, agent!" -u https://agent.example.com
 
    ```bash
    a2acli auth status -u https://agent.example.com   # is a valid token stored?
-   a2acli auth token  -u https://agent.example.com   # print the raw JWT
+   a2acli auth token  -u https://agent.example.com   # print the stored access token
    ```
 
    <Aside type="note" title="Client identity (CIMD)">
