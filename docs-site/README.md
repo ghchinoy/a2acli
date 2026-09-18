@@ -17,7 +17,7 @@ npm run preview  # preview the built site
 Node 20+ and npm 10+ are required. Use **npm** (a `package-lock.json` is
 committed); pnpm/yarn are not used.
 
-## Load-bearing files (do not remove)
+## Important files (do not remove)
 
 GitHub Pages currently serves `/metadata.json` — the OAuth CIMD `client_id`
 document that `a2acli auth login` depends on
