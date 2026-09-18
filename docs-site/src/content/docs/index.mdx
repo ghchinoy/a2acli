@@ -1,0 +1,41 @@
+---
+title: a2acli
+description: An A2A-Spec-v1.0-compliant command-line client for talking to A2A agents.
+template: splash
+hero:
+  tagline: A command-line client for the Agent2Agent (A2A) protocol — discover, message, and manage A2A agents over gRPC, JSON-RPC, or REST, with OAuth 2.1.
+  actions:
+    - text: Get started
+      link: /a2acli/getting-started/installation/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/ghchinoy/a2acli
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+:::note
+This documentation site is being built out in phases. The pages below are
+placeholders that later phases will fill with content.
+:::
+
+<CardGrid stagger>
+  <Card title="Use the CLI directly" icon="laptop">
+    Install `a2acli`, run the local mock loop, and point it at real A2A agents.
+    See [Getting started](/a2acli/getting-started/installation/).
+  </Card>
+  <Card title="Wire it into an agent" icon="puzzle">
+    Drive `a2acli` from AI coding agents via Skills and the Agent Plugin.
+    See [Agent usage](/a2acli/agent-usage/overview/).
+  </Card>
+  <Card title="Command reference" icon="open-book">
+    Browse capabilities organized by the four A2A themes.
+    See [Command reference](/a2acli/reference/command-model/).
+  </Card>
+  <Card title="Repo docs" icon="github">
+    Comparison, releasing, and build docs live in the repository.
+    See [Reference & external docs](/a2acli/external/repo-docs/).
+  </Card>
+</CardGrid>
