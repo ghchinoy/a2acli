@@ -1,0 +1,67 @@
+---
+title: "Skill: a2a-conformance"
+description: Tier 0/1/2 audit of an A2A agent against the normative spec.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**Category:** `protocol-engineering` · **Source:** `skills/a2a-conformance/SKILL.md`
+
+## What it does
+
+The `a2a-conformance` skill evaluates any A2A Protocol v1.0 remote agent for
+normative spec compliance, multi-transport behavioral equivalence, security, and
+quality design, then generates a structured audit report with stable check IDs.
+It activates on prompts about auditing an A2A agent, running conformance checks,
+evaluating a service against the A2A spec, or checking compatibility.
+
+## How an agent uses it
+
+The skill applies a **multi-tier assessment**, escalating with the access level
+available:
+
+- **Tier 0 — Static.** Inspect the Agent Card JSON and SDK source; no server
+  required. Validates required card fields against the `A2A-CARD-*` rules.
+- **Tier 1 — Probes.** Run the automated `a2acli` black-box probe battery
+  against a live URL and record `PASS` / `WARN` / `FAIL` per `A2A-*` ID.
+- **Tier 2 — TCK.** Orchestrate the official `a2aproject/a2a-tck` pytest suite
+  via Python/uv for a formal compatibility result.
+
+It follows four core principles: RFC 2119 strictness (any MUST failure is
+blocking), the tiered escalation above, stable check IDs, and actionable,
+copy-pasteable remediation. Verdicts are:
+
+- **`CONFORMANT`** — 100% of MUST checks pass, 0 MUST failures.
+- **`CONFORMANT WITH WARNINGS`** — 100% MUST pass, but SHOULD warnings exist.
+- **`NOT CONFORMANT`** — one or more MUST checks fail.
+
+A typical Tier 1 run:
+
+```bash
+# Automated probe battery
+./skills/a2a-conformance/scripts/probe.sh http://127.0.0.1:9001
+
+# Key manual probes
+a2acli discover --service-url http://127.0.0.1:9001 --output json
+a2acli conformance --service-url http://127.0.0.1:9001 --output json
+a2acli list tasks --service-url http://127.0.0.1:9001 --limit 5 --output json
+```
+
+## What it ships
+
+- **`references/`** — `checklist` (the master normative checklist, ~110 rules
+  across 9 areas with stable `A2A-<AREA>-<NNN>` IDs and spec citations),
+  `static-review` (Tier 0), `probes` (Tier 1 `a2acli` battery), `tck` (Tier 2),
+  and `scoring` (verdict rules and worked example).
+- **`assets/report.template.md`** — the conformance report template.
+- **`scripts/`** — `probe.sh` (Tier 1) and `run-tck.sh` (Tier 2).
+
+Check IDs are grouped by area: `A2A-CARD-*`, `A2A-OPS-*`, `A2A-TASK-*`,
+`A2A-STREAM-*`, `A2A-PUSH-*`, `A2A-BIND-*`, `A2A-VER-*`, `A2A-SEC-*`,
+`A2A-EXT-*`, and `A2A-QUAL-*` (non-normative quality).
+
+<Aside type="note" title="Live server or card JSON">
+Tier 0 works from card JSON alone; Tiers 1 and 2 need a live endpoint and the
+`a2acli` binary on `PATH`. Tier 2 also needs `python3`/`uv`/`git`. Preflight with
+`a2acli version`.
+</Aside>

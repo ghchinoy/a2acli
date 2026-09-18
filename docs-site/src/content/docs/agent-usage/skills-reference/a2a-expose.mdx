@@ -1,0 +1,65 @@
+---
+title: "Skill: a2a-expose"
+description: Design-first workflow to add an A2A v1.0 exposure layer to a service.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**Category:** `protocol-engineering` · **Source:** `skills/a2a-expose/SKILL.md`
+
+## What it does
+
+The `a2a-expose` skill guides a developer or agent through adding a compliant,
+discoverable A2A Protocol v1.0 exposure layer to an existing API, microservice,
+or codebase. It activates on prompts about adding A2A support to a service,
+exposing an API via A2A, building an A2A agent, or turning code into an A2A
+service.
+
+## How an agent uses it
+
+The skill's core rule is **design first, then code**: it forbids mechanical 1:1
+mapping of REST endpoints to A2A skills. An agent works through a fixed sequence:
+
+1. **Architectural design & modeling** — analyze the target, work through the
+   10 modeling questions (skill granularity, `Message` vs `Task`, artifact
+   delivery, streaming, task store, auth mapping, transports, modalities,
+   discoverability), and fill out the exposure-design proposal template with an
+   Agent Card JSON preview.
+2. **User sign-off** — the agent presents the design and generates code **only**
+   after explicit approval.
+3. **Implementation** — write the server layer using the appropriate SDK
+   reference (Go or Python).
+4. **Avoid anti-patterns** — cross-check against a catalog of common server
+   failure modes before compiling.
+5. **Run the verification battery** — build and launch the server, then verify
+   it with `a2acli` (and optionally cross-validate with the
+   [`a2a-conformance`](/a2acli/agent-usage/skills-reference/a2a-conformance/)
+   skill).
+
+The verification battery drives `a2acli` against the newly built server, e.g.:
+
+```bash
+# Automated verification
+./skills/a2a-expose/scripts/verify-exposure.sh http://127.0.0.1:9001
+
+# Or manual a2acli checks
+a2acli discover --service-url http://127.0.0.1:9001 --output json
+a2acli conformance --service-url http://127.0.0.1:9001 --output json
+```
+
+## What it ships
+
+- **`references/`** — `design-worksheet` (the 10-question decision tree),
+  `agent-card` (Agent Card v1.0 schema and authoring), `task-lifecycle`,
+  `auth` (security-scheme declarations and in-task authorization), `impl-go`
+  (**`github.com/a2aproject/a2a-go/v2` v2.4.0**), `impl-python`
+  (**`a2a-sdk >=1.0`** with FastAPI/Starlette), `anti-patterns` (14 failure
+  modes with spec citations), and `verify`.
+- **`assets/`** — templates, including the exposure-design proposal template.
+- **`scripts/`** — `verify-exposure.sh`, the automated verification battery.
+
+<Aside type="note" title="Needs the binary, not a live server">
+`a2a-expose` builds a server rather than requiring one, but it still needs the
+`a2acli` binary on `PATH` to run the verification battery. Preflight with
+`a2acli version`.
+</Aside>

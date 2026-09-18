@@ -3,6 +3,46 @@ title: Skills reference
 description: The three skills a2acli ships and how an agent uses each.
 ---
 
-_Coming soon._ Reference for the three skills: `a2acli` (drive the CLI),
-`a2a-expose` (design-first exposure workflow), and `a2a-conformance` (audit any
-A2A agent).
+import { CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+The repository ships **three** Agent Skills under `skills/`. Each is an
+[`agentskills.io`](https://agentskills.io/)-compliant package (`SKILL.md` plus
+progressive-disclosure `references/` and, where applicable, `scripts/` and
+`assets/`) that activates
+when a prompt matches its trigger keywords.
+
+| Skill | Purpose | Category | Needs a live server? |
+|---|---|---|---|
+| [`a2acli`](/a2acli/agent-usage/skills-reference/a2acli/) | Drive the `a2acli` CLI to discover, invoke, and monitor A2A agents | `cli-usage` | Yes |
+| [`a2a-expose`](/a2acli/agent-usage/skills-reference/a2a-expose/) | Add an A2A v1.0 exposure layer to an existing API or service | `protocol-engineering` | No (builds one) |
+| [`a2a-conformance`](/a2acli/agent-usage/skills-reference/a2a-conformance/) | Audit an A2A agent for spec compliance, security, and quality | `protocol-engineering` | Yes (or card JSON) |
+
+They compose across the software lifecycle: `a2a-expose` builds an exposure,
+`a2a-conformance` audits it, and `a2acli` operates it in production. The
+[Worked example](/a2acli/agent-usage/worked-example/) shows this end to end.
+
+<Aside type="tip" title="See also">
+For scenario walkthroughs, a prompt library, and authoring guidelines, the
+canonical source is the repository's
+[Agent Skills Guide (`docs/SKILLS.md`)](https://github.com/ghchinoy/a2acli/blob/main/docs/SKILLS.md).
+</Aside>
+
+## The three skills
+
+<CardGrid>
+  <LinkCard
+    title="a2acli"
+    href="/a2acli/agent-usage/skills-reference/a2acli/"
+    description="Drive the CLI: discover, send, stream, poll, manage, authenticate."
+  />
+  <LinkCard
+    title="a2a-expose"
+    href="/a2acli/agent-usage/skills-reference/a2a-expose/"
+    description="Design-first workflow to expose a service over A2A (Go / Python)."
+  />
+  <LinkCard
+    title="a2a-conformance"
+    href="/a2acli/agent-usage/skills-reference/a2a-conformance/"
+    description="Tier 0/1/2 audit against ~110 normative rules with a report template."
+  />
+</CardGrid>
