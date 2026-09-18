@@ -1,0 +1,100 @@
+name: Deploy docs site
+
+# Builds the Starlight documentation site in docs-site/ and deploys it to
+# GitHub Pages via GitHub Actions.
+#
+# LOAD-BEARING INVARIANT: the site served at https://ghchinoy.github.io/a2acli/
+# must keep serving /metadata.json byte-identical (the OAuth CIMD client_id
+# document that `a2acli auth login` depends on) and /.nojekyll. The "Verify
+# load-bearing artifacts" step below FAILS the build if the produced artifact
+# does not carry metadata.json (matching the pinned sha256) and .nojekyll at the
+# site root, so this invariant is self-enforcing on every deploy.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs-site/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; do not cancel an in-progress production
+# deploy (let it finish rather than risk a half-published site).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Pinned baseline: sha256 of docs/metadata.json (the OAuth CIMD client_id
+      # document). Must match what is served at /metadata.json. 313 bytes.
+      METADATA_SHA256: 2327230a30112ae13aceae3497c3cc8d0afbe9eb6fa97e11854ebba708bdfe53
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: docs-site
+
+      - name: Build site
+        run: npm run build
+        working-directory: docs-site
+
+      - name: Verify load-bearing artifacts (metadata.json + .nojekyll)
+        working-directory: docs-site
+        run: |
+          set -euo pipefail
+
+          if [ ! -f dist/metadata.json ]; then
+            echo "::error::dist/metadata.json is missing — the OAuth CIMD client_id document would not be served at /metadata.json."
+            exit 1
+          fi
+
+          ACTUAL_SHA="$(sha256sum dist/metadata.json | awk '{print $1}')"
+          echo "dist/metadata.json sha256: ${ACTUAL_SHA}"
+          echo "expected      sha256: ${METADATA_SHA256}"
+          if [ "${ACTUAL_SHA}" != "${METADATA_SHA256}" ]; then
+            echo "::error::dist/metadata.json sha256 mismatch — refusing to deploy (would break OAuth login)."
+            exit 1
+          fi
+
+          if [ ! -f dist/.nojekyll ]; then
+            echo "::error::dist/.nojekyll is missing — GitHub Pages Jekyll processing must be disabled."
+            exit 1
+          fi
+
+          echo "Load-bearing artifacts verified: metadata.json sha256 matches and .nojekyll present."
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

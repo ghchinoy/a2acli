@@ -3,6 +3,40 @@ title: Repo docs & further reading
 description: Links out to repository docs for topics that live outside this site.
 ---
 
-_Coming soon._ A link-out page mapping excluded topics (comparison, releasing,
-CLI design, ARD integration, test plan, the full manual) to their repository
-paths, plus links to `docs/MANUAL.md` and the A2A specification.
+Some topics live in the `a2acli` **repository** rather than on this site — either
+because they are explicitly out of scope here (comparison, release process,
+build/design internals) or because the repository holds the canonical source.
+This page maps those topics to their locations. These are GitHub blob links, so
+they resolve independently of this documentation site.
+
+## Canonical references
+
+- **[Reference Manual (`docs/MANUAL.md`)](https://github.com/ghchinoy/a2acli/blob/main/docs/MANUAL.md)**
+  — the full, canonical command reference: complete grammar, every flag,
+  examples, output schemas, global flags, shell completion, and automation
+  guidance. The [command reference](/a2acli/reference/command-model/) on this
+  site is a curated, themed view of the same surface.
+- **[A2A specification (a2a-protocol.org)](https://a2a-protocol.org/latest/)** —
+  the protocol itself, which `a2acli` implements.
+
+## Excluded topics → repository location
+
+These topics are intentionally out of scope for this site. Follow the link to the
+authoritative copy in the repository.
+
+| Topic | Where it lives |
+|---|---|
+| Comparison vs the official a2a CLI | [`docs/COMPARISON.md`](https://github.com/ghchinoy/a2acli/blob/main/docs/COMPARISON.md) |
+| How to release | [`docs/RELEASING.md`](https://github.com/ghchinoy/a2acli/blob/main/docs/RELEASING.md) |
+| CLI design / how-to-build rationale | [`docs/CLI_DESIGN_BEST_PRACTICES.md`](https://github.com/ghchinoy/a2acli/blob/main/docs/CLI_DESIGN_BEST_PRACTICES.md) |
+| Agent Registry Directory integration (build) | [`docs/ARD_INTEGRATION.md`](https://github.com/ghchinoy/a2acli/blob/main/docs/ARD_INTEGRATION.md) |
+| Test plan | [`docs/TEST_PLAN.md`](https://github.com/ghchinoy/a2acli/blob/main/docs/TEST_PLAN.md) |
+| Test agents | [`docs/TEST_AGENTS.md`](https://github.com/ghchinoy/a2acli/blob/main/docs/TEST_AGENTS.md) |
+| Sample conformance report | [`docs/CONFORMANCE_REPORT.md`](https://github.com/ghchinoy/a2acli/blob/main/docs/CONFORMANCE_REPORT.md) |
+
+## Contributing & development
+
+- **[CONTRIBUTING.md](https://github.com/ghchinoy/a2acli/blob/main/CONTRIBUTING.md)**
+  — how to contribute to `a2acli`.
+- **[README → Development](https://github.com/ghchinoy/a2acli#development)** —
+  building, testing, and working on the project locally.

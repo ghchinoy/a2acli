@@ -1,7 +1,78 @@
 ---
 title: Quickstart (5 minutes)
-description: The local serve -> discover -> send loop.
+description: The local serve -> discover -> send loop, no remote agent or auth required.
 ---
 
-_Coming soon._ The five-minute local loop: `serve` a mock agent, `discover` it,
-and `send` it a message.
+import { Steps } from '@astrojs/starlight/components';
+
+You don't need a remote agent to get started — `a2acli` can run a local mock
+agent for you. This golden path runs entirely on your machine, no auth required.
+
+:::note
+First time here? [Install `a2acli`](/a2acli/getting-started/installation/) and run
+`a2acli version` to confirm it's on your `PATH`.
+:::
+
+## The loop: serve → discover → send
+
+<Steps>
+
+1. **Start a local echo agent.** In one terminal (or background it with `&`):
+
+   ```bash
+   a2acli serve --echo --port 9001
+   ```
+
+2. **Discover what it can do** — fetch its AgentCard, skills, and security
+   schemes:
+
+   ```bash
+   a2acli discover --service-url http://localhost:9001
+   ```
+
+3. **Send it a message.** By default `send` blocks until the task reaches a
+   terminal (or interrupted) state and prints a single result:
+
+   ```bash
+   a2acli send "Hello, agent!" --service-url http://localhost:9001
+   ```
+
+</Steps>
+
+That's the full loop: **serve → discover → send**. The echo agent simply returns
+your message, which is exactly what you want when learning the mechanics.
+
+## Stream live updates
+
+Add `--stream` to follow updates as they arrive (JSONL when combined with
+`-o json`):
+
+```bash
+a2acli send "Hello, agent!" --service-url http://localhost:9001 --stream
+```
+
+:::note
+Streaming is **opt-in** via `--stream` (SPEC §11.3); `send` blocks by default.
+Earlier versions streamed by default and used `--wait` to block — `--wait` /
+`--sync` are now accepted as hidden, deprecated no-ops so existing scripts keep
+working, but you don't need them.
+:::
+
+## Get a machine-readable result
+
+For scripts and AI agents, ask for a single JSON document instead of the
+interactive UI. Blocking is already the default, so no extra flag is needed:
+
+```bash
+a2acli send "Hello, agent!" --service-url http://localhost:9001 --output json
+```
+
+## Where to next
+
+- **[Direct-usage tutorial](/a2acli/tutorial/)** — the same loop in depth, plus
+  tracking tasks, downloading artifacts, and graduating to a real
+  (OAuth-protected) agent.
+- **[Command reference](/a2acli/reference/command-model/)** — every command and
+  flag, organized by the four A2A themes.
+- **[Configuration &amp; Auth](/a2acli/reference/configuration-auth/)** — save
+  named environments and log in to protected agents.
