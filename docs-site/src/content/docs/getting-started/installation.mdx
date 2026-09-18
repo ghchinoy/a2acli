@@ -1,7 +1,115 @@
 ---
 title: Installation
-description: Install a2acli via Homebrew, install.sh, packages, or from source.
+description: Install a2acli via Homebrew, install.sh, packages, go install, or from source.
 ---
 
-_Coming soon._ Installation via Homebrew, `install.sh`, apt / rpm / winget,
-`go install`, or from source — plus how to verify the install.
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+Install the `a2acli` binary with whichever method fits your platform, then
+[verify the install](#verify-your-install). Once it is on your `PATH`, head to the
+[Quickstart](/a2acli/getting-started/quickstart/).
+
+## Install
+
+<Tabs>
+  <TabItem label="Homebrew (macOS/Linux)">
+
+```bash
+brew tap ghchinoy/tap
+brew trust ghchinoy/tap
+brew install a2acli
+```
+
+  </TabItem>
+  <TabItem label="install.sh (Linux)">
+
+```bash
+curl -sL https://raw.githubusercontent.com/ghchinoy/a2acli/main/scripts/install.sh | bash
+```
+
+  </TabItem>
+  <TabItem label="apt (Debian/Ubuntu)">
+
+Download the `.deb` from the
+[latest release](https://github.com/ghchinoy/a2acli/releases/latest), then:
+
+```bash
+sudo dpkg -i a2acli_*.deb
+```
+
+  </TabItem>
+  <TabItem label="rpm (Fedora/RHEL)">
+
+Download the `.rpm` from the
+[latest release](https://github.com/ghchinoy/a2acli/releases/latest), then:
+
+```bash
+sudo rpm -i a2acli_*.rpm
+```
+
+  </TabItem>
+  <TabItem label="winget (Windows)">
+
+```powershell
+winget install ghchinoy.a2acli
+```
+
+  </TabItem>
+  <TabItem label="go install">
+
+```bash
+go install github.com/ghchinoy/a2acli/cmd/a2acli@latest
+```
+
+Ensure your Go binary directory is on your `PATH` (add this to `~/.bashrc` or
+`~/.zshrc`):
+
+```bash
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+  </TabItem>
+  <TabItem label="From source">
+
+```bash
+git clone https://github.com/ghchinoy/a2acli.git
+cd a2acli
+make build   # binary is written to bin/a2acli
+```
+
+  </TabItem>
+</Tabs>
+
+## Optional: the `a2a` shorthand
+
+To use `a2a` as a convenient shorthand for `a2acli`, add an alias to your shell
+profile:
+
+```bash
+alias a2a="a2acli"
+```
+
+## Verify your install
+
+<Steps>
+
+1. Run the version command:
+
+   ```bash
+   a2acli version
+   ```
+
+2. You should see version, commit, and build-date information.
+
+</Steps>
+
+If the command isn't found, ensure your install location is on your `PATH` — for
+example `$(go env GOPATH)/bin` for `go install`, or `./bin` when building from
+source.
+
+## Next steps
+
+- [Quickstart (5 minutes)](/a2acli/getting-started/quickstart/) — the local
+  `serve → discover → send` loop.
+- [Direct-usage tutorial](/a2acli/tutorial/) — the full end-to-end walkthrough,
+  including pointing at a real, OAuth-protected agent.

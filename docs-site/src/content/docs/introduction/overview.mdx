@@ -3,6 +3,49 @@ title: Overview
 description: What a2acli is, who it is for, and the two audiences it serves.
 ---
 
-_Coming soon._ What `a2acli` is (an A2A v1.0 client over gRPC / JSON-RPC / REST
-with OAuth 2.1), who it's for, and the two audiences (humans using the CLI
-directly, and agent builders wiring it into agents).
+`a2acli` is a standalone, [A2A Specification v1.0](https://a2a-protocol.org/latest/)-compliant
+command-line client for **discovering, messaging, and managing agents**. It is
+built on the [a2a-go](https://github.com/a2aproject/a2a-go) SDK and ships with an
+interactive streaming TUI alongside a scriptable JSON mode.
+
+## What it does
+
+Point `a2acli` at any A2A agent and it will fetch the agent's **AgentCard**
+(its skills, security requirements, and transports), send it a **message** to
+create a **task**, follow that task through its lifecycle
+(`working` → `completed`), and retrieve any **artifacts** the task produces.
+
+- **Three transports.** Talk to agents over **gRPC**, **JSON-RPC**, or **REST**;
+  choose per invocation with `--transport`.
+- **OAuth 2.1 built in.** Authenticate once with `auth login` (authorization-code
+  + PKCE) and every later command is authenticated automatically — no `--token`
+  juggling.
+- **Scriptable by design.** `--output json` emits a single JSON document (or JSONL
+  when streaming) so scripts and AI agents can drive the CLI deterministically.
+- **No agent required to start.** A built-in mock (`serve --echo`) lets you learn
+  the full loop locally before pointing at a real agent.
+
+## Who it is for
+
+The documentation serves two distinct audiences without forcing either to wade
+through the other's material.
+
+**Humans using the CLI directly.**
+Developers and operators who run `a2acli` in a terminal to talk to A2A agents.
+Start with [Installation](/a2acli/getting-started/installation/) and the
+[Quickstart](/a2acli/getting-started/quickstart/); the
+[command reference](/a2acli/reference/command-model/) organizes every capability
+by the four A2A themes, and the
+[direct-usage tutorial](/a2acli/tutorial/) walks the end-to-end path.
+
+**Agent builders wiring `a2acli` into agents.**
+People building AI coding agents and automations (Claude Code, Cursor, Copilot
+CLI, Gemini CLI) that *drive* `a2acli` via Skills and the Agent Plugin. See
+[Agent usage](/a2acli/agent-usage/overview/) for the Skills, the Agent Plugin,
+and a worked example of an agent invoking `a2acli` deterministically.
+
+## Not covered here
+
+Comparison with other CLIs, release process, and build/design internals live in
+the repository rather than on this site. See
+[Repo docs &amp; further reading](/a2acli/external/repo-docs/) for the mapping.

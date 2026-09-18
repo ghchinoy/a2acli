@@ -3,5 +3,35 @@ title: What is A2A?
 description: A short primer on the Agent2Agent (A2A) protocol.
 ---
 
-_Coming soon._ A short primer on the Agent2Agent (A2A) protocol, with a link to
-the A2A specification.
+**A2A (Agent-to-Agent)** is an open protocol for talking to AI agents over a
+network — discover what an agent can do, send it a message, and stream back
+results and artifacts, regardless of how the agent is built.
+
+## The core model
+
+Every A2A interaction follows the same shape:
+
+- **AgentCard** — every agent publishes a card describing its **skills**,
+  **security requirements**, and **transports** (gRPC, JSON-RPC, REST). This is
+  how a client discovers what an agent can do and how to reach it.
+- **Message** — you send a message to an agent, which creates a **task**.
+- **Task** — the unit of work. A task moves through states
+  (`submitted` → `working` → `completed`, or `failed` / `canceled` /
+  `input-required`) and may produce **artifacts**.
+- **Artifacts** — the outputs of a task: text, structured data, or files.
+
+`a2acli` is the command-line client for that protocol: `discover` fetches the
+AgentCard, `send` creates a task from a message, `get` / `subscribe` observe the
+task, and `download` retrieves its artifacts. See
+[Discovery &amp; Identity](/a2acli/reference/discovery-identity/) and
+[Messaging &amp; Tasks](/a2acli/reference/messaging-tasks/) for how each command
+maps onto this model.
+
+## Learn the protocol itself
+
+This site documents the **client**, not the protocol. To learn A2A itself — the
+full specification, message and task schemas, and transport details — see the
+canonical site:
+
+- **[a2a-protocol.org](https://a2a-protocol.org/latest/)** — the A2A
+  specification and protocol documentation.
