@@ -187,6 +187,14 @@ A2A spec / official-CLI spellings as aliases: `--agent-card`/`-a` and
 `--async` (for `--immediate`). Both spellings work; see
 [Global Flags](docs/MANUAL.md#global-flags).
 
+**Noun-verb command grammar.** Alongside the flat verbs above, `a2acli` also
+accepts the A2A official-CLI noun-verb grammar as additive aliases: `card get`
+(for `discover`), `task get` (for `get`), `task cancel` (for `cancel`),
+`task list` (for `list tasks`), `task subscribe` (for `subscribe`), and
+`task push-config` (for `push-config`). Each noun-verb path shares the same flags,
+output, and exit codes as the flat verb it aliases, so scripts written for either
+grammar work unchanged.
+
 For the complete grammar, every flag, global flags, shell completion, and
 automation guidance, see the **[Reference Manual](docs/MANUAL.md)**.
 

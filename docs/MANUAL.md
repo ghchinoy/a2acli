@@ -39,6 +39,20 @@ The agent URL is always a flag (`--service-url / -u`) rather than a positional
 argument. This enables named environment profiles in config — you rarely need to
 type a URL at all once configured.
 
+**Noun-verb aliases.** For parity with the A2A official CLI's noun-verb grammar,
+each task/card verb is also reachable under a `card` or `task` parent command.
+These are additive aliases — they share the exact flags, output, and exit codes
+of the flat verb — so either grammar works:
+
+| Noun-verb path | Flat verb |
+|---|---|
+| `a2acli card get` | `a2acli discover` |
+| `a2acli task get <taskID>` | `a2acli get <taskID>` |
+| `a2acli task cancel <taskID>` | `a2acli cancel <taskID>` |
+| `a2acli task list` | `a2acli list tasks` |
+| `a2acli task subscribe <taskID>` | `a2acli subscribe <taskID>` |
+| `a2acli task push-config ...` | `a2acli push-config ...` |
+
 ## Output Modes
 
 Output modes are controlled by `--output`:
