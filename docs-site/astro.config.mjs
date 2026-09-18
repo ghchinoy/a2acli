@@ -12,6 +12,7 @@ export default defineConfig({
   base: '/a2acli',
   integrations: [
     starlight({
+      customCss: ['./src/styles/custom.css'],
       title: 'a2acli',
       description:
         'a2acli — an A2A-Spec-v1.0-compliant command-line client for talking to A2A agents (gRPC / JSON-RPC / REST, OAuth 2.1).',
