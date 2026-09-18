@@ -3,6 +3,123 @@ title: Install & register
 description: Install the Agent Plugin and the three skills across runtimes.
 ---
 
-_Coming soon._ Installing and registering the Agent Plugin and the three skills
-(`a2acli`, `a2a-expose`, `a2a-conformance`) across runtimes (`npx skills`,
-Gemini CLI, manual copy).
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+This page covers how to make `a2acli`'s skills available to your agent runtime —
+either as the Agent Plugin package or as individual skills — and how to keep the
+tool itself installed alongside them.
+
+<Aside type="caution" title="Install the binary too">
+The plugin and skills only teach an agent how to drive `a2acli`. The `a2acli`
+**binary is not bundled** and must be installed separately (see
+[Installation](/a2acli/getting-started/installation/)). Every skill preflights
+with `a2acli version`.
+</Aside>
+
+## Register the Agent Plugin
+
+A plugin-aware client can consume either of the two package shapes the repository
+ships (both target Agent Plugins Specification `1.0.0`, both are skills-only):
+
+- **Root package** — the repository root itself: the root `plugin.json` plus the
+  full `skills/` tree (all three skills with their `references/`, `scripts/`, and
+  `assets/`). This is the richer, canonical source.
+- **Self-contained mirror** — the `agent-plugin/` directory: its own
+  `plugin.json` plus a single `skills/a2acli/` skill that points back to the root
+  copy. This mirrors `a2aproject/a2a-cli`'s official layout.
+
+Point your plugin-aware client at the
+[repository](https://github.com/ghchinoy/a2acli), or at the `agent-plugin/`
+subdirectory for the self-contained shape.
+
+## Install individual skills
+
+If you want one skill (or all three) rather than the whole plugin, use your
+runtime's skills mechanism.
+
+<Tabs>
+  <TabItem label="Open Agent Skills CLI">
+
+The [Open Agent Skills CLI](https://agentskills.io/) (`npx skills`) supports
+OpenCode, Claude Code, Cursor, Cline, and 70+ agents.
+
+```bash
+# List the skills the repository ships
+npx skills add ghchinoy/a2acli --list
+
+# Install one skill into the current project (saves under ./<agent>/skills/)
+npx skills add ghchinoy/a2acli --skill a2acli
+npx skills add ghchinoy/a2acli --skill a2a-expose
+npx skills add ghchinoy/a2acli --skill a2a-conformance
+
+# Install all three at once
+npx skills add ghchinoy/a2acli --all
+
+# Install all three globally, across every project
+npx skills add ghchinoy/a2acli --all -g
+```
+
+  </TabItem>
+  <TabItem label="Gemini CLI">
+
+```bash
+# Install a specific skill globally
+gemini skills install https://github.com/ghchinoy/a2acli.git --path skills/a2a-conformance
+
+# Or link the skills from a local clone
+git clone https://github.com/ghchinoy/a2acli.git
+cd a2acli && gemini skills link
+```
+
+  </TabItem>
+  <TabItem label="Manual copy">
+
+Copy the skill folder(s) from `skills/` directly into your workspace's skill
+directory:
+
+- **OpenCode:** `.opencode/skill/`
+- **Claude Code:** `.claude/skills/`
+- **General / Antigravity:** `.agents/skills/` or `~/.agents/skills/`
+
+</TabItem>
+</Tabs>
+
+## Verify the install
+
+After registering the skill(s) and installing the binary, confirm both are in
+place:
+
+<Steps>
+
+1. Confirm the binary is on `PATH`:
+
+   ```bash
+   a2acli version
+   ```
+
+2. Trigger the skill from your agent with an explicit prompt, e.g.
+   `"Use skill a2acli to discover the agent at http://localhost:9001"`. The agent
+   should load the `a2acli` skill and run `a2acli discover … --output json`.
+
+</Steps>
+
+## Single source of truth
+
+The `a2acli` skill exists in two places on purpose, and they are **not** peers:
+
+- `skills/a2acli/SKILL.md` (repository root) is the **canonical, maintained**
+  copy — command index, flag tables, determinism rules, and references all live
+  here.
+- `agent-plugin/skills/a2acli/SKILL.md` is a **deliberately thin pointer** back
+  to the root copy. It carries only a preflight note and a "defer to the root
+  skill and `a2acli --help`" instruction, so there is nothing in it to drift.
+
+If you are editing or vendoring the skill, change the **root** copy. Leave the
+`agent-plugin/` copy as a pointer.
+
+## Next
+
+- [Skills reference](/a2acli/agent-usage/skills-reference/) — what each of the
+  three skills does.
+- [Worked example](/a2acli/agent-usage/worked-example/) — an agent driving
+  `a2acli` end to end.

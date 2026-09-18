@@ -81,7 +81,21 @@ export default defineConfig({
             },
             {
               label: 'Skills reference',
-              slug: 'agent-usage/skills-reference',
+              items: [
+                { label: 'Overview', slug: 'agent-usage/skills-reference' },
+                {
+                  label: 'a2acli',
+                  slug: 'agent-usage/skills-reference/a2acli',
+                },
+                {
+                  label: 'a2a-expose',
+                  slug: 'agent-usage/skills-reference/a2a-expose',
+                },
+                {
+                  label: 'a2a-conformance',
+                  slug: 'agent-usage/skills-reference/a2a-conformance',
+                },
+              ],
             },
             { label: 'Worked example', slug: 'agent-usage/worked-example' },
           ],

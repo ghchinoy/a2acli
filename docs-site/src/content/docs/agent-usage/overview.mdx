@@ -3,6 +3,128 @@ title: Overview
 description: Skills vs the Agent Plugin, and the deterministic-invocation rules.
 ---
 
-_Coming soon._ Agent Skills vs the Agent Plugin in this project's terms, the
-"binary installed separately" invariant, and the determinism rules (`-o json`,
-`send` blocks by default, check `status.state`).
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+This section is for **Audience B — people building AI coding agents that _drive_
+`a2acli`** (Claude Code, OpenCode, Cursor, Copilot CLI, Gemini CLI, and other
+skill- or plugin-aware runtimes). It explains the two packaging formats the
+repository ships, the one invariant that underpins both, and the rules an agent
+must follow to invoke `a2acli` deterministically.
+
+If you run `a2acli` yourself from a terminal, you want the
+[Direct-usage tutorial](/a2acli/tutorial/) instead.
+
+## Agent Skills and the Agent Plugin
+
+The repository ships the same capability in two overlapping formats. Both teach
+an agent _how_ to use `a2acli`; neither ships the tool itself.
+
+### An Agent Skill
+
+An **Agent Skill** is an [`agentskills.io`](https://agentskills.io/)-compliant
+package — a `SKILL.md` file plus optional progressive-disclosure resources
+(`references/`, `scripts/`, `assets/`) — that teaches an agent to perform a
+specialized task deterministically. Skills load in three stages:
+
+1. **Startup index** — the agent reads each skill's `name` + `description`
+   (~100 tokens per skill) to know when it applies.
+2. **Activation** — when a prompt matches, the agent loads the full `SKILL.md`
+   body.
+3. **On-demand resources** — the agent reads `references/`, `scripts/`, or
+   `assets/` only as it needs them.
+
+The repository ships **three** skills under `skills/`: `a2acli`, `a2a-expose`,
+and `a2a-conformance`. See the [Skills reference](/a2acli/agent-usage/skills-reference/)
+for what each does and what it ships.
+
+### The Agent Plugin
+
+An **Agent Plugin** is an [Agent Plugins Specification v1.0.0](https://agent-plugins.org)
+package: a `plugin.json` manifest that bundles agent-facing pieces — skills and,
+optionally, MCP servers — into one installable unit for a plugin-aware client.
+
+The `a2acli` plugin is **skills-only** (it carries no MCP server, which is valid
+under the spec). It is available two ways:
+
+- **The repository root itself** is the canonical plugin package: the root
+  `plugin.json` (name `a2acli`, targeting Agent Plugins spec `1.0.0`) plus the
+  full `skills/` tree — all three skills with their `references/`, `scripts/`,
+  and `assets/`.
+- **`agent-plugin/`** is a second, self-contained, official-shaped package that
+  mirrors `a2aproject/a2a-cli`'s layout: its own `plugin.json` plus a single
+  `skills/a2acli/SKILL.md`, which is a **deliberately thin pointer** back to the
+  canonical root skill.
+
+<Aside type="note" title="Single source of truth">
+The root `skills/a2acli/SKILL.md` is the authoritative, maintained copy. The
+`agent-plugin/skills/a2acli/SKILL.md` is intentionally a thin pointer — it does
+**not** restate the command index, flag tables, or usage rules. If you are
+editing or vendoring the skill, edit the root copy, not the pointer. See
+[Install &amp; register](/a2acli/agent-usage/install-register/#single-source-of-truth).
+</Aside>
+
+## The binary is installed separately
+
+Both packages teach; neither bundles the tool. Agent Plugins packages the
+agent-facing pieces (skills and MCP servers), **not** tool binaries, so the
+`a2acli` binary is **never** shipped inside a skill or plugin. It must be
+installed on `PATH` independently — via Homebrew
+(`brew install ghchinoy/tap/a2acli`), a prebuilt release, `install.sh`, or
+`go install`.
+
+Because of this, every skill starts with a **preflight**: run `a2acli version`
+before doing anything else, and if it is missing, install it or fail cleanly —
+never guess.
+
+```bash
+a2acli version
+```
+
+See [Installation](/a2acli/getting-started/installation/) for every install
+method.
+
+## Determinism rules for agents
+
+An agent driving `a2acli` in a non-interactive environment must follow these
+rules. They come straight from the canonical `a2acli` skill's "Critical Rules"
+block.
+
+1. **Always pass `--output json` (or `-n`).** This disables the interactive
+   Bubble Tea TUI and emits a single machine-readable JSON document (JSONL when
+   `--stream` is used). On failure the spec error envelope is printed on
+   **stdout** (`{"error": {"code": "A2ACLI_ERR_…", "message": "…", "hint": "…",
+   "a2aCode": …}}`) while diagnostics go to **stderr**. Without this flag the
+   CLI degrades in non-TTY contexts.
+2. **`send` blocks by default.** It waits until the task reaches a terminal
+   state and returns a single JSON document — no flag needed. Pass `--stream`
+   only when you want to observe the live JSONL event stream (SPEC §11.3).
+3. **Check `status.state` in the output** to determine the outcome:
+   `TASK_STATE_COMPLETED` for success, `TASK_STATE_FAILED` for failure.
+4. **Read exit codes:** `0` success, `2` usage error, `1` any other failure.
+   These are stable across flat verbs and their noun-verb aliases.
+
+<Aside type="tip" title="Where these are defined on the site">
+The [Command model](/a2acli/reference/command-model/#output-modes) page
+documents output modes, the [error envelope](/a2acli/reference/command-model/#error-envelope),
+and [exit codes](/a2acli/reference/command-model/#exit-codes) in full.
+</Aside>
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Install & register"
+    href="/a2acli/agent-usage/install-register/"
+    description="Add the plugin or the three skills to your agent runtime."
+  />
+  <LinkCard
+    title="Skills reference"
+    href="/a2acli/agent-usage/skills-reference/"
+    description="What each of the three skills does and what it ships."
+  />
+  <LinkCard
+    title="Worked example"
+    href="/a2acli/agent-usage/worked-example/"
+    description="An agent invoking a2acli end to end, deterministically."
+  />
+</CardGrid>

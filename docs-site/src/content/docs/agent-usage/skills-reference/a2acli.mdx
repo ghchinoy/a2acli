@@ -1,0 +1,73 @@
+---
+title: "Skill: a2acli"
+description: Drive the a2acli CLI to discover, invoke, and monitor A2A agents.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**Category:** `cli-usage` · **Source:** `skills/a2acli/SKILL.md`
+
+## What it does
+
+The `a2acli` skill teaches an agent to run `a2acli` in non-interactive
+environments — discovering an agent's card, sending tasks, streaming or polling
+their progress, managing and cancelling tasks, and authenticating with OAuth
+2.1-protected agents. It activates on prompts about discovering agent
+capabilities, sending tasks, polling status, streaming results, or authenticating
+against an A2A endpoint.
+
+## How an agent uses it
+
+The skill leads with a **Critical Rules** block that every agent must follow —
+these are the [determinism rules](/a2acli/agent-usage/overview/#determinism-rules-for-agents):
+
+1. **Always pass `--output json`** (or `-n`) — machine-readable JSON on stdout;
+   the error envelope also lands on stdout, diagnostics on stderr.
+2. **`send` blocks by default** and returns a single JSON document; use
+   `--stream` only for the live JSONL event stream. Exit codes: `0` success,
+   `2` usage error, `1` other failures.
+3. **Check `status.state`** — `TASK_STATE_COMPLETED` or `TASK_STATE_FAILED`.
+4. **For OAuth-protected agents** — run `auth login` once interactively, then
+   commands reuse the stored token; for non-interactive use, fetch it with
+   `auth token` and pass `--token`.
+5. **Verify the binary first** — run `a2acli version` before execution.
+
+A minimal, deterministic sequence looks like:
+
+```bash
+# Discover what the agent can do
+a2acli discover --service-url http://localhost:9001 --output json
+
+# Send a task and get a single JSON result (send blocks until terminal)
+a2acli send "Summarize this document" --service-url http://localhost:9001 --output json
+
+# Inspect a running task by ID
+a2acli get <task_id> --service-url http://localhost:9001 --output json
+```
+
+See the [Worked example](/a2acli/agent-usage/worked-example/) for a full
+prompt-to-artifacts flow.
+
+## What it ships
+
+- **A Critical Rules block** — the five determinism rules above.
+- **A command index** covering `discover`, `send`, `subscribe`, `get`,
+  `list tasks`, `cancel`, `download`, `push-config`, `conformance`,
+  `a2ui validate`, `auth login/token/status`, `config env`, and `serve`.
+- **A global-flag table** (`--service-url`, `--output`, `--stream`, `--token`,
+  `--task`, `--context`, `--ref`, `--protocol`, `--transport`, `--env`, and
+  more).
+- **`references/`** — per-command deep dives loaded on demand: `install`,
+  `auth`, `send`, `describe` (discover), `get`, `watch` (subscribe), `list`,
+  `cancel`, `download`, and `serve`.
+
+<Aside type="note" title="Two copies, one source of truth">
+This root skill is canonical. The `agent-plugin/skills/a2acli/SKILL.md` is a thin
+pointer back to it — see [Install &amp; register](/a2acli/agent-usage/install-register/#single-source-of-truth).
+</Aside>
+
+## On the site
+
+The per-command flag tables and output schemas this skill summarizes are
+documented in full under
+[Capabilities &amp; command reference](/a2acli/reference/command-model/).
