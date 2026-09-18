@@ -1,8 +1,400 @@
 ---
 title: Direct-usage tutorial
-description: An end-to-end human walkthrough, from the local loop to a real agent.
+description: An end-to-end human walkthrough — from the local mock loop to a real, optionally OAuth-protected agent.
 ---
 
-_Coming soon._ The end-to-end human walkthrough: verify install, start a local
-mock, discover, send (blocking and streaming), track and download tasks, then
-graduate to a real (optionally OAuth-protected) agent and save an environment.
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This is the hands-on walkthrough for **Audience A — humans driving `a2acli`
+from a terminal**. You will stand up a local mock agent, discover it, send it
+messages (blocking and streaming), track and download a task, then repoint the
+exact same commands at a real agent and save it as a named environment.
+
+Everything below is a single, ordered loop. Each command maps to a step in the
+A2A task lifecycle:
+
+![a2acli commands mapped to the A2A task lifecycle: discover fetches the AgentCard; send submits a task that moves submitted → working → completed / failed / input-required; subscribe and get observe a working task; download retrieves artifacts from a completed task.](../../assets/task-lifecycle.webp)
+
+<Aside type="tip" title="Where the reference lives">
+This page teaches the flow. For the exhaustive per-command flag tables, see the
+[Capabilities & command reference](/a2acli/reference/command-model/) — each step
+below links into the relevant reference page.
+</Aside>
+
+## The local loop
+
+<Steps>
+
+1. ### Verify your install
+
+   Every session — and every script or agent — should start with a preflight
+   check that the binary is present and runnable:
+
+   ```bash
+   a2acli version
+   ```
+
+   ```text
+   a2acli version v1.10.2
+   commit: cee0791
+   built at: 2026-09-18T20:57:37Z
+   ```
+
+   If this fails, install the CLI first — see
+   [Installation](/a2acli/getting-started/installation/).
+
+2. ### Start a local mock agent
+
+   `a2acli serve --echo` spins up a local, A2A-compliant echo agent — an agent
+   that returns your message straight back as an artifact. It is the fastest way
+   to exercise the whole client without a real backend. Run it in its own
+   terminal (or background it with `&`):
+
+   ```bash
+   a2acli serve --echo --port 9001
+   ```
+
+   The server binds to `127.0.0.1:9001` by default. Leave it running and open a
+   second terminal for the commands that follow. `--echo` is the only mock mode
+   available today; see
+   [Serving & Mocking](/a2acli/reference/serving-mocking/).
+
+3. ### Discover the agent
+
+   Before sending anything, fetch the agent's **AgentCard** — its identity,
+   supported transports, skills, and security requirements:
+
+   ```bash
+   a2acli discover -u http://localhost:9001
+   ```
+
+   ```text
+   Agent: a2acli-mock-agent
+   Version: 1.0.0
+   Description: A simple echo agent spun up via a2acli
+   Supported Bindings: HTTP+JSON
+   Capabilities: [Streaming: true]
+   ```
+
+   `card get` is a noun-verb alias of `discover`, and `--extended` fetches the
+   richer, authenticated card (via `GetExtendedAgentCard`) when the agent offers
+   one:
+
+   ```bash
+   a2acli card get -u http://localhost:9001        # same as discover
+   a2acli discover -u http://localhost:9001 --extended
+   ```
+
+   See [Discovery & Identity](/a2acli/reference/discovery-identity/) for the
+   full AgentCard fields.
+
+4. ### Send a message (blocking)
+
+   `send` initiates a task. **By default it blocks** until the task reaches a
+   terminal or interrupted state, then prints a **single result document**:
+
+   ```bash
+   a2acli send "Hello, agent!" -u http://localhost:9001
+   ```
+
+   ```text
+   Task Status: [TASK_STATE_COMPLETED]
+
+   --- 1 ARTIFACT(S) AVAILABLE ---
+
+   Name: part-0-text
+   Content (Preview):
+   Hello, agent!
+
+   ------------------------------
+
+   Task ID:    01a0b653-0d08-7821-9702-e80827c03b3e
+   Context ID: 01a0b653-0d08-787c-ab61-ea097a73d77f
+   ```
+
+   Note the **Task ID** and **Context ID** in the output — you will use the Task
+   ID to track and download the task, and the Context ID to continue the
+   conversation. Blocking is the right default for scripts and one-shot calls:
+   one command in, one result out.
+
+   <Aside type="caution" title="Do not use --wait on send">
+   `send` already blocks by default, so `--wait` / `--sync` are **deprecated,
+   hidden no-ops** on `send` — accepted for backwards compatibility, but they do
+   nothing. Older README snippets that show `send … --wait` are stale. `--wait`
+   is real and meaningful only on [`get`](#track-a-task) (step&nbsp;7).
+   </Aside>
+
+5. ### Stream live updates
+
+   To watch events *as they arrive* instead of waiting for the final document,
+   opt in with **`--stream`**. Streaming is caller-controlled and never inferred
+   from configuration, environment, or terminal detection (SPEC §11.3):
+
+   ```bash
+   a2acli send "Hello, agent!" -u http://localhost:9001 --stream -o json
+   ```
+
+   In `-o json` mode, `--stream` emits a **JSONL event stream** — one JSON
+   object per line, tracing the task through its states:
+
+   ```jsonl
+   {"id":"01a0…a5e9","contextId":"01a0…3b80","status":{"state":"TASK_STATE_SUBMITTED"},"history":[…]}
+   {"taskId":"01a0…a5e9","status":{"state":"TASK_STATE_WORKING","timestamp":"2026-09-18T21:01:31Z"}}
+   {"taskId":"01a0…a5e9","artifact":{"artifactId":"01a0…bc43","name":"part-0-text","parts":[{"text":"Hello, agent!"}]},"lastChunk":true}
+   {"taskId":"01a0…a5e9","status":{"state":"TASK_STATE_COMPLETED","timestamp":"2026-09-18T21:01:31Z"}}
+   ```
+
+   Contrast the two:
+
+   <Tabs>
+   <TabItem label="Default (blocking)">
+   One request, one **single JSON document** with the final task state and its
+   artifacts. Best for scripts and deterministic automation.
+
+   ```bash
+   a2acli send "Hello, agent!" -u http://localhost:9001 -o json
+   ```
+   </TabItem>
+   <TabItem label="--stream">
+   A **JSONL stream** of incremental status and artifact events, ending in a
+   terminal state. Best for watching long-running tasks live.
+
+   ```bash
+   a2acli send "Hello, agent!" -u http://localhost:9001 --stream -o json
+   ```
+   </TabItem>
+   </Tabs>
+
+6. ### Get machine-readable output
+
+   Add `-o json` (or its shorthand `-n` / `--no-tui`) to any command to get the
+   scripting- and agent-friendly form. In blocking `send`, the result is a
+   single document whose `status.state` is the field to key decisions on:
+
+   ```bash
+   a2acli send "Hello, agent!" -u http://localhost:9001 -o json
+   ```
+
+   The sample below is **abridged** — long IDs are elided with `…`, and the
+   full document also carries a `history` array of the conversation's prior
+   messages, omitted here for brevity:
+
+   ```json
+   {
+     "task": {
+       "id": "01a0b653-0d08-7821-9702-e80827c03b3e",
+       "contextId": "01a0b653-0d08-787c-ab61-ea097a73d77f",
+       "artifacts": [
+         { "artifactId": "01a0…97a63", "name": "part-0-text",
+           "parts": [{ "text": "Hello, agent!" }] }
+       ],
+       "status": { "state": "TASK_STATE_COMPLETED",
+                   "timestamp": "2026-09-18T21:01:31Z" }
+     }
+   }
+   ```
+
+   On failure, `-o json` mode prints the A2A CLI **error envelope** to
+   **stdout** (human diagnostics stay on stderr), and the process exits non-zero:
+
+   ```json
+   { "error": {
+       "code": "A2ACLI_ERR_UNREACHABLE",
+       "message": "failed to resolve AgentCard: … connection refused",
+       "hint": "Check --service-url or A2ACLI_SERVICE_URL",
+       "a2aCode": null
+   } }
+   ```
+
+   See [Command model → output modes, error envelope, and exit
+   codes](/a2acli/reference/command-model/#output-modes) for the full contract.
+
+7. ### Track a task
+
+   Use the Task ID from `send` to fetch a task's current state and an artifact
+   preview at any time:
+
+   ```bash
+   a2acli get <taskID> -u http://localhost:9001
+   ```
+
+   For a task still running, `--wait` **polls** until it reaches a terminal or
+   interrupted (`input-required` / `auth-required`) state, at `--poll-interval`
+   (default `2s`), bounded by `--timeout` (SPEC §9.3):
+
+   ```bash
+   a2acli get <taskID> -u http://localhost:9001 --wait --poll-interval 2s
+   ```
+
+   `--history n` includes up to *n* prior conversation messages:
+
+   ```bash
+   a2acli get <taskID> -u http://localhost:9001 --history 20 -o json
+   ```
+
+   <Aside type="note" title="--wait belongs on get, not send">
+   `--wait` is the polling control for `get` (turn a submitted/working task into
+   a final result). It is **not** for `send`, which already blocks. See
+   [Messaging & Tasks → get](/a2acli/reference/messaging-tasks/#get).
+   </Aside>
+
+8. ### Download artifacts
+
+   Save a completed task's artifacts to disk with `download`:
+
+   ```bash
+   a2acli download <taskID> -u http://localhost:9001 --out-dir ./out
+   ```
+
+   You can also capture artifacts at send time by passing `--out-dir` (`-d`)
+   directly to `send`:
+
+   ```bash
+   a2acli send "Generate a report" -u http://localhost:9001 --out-dir ./out
+   ```
+
+9. ### List task history
+
+   Ask the agent for the tasks it has processed. The server must support history
+   for this to return data (the local echo mock does not):
+
+   ```bash
+   a2acli list tasks -u http://localhost:9001 --limit 10 --status completed
+   ```
+
+   Filter by `--status` (`submitted`, `working`, `completed`, `failed`,
+   `canceled`, `rejected`) or `--context`. See
+   [Messaging & Tasks → list tasks](/a2acli/reference/messaging-tasks/#list-tasks).
+
+10. ### Cancel a task
+
+    Request best-effort cancellation of an active task. It may already have
+    completed or be in a non-cancelable state:
+
+    ```bash
+    a2acli cancel <taskID> -u http://localhost:9001
+    ```
+
+</Steps>
+
+<Aside type="tip" title="Stop the mock when you're done">
+Return to the first terminal and press <kbd>Ctrl+C</kbd> to stop
+`a2acli serve` (or `kill` it if you backgrounded it).
+</Aside>
+
+## Graduate to a real agent
+
+The same commands work against any A2A-compliant agent — you just change the
+URL. Point `-u` at a real endpoint:
+
+```bash
+a2acli discover -u https://agent.example.com
+a2acli send "Hello, agent!" -u https://agent.example.com
+```
+
+<Steps>
+
+1. ### Authenticate (if the agent requires it)
+
+   If the agent is OAuth-protected, log in **once**. `a2acli` runs the OAuth 2.1
+   auth-code + PKCE flow and opens a browser for you to authenticate:
+
+   ```bash
+   a2acli auth login -u https://agent.example.com
+   ```
+
+   The token is stored under `~/.config/a2acli/tokens/` (mode `0600`) and used
+   **automatically** by later commands — you do not pass it again:
+
+   ```bash
+   a2acli send "Hello, agent!" -u https://agent.example.com   # auto-authenticated
+   ```
+
+   Inspect or export it for scripting:
+
+   ```bash
+   a2acli auth status -u https://agent.example.com   # is a valid token stored?
+   a2acli auth token  -u https://agent.example.com   # print the stored access token
+   ```
+
+   <Aside type="note" title="Client identity (CIMD)">
+   `a2acli` identifies itself with the CIMD pattern — its `client_id` is the URL
+   of its own metadata document
+   (`https://ghchinoy.github.io/a2acli/metadata.json`). The browser callback
+   binds to `http://127.0.0.1:8080/callback`, so port 8080 must be free. See
+   [Configuration & Auth](/a2acli/reference/configuration-auth/#auth).
+   </Aside>
+
+2. ### Save an environment
+
+   Rather than retyping the URL, save a named environment profile and select it
+   with `--env` (`-e`):
+
+   ```bash
+   a2acli config env add prod -u https://agent.example.com
+   a2acli send "Hello, agent!" --env prod
+   ```
+
+   `config show` prints the effective settings and the source each value
+   resolved from (flag > env > config file > default), with credentials
+   redacted:
+
+   ```bash
+   a2acli config show --env prod
+   ```
+
+   See [Configuration & Auth → config](/a2acli/reference/configuration-auth/#config).
+
+</Steps>
+
+## Going further (optional)
+
+Once the basic loop is second nature, these flags cover richer interactions.
+They all attach to `send` and the task commands you already know.
+
+- **Multimodal input** — send files and structured data alongside (or instead
+  of) text:
+
+  ```bash
+  a2acli send "Describe this image" --attach ./diagram.png
+  a2acli send "Process this record" --data '{"userId":42,"tier":"gold"}'
+  a2acli send --parts '[{"text":"hi"},{"data":{"k":"v"}}]'
+  a2acli send --json '{"role":"user","parts":[{"text":"full control"}]}'
+  ```
+
+  `--attach` and `--data` are repeatable; `--parts` and `--json` give you full
+  control over the `Message` object.
+
+- **Multi-turn conversations** — reuse the Context ID from an earlier `send` to
+  continue the same thread:
+
+  ```bash
+  a2acli send "And now translate it to French" --context <contextID>
+  ```
+
+- **Cross-task chaining** — reference a prior task's artifacts as input to a new,
+  independent task (this does *not* continue the conversation):
+
+  ```bash
+  a2acli send "Summarize the attached report" --ref <priorTaskID>
+  ```
+
+- **Push notifications** — have the server call a webhook when a task's state
+  changes instead of polling (the agent must advertise
+  `Capabilities.PushNotifications: true`):
+
+  ```bash
+  a2acli push-config create <taskID> https://myserver.example.com/notify
+  ```
+
+## Related
+
+- [Messaging & Tasks](/a2acli/reference/messaging-tasks/) — every flag for
+  `send`, `get`, `subscribe`, `list tasks`, `cancel`, `download`, and
+  `push-config`.
+- [Command model](/a2acli/reference/command-model/) — output modes, JSONL
+  streaming, the error envelope, and exit codes.
+- [Configuration & Auth](/a2acli/reference/configuration-auth/) — `config env`
+  profiles and the full `auth` flow.
+- [Global flags reference](/a2acli/reference/global-flags/) — `--context`,
+  `--task`, `--ref`, `--transport`, credentials, and `--timeout`.
