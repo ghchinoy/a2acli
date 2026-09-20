@@ -468,13 +468,20 @@ func getResolver() *agentcard.Resolver {
 		t = 30 * time.Second
 	}
 	verboseLog("resolving agent card from %s (timeout: %s)", serviceURL, t)
-	if protocol == "0.3.0" || strings.HasPrefix(protocol, "0.3") {
-		return &agentcard.Resolver{
-			Client:     &http.Client{Timeout: t},
-			CardParser: a2av0.NewAgentCardParser(),
-		}
+	// Always parse with the v0 compat parser, mirroring OFFICIAL
+	// (a2a-cli/internal/cli/client.go). The compat parser is a strict
+	// superset of DefaultCardParser: it accepts OpenAPI-style security
+	// schemes (e.g. {"type":"http","scheme":"bearer","bearerFormat":"JWT"})
+	// AND the proto-wrapper form ({"httpAuthSecurityScheme": {...}}) AND
+	// cards with no security schemes. DefaultCardParser rejects the
+	// OpenAPI-style form, so gating the compat parser behind --protocol 0.3.x
+	// caused spec/A2A-v0.3 AgentCards to be rejected in the default path.
+	// Parser selection is independent of --protocol's transport/version
+	// effects (see createClient), which remain intact.
+	return &agentcard.Resolver{
+		Client:     &http.Client{Timeout: t},
+		CardParser: a2av0.NewAgentCardParser(),
 	}
-	return &agentcard.Resolver{Client: &http.Client{Timeout: t}}
 }
 
 func resolveAgentCard(ctx context.Context, targetURL string) (*a2a.AgentCard, error) {
