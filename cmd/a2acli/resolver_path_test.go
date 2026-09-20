@@ -92,7 +92,6 @@ func TestResolverPathBehavior(t *testing.T) {
 	}
 
 	for _, rc := range resolverCases {
-		rc := rc
 		t.Run(rc.name, func(t *testing.T) {
 			// Root base URL: /.well-known/agent-card.json must still be
 			// appended (behavior unchanged from v2.4.0).
