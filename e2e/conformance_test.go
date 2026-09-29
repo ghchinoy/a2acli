@@ -539,6 +539,33 @@ func testMultimodalSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
 		t.Skipf("a2a-simple source not found at %s", simpleSrc)
 	}
 
+	// The multimodal fixture's "all-artifacts" skill fails fast unless all five
+	// deterministic media assets exist. They are deliberately gitignored in
+	// a2a-experiments and are produced by scripts/gen-assets.sh (needs ffmpeg),
+	// so a fresh clone never has them. Preflight here: without this, the suite
+	// runs anyway and reports "missing expected artifact type", which looks like
+	// a product defect rather than an unmet local prerequisite.
+	//
+	// Locally this is a skip. In CI it is a hard failure: the workflow runs
+	// gen-assets.sh before the suite, and that script cannot fail soft (it is
+	// set -euo pipefail and exits 1 without ffmpeg, failing the step). But the
+	// workflow checks out a2a-experiments at a floating ref, so fixture drift
+	// can rename or relocate an asset while the script still exits 0. Skipping
+	// on that would mean a green build with this suite silently not running.
+	assetsPath := filepath.Join(simpleSrc, "cmd/multimodal/testdata/assets")
+	for _, asset := range []string{"sample.png", "sample.wav", "sample.mp3", "sample.mp4", "sample.pdf"} {
+		if _, err := os.Stat(filepath.Join(assetsPath, asset)); err != nil {
+			msg := fmt.Sprintf("multimodal test assets not generated (%s missing in %s); "+
+				"run ./scripts/gen-assets.sh in %s to generate them", asset, assetsPath, simpleSrc)
+			// CI=true is set automatically by GitHub Actions.
+			if os.Getenv("CI") != "" {
+				t.Fatalf("%s — CI generates these assets before the suite, "+
+					"so this must fail rather than skip", msg)
+			}
+			t.Skipf("%s", msg)
+		}
+	}
+
 	multiBin := filepath.Join(t.TempDir(), "multimodal")
 	buildMulti := exec.Command("go", "build", "-o", multiBin, "./cmd/multimodal")
 	buildMulti.Dir = simpleSrc
@@ -547,7 +574,6 @@ func testMultimodalSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
 	}
 
 	const httpPort = 9018
-	assetsPath := filepath.Join(simpleSrc, "cmd/multimodal/testdata/assets")
 	sutCmd := exec.Command(multiBin,
 		"-port", fmt.Sprintf("%d", httpPort),
 		"-assets", assetsPath)
@@ -578,6 +604,14 @@ func testMultimodalSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
 			Task struct {
 				Status struct {
 					State string `json:"state"`
+					// The fixture explains a non-COMPLETED state in
+					// status.message; surface it so a failure is
+					// self-diagnosing instead of reporting a bare state.
+					Message struct {
+						Parts []struct {
+							Text string `json:"text,omitempty"`
+						} `json:"parts"`
+					} `json:"message"`
 				} `json:"status"`
 				Artifacts []struct {
 					Name        string `json:"name"`
@@ -598,7 +632,12 @@ func testMultimodalSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
 		task := resp.Task
 
 		if task.Status.State != "TASK_STATE_COMPLETED" {
-			t.Errorf("expected TASK_STATE_COMPLETED, got %q", task.Status.State)
+			var agentMsg strings.Builder
+			for _, p := range task.Status.Message.Parts {
+				agentMsg.WriteString(p.Text)
+			}
+			t.Errorf("expected TASK_STATE_COMPLETED, got %q (agent message: %s)",
+				task.Status.State, agentMsg.String())
 		}
 
 		gotTypes := map[string]bool{}
