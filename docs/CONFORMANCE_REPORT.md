@@ -1,7 +1,7 @@
 # A2A Conformance Report
 
 **Date:** 2026-09-29
-**CLI Version:** v2.1.1-4-ge0a480a-dirty
+**CLI Version:** v2.1.1-7-g6fcda79
 **SDK Source:** `github.com/a2aproject/a2a-go`
 **SDK Ref:** `v2.6.0`
 
@@ -24,7 +24,7 @@ It is not a pass.
 === RUN   TestCredentialFlagsOnTheWire/BearerEnv
 === RUN   TestCredentialFlagsOnTheWire/APIKeyEnv
 === RUN   TestCredentialFlagsOnTheWire/FlagOverridesEnv
---- PASS: TestCredentialFlagsOnTheWire (1.14s)
+--- PASS: TestCredentialFlagsOnTheWire (1.18s)
     --- PASS: TestCredentialFlagsOnTheWire/BearerFlag (0.01s)
     --- PASS: TestCredentialFlagsOnTheWire/APIKeyFlagDefaultHeader (0.01s)
     --- PASS: TestCredentialFlagsOnTheWire/BearerEnv (0.01s)
@@ -43,7 +43,7 @@ It is not a pass.
 === RUN   TestConformance/A2A-0.3.0/Describe
 === RUN   TestConformance/A2A-0.3.0/SendWait
 === RUN   TestConformance/A2UI-Extension-v1.0
-    conformance_test.go:341: skipping A2UI extension e2e test: GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables must be set
+    conformance_test.go:374: skipping A2UI extension e2e test: GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables must be set
 === RUN   TestConformance/A2A-Simple-MultiTransport
 === RUN   TestConformance/A2A-Simple-MultiTransport/Discover
 === RUN   TestConformance/A2A-Simple-MultiTransport/JSONRPC
@@ -63,32 +63,32 @@ It is not a pass.
 === RUN   TestConformance/JourneySuites/TerminalTaskStrict
 === RUN   TestConformance/JourneySuites/ListTasksColumns
 === RUN   TestConformance/JourneySuites/DirectoryGuard
---- PASS: TestConformance (13.44s)
-    --- PASS: TestConformance/JSON-RPC (6.05s)
+--- PASS: TestConformance (14.24s)
+    --- PASS: TestConformance/JSON-RPC (6.07s)
         --- PASS: TestConformance/JSON-RPC/Describe (0.01s)
-        --- PASS: TestConformance/JSON-RPC/SendWait (2.01s)
+        --- PASS: TestConformance/JSON-RPC/SendWait (2.03s)
         --- PASS: TestConformance/JSON-RPC/SendStdin (2.01s)
-        --- PASS: TestConformance/JSON-RPC/ConformanceSmoke (2.02s)
+        --- PASS: TestConformance/JSON-RPC/ConformanceSmoke (2.01s)
     --- PASS: TestConformance/gRPC (4.03s)
         --- PASS: TestConformance/gRPC/SendWait (2.01s)
         --- PASS: TestConformance/gRPC/ForcegRPC (2.01s)
-    --- PASS: TestConformance/A2A-0.3.0 (0.16s)
+    --- PASS: TestConformance/A2A-0.3.0 (0.85s)
         --- PASS: TestConformance/A2A-0.3.0/Describe (0.01s)
         --- PASS: TestConformance/A2A-0.3.0/SendWait (0.01s)
     --- SKIP: TestConformance/A2UI-Extension-v1.0 (0.00s)
-    --- PASS: TestConformance/A2A-Simple-MultiTransport (1.10s)
+    --- PASS: TestConformance/A2A-Simple-MultiTransport (1.11s)
         --- PASS: TestConformance/A2A-Simple-MultiTransport/Discover (0.01s)
         --- PASS: TestConformance/A2A-Simple-MultiTransport/JSONRPC (0.01s)
         --- PASS: TestConformance/A2A-Simple-MultiTransport/REST (0.01s)
         --- PASS: TestConformance/A2A-Simple-MultiTransport/gRPC (0.01s)
-    --- PASS: TestConformance/A2A-Simple-Multimodal (0.78s)
+    --- PASS: TestConformance/A2A-Simple-Multimodal (0.81s)
         --- PASS: TestConformance/A2A-Simple-Multimodal/ArtifactTypes (0.01s)
         --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates (0.04s)
             --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-completed (0.01s)
             --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-failed (0.01s)
             --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-input-required (0.01s)
             --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-auth-required (0.01s)
-    --- PASS: TestConformance/JourneySuites (1.15s)
+    --- PASS: TestConformance/JourneySuites (1.14s)
         --- PASS: TestConformance/JourneySuites/PositionalURLDiscover (0.01s)
         --- PASS: TestConformance/JourneySuites/ZeroArgValidation (0.01s)
         --- PASS: TestConformance/JourneySuites/ContextContinuity (0.02s)
@@ -101,14 +101,14 @@ It is not a pass.
 === RUN   TestTier1CLIContract/UsageErrorsExit2/UnknownFlag
 === RUN   TestTier1CLIContract/DefaultSendIsSingleJSONDoc
 === RUN   TestTier1CLIContract/StreamSendIsJSONL
---- PASS: TestTier1CLIContract (1.36s)
+--- PASS: TestTier1CLIContract (1.43s)
     --- PASS: TestTier1CLIContract/UsageErrorsExit2 (0.03s)
         --- PASS: TestTier1CLIContract/UsageErrorsExit2/UnknownCommand (0.01s)
         --- PASS: TestTier1CLIContract/UsageErrorsExit2/UnknownFlag (0.01s)
     --- PASS: TestTier1CLIContract/DefaultSendIsSingleJSONDoc (0.01s)
     --- PASS: TestTier1CLIContract/StreamSendIsJSONL (0.01s)
 PASS
-ok  	github.com/ghchinoy/a2acli/e2e	15.942s
+ok  	github.com/ghchinoy/a2acli/e2e	16.844s
 ```
 
 *(Auto-generated via make conformance-report)*
