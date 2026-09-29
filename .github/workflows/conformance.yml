@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: a2aproject/a2a-go
-          ref: v2.4.0  # Pinned SDK version matching a2acli's build
+          ref: v2.6.0  # Pinned SDK version matching a2acli's build
           path: a2a-go
 
       - name: Checkout a2a-simple (A2A test fixtures)
@@ -33,7 +33,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.26'
           cache: true
           cache-dependency-path: a2acli/go.sum
 
@@ -52,6 +52,9 @@ jobs:
           cd a2a-go && go mod download && cd ..
           cd a2a-simple && go mod download && cd ..
           cd a2acli && go mod download
+          # The 0.3 compat SUT is a vendored nested module pinning the legacy
+          # a2a-go v0.x line; it resolves independently of a2acli's own go.sum.
+          cd e2e/fixtures/v0_3_sut && go mod download
 
       - name: Install ffmpeg and generate a2a-simple test assets
         run: |

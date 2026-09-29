@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,9 +10,35 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+// sutStartTimeout bounds how long an already-built SUT may take to bind its
+// port and announce it. Compilation happens in a separate, unbounded step
+// before this clock starts, so it only has to cover process startup.
+const sutStartTimeout = 30 * time.Second
+
+// syncBuffer is an io.Writer safe for concurrent use. exec.Cmd writes to a
+// non-*os.File Stderr from a copier goroutine, so a plain bytes.Buffer would
+// race with the test goroutine reading it to build a failure message.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
 
 func waitForServer(url string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
@@ -103,7 +130,7 @@ func TestConformance(t *testing.T) {
 
 	t.Run("JSON-RPC", func(t *testing.T) { testJSONRPCSuite(t, sutDir, runCLI, cliPath) })
 	t.Run("gRPC", func(t *testing.T) { testGRPCSuite(t, sutDir, runCLI) })
-	t.Run("A2A-0.3.0", func(t *testing.T) { test030Suite(t, a2aGoSrc, runCLI) })
+	t.Run("A2A-0.3.0", func(t *testing.T) { test030Suite(t, runCLI) })
 	t.Run("A2UI-Extension-v1.0", func(t *testing.T) { testA2UISuite(t, simpleSrc, runCLI) })
 	t.Run("A2A-Simple-MultiTransport", func(t *testing.T) { testMultiTransportSuite(t, simpleSrc, runCLI) })
 	t.Run("A2A-Simple-Multimodal", func(t *testing.T) { testMultimodalSuite(t, simpleSrc, runCLI) })
@@ -226,30 +253,80 @@ func testGRPCSuite(t *testing.T, sutDir string, runCLI runnerFunc) {
 	})
 }
 
-func test030Suite(t *testing.T, a2aGoSrc string, runCLI runnerFunc) {
-	compatSutDir := a2aGoSrc + "/e2e/compat/v0_3"
-	if _, err := os.Stat(compatSutDir); os.IsNotExist(err) {
-		t.Skipf("0.3.0 compat SUT not found at %s", compatSutDir)
+// test030Suite exercises the --protocol 0.3.0 compat transport against the
+// vendored 0.3 SUT. The fixture is a nested module inside this repo (see
+// fixtures/v0_3_sut/README.md); it used to be resolved from $A2A_GO_SRC, but
+// upstream deleted that path, which silently skipped this suite for months.
+// Its absence is therefore fatal, not a skip — it ships with the checkout.
+func test030Suite(t *testing.T, runCLI runnerFunc) {
+	const compatSutDir = "fixtures/v0_3_sut"
+	if _, err := os.Stat(compatSutDir); err != nil {
+		t.Fatalf("vendored 0.3.0 compat SUT not found at %s: %v", compatSutDir, err)
 	}
 
-	sutCmd := exec.Command("go", "run", "main.go", "server")
+	// Build the SUT before running it, rather than launching it under `go run`.
+	// The handshake below reads the SUT's ephemeral port off stdout, and that
+	// channel has to carry nothing but the port: `go run` emits "go: downloading
+	// …" progress on a cold module cache, which would otherwise be read as the
+	// port and fail the suite deterministically on any fresh clone. Building
+	// separately also keeps the full compiler output available as a diagnostic,
+	// and means the server below is our direct child, so killing it works —
+	// `go run` execs the binary as a grandchild and would leak it holding a port.
+	sutBin := filepath.Join(t.TempDir(), "v0_3_sut")
+	buildCmd := exec.Command("go", "build", "-o", sutBin, ".")
+	buildCmd.Dir = compatSutDir
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build the 0.3.0 SUT in %s: %v\nOutput:\n%s", compatSutDir, err, out)
+	}
+
+	sutCmd := exec.Command(sutBin, "server")
 	sutCmd.Dir = compatSutDir
-	var sutOut bytes.Buffer
-	sutCmd.Stdout = &sutOut
-	sutCmd.Stderr = &sutOut
+	stdout, err := sutCmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("failed to pipe 0.3.0 SUT stdout: %v", err)
+	}
+	// Keep stderr separate from the port channel, but captured, so it can be
+	// quoted in every failure below.
+	var sutErr syncBuffer
+	sutCmd.Stderr = &sutErr
 	if err := sutCmd.Start(); err != nil {
 		t.Fatalf("failed to start 0.3.0 SUT: %v", err)
 	}
-	defer func() { _ = sutCmd.Process.Kill() }()
+	defer func() {
+		_ = sutCmd.Process.Kill()
+		_ = sutCmd.Wait()
+	}()
 
-	time.Sleep(2 * time.Second)
-	portStr := sutOut.String()
+	// The SUT announces its port as the first line of stdout. Wait for it rather
+	// than sleeping a fixed interval.
+	type sutLine struct {
+		text string
+		err  error
+	}
+	lineCh := make(chan sutLine, 1)
+	go func() {
+		text, err := bufio.NewReader(stdout).ReadString('\n')
+		lineCh <- sutLine{text: text, err: err}
+	}()
+
+	var portStr string
+	select {
+	case line := <-lineCh:
+		if line.text == "" {
+			t.Fatalf("0.3.0 SUT exited without announcing a port: %v\nStderr:\n%s", line.err, sutErr.String())
+		}
+		portStr = line.text
+	case <-time.After(sutStartTimeout):
+		t.Fatalf("timed out after %s waiting for the 0.3.0 SUT to announce its port.\nStderr:\n%s",
+			sutStartTimeout, sutErr.String())
+	}
+
 	var port int
 	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
-		t.Fatalf("failed to parse 0.3.0 SUT port from %q: %v", portStr, err)
+		t.Fatalf("failed to parse 0.3.0 SUT port from %q: %v\nStderr:\n%s", portStr, err, sutErr.String())
 	}
 	if port == 0 {
-		t.Fatalf("failed to capture 0.3.0 SUT port. Output:\n%s", portStr)
+		t.Fatalf("failed to capture 0.3.0 SUT port. Stdout:\n%s\nStderr:\n%s", portStr, sutErr.String())
 	}
 
 	sutURL := fmt.Sprintf("http://127.0.0.1:%d", port)

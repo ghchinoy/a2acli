@@ -118,8 +118,9 @@ or structured context that exceeds comfortable shell quoting.
 (top-level SKILL.md + per-command `references/` files). AI coding agents load these
 to learn correct `--output json` usage (blocking by default) without manual configuration.
 
-**TCK conformance testing + live smoke check**
-Two conformance layers: an automated e2e suite against the official A2A TCK SUT
+**Conformance testing + live smoke check**
+Two conformance layers: an automated e2e suite against reference A2A servers — a2a-go's
+internal `e2e/tck` SUT for v1.0.0 and a vendored SUT for v0.3.0
 (run via `make test-e2e`, verified on every release), and a `conformance` command
 for quick smoke-testing any live A2A server — AgentCard validation, auth gating check,
 round-trip send. The smoke check supports `--output json` for CI integration and exits
