@@ -23,6 +23,9 @@
 # Local bd/gh handoff scripts (machine-local, gitignored by request)
 docs/commands/
 
+# GoReleaser build output
+/dist/
+
 # Astro Starlight docs site (docs-site/) build artifacts
 docs-site/node_modules/
 docs-site/dist/
