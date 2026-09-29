@@ -3,6 +3,9 @@
 /bin
 /a2acli
 /out
+
+# Binary left behind by `go build` inside the vendored 0.3 conformance fixture
+/e2e/fixtures/v0_3_sut/v0_3_sut
 .env
 .DS_Store
 

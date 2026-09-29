@@ -52,6 +52,9 @@ jobs:
           cd a2a-go && go mod download && cd ..
           cd a2a-simple && go mod download && cd ..
           cd a2acli && go mod download
+          # The 0.3 compat SUT is a vendored nested module pinning the legacy
+          # a2a-go v0.x line; it resolves independently of a2acli's own go.sum.
+          cd e2e/fixtures/v0_3_sut && go mod download
 
       - name: Install ffmpeg and generate a2a-simple test assets
         run: |

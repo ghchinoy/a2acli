@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,11 @@ import (
 	"testing"
 	"time"
 )
+
+// sutStartTimeout bounds how long a SUT launched via `go run` may take to come
+// up. It is generous because the first run has to compile the SUT and its
+// dependency tree from a cold module cache.
+const sutStartTimeout = 3 * time.Minute
 
 func waitForServer(url string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
@@ -103,7 +109,7 @@ func TestConformance(t *testing.T) {
 
 	t.Run("JSON-RPC", func(t *testing.T) { testJSONRPCSuite(t, sutDir, runCLI, cliPath) })
 	t.Run("gRPC", func(t *testing.T) { testGRPCSuite(t, sutDir, runCLI) })
-	t.Run("A2A-0.3.0", func(t *testing.T) { test030Suite(t, a2aGoSrc, runCLI) })
+	t.Run("A2A-0.3.0", func(t *testing.T) { test030Suite(t, runCLI) })
 	t.Run("A2UI-Extension-v1.0", func(t *testing.T) { testA2UISuite(t, simpleSrc, runCLI) })
 	t.Run("A2A-Simple-MultiTransport", func(t *testing.T) { testMultiTransportSuite(t, simpleSrc, runCLI) })
 	t.Run("A2A-Simple-Multimodal", func(t *testing.T) { testMultimodalSuite(t, simpleSrc, runCLI) })
@@ -226,24 +232,62 @@ func testGRPCSuite(t *testing.T, sutDir string, runCLI runnerFunc) {
 	})
 }
 
-func test030Suite(t *testing.T, a2aGoSrc string, runCLI runnerFunc) {
-	compatSutDir := a2aGoSrc + "/e2e/compat/v0_3"
-	if _, err := os.Stat(compatSutDir); os.IsNotExist(err) {
-		t.Skipf("0.3.0 compat SUT not found at %s", compatSutDir)
+// test030Suite exercises the --protocol 0.3.0 compat transport against the
+// vendored 0.3 SUT. The fixture is a nested module inside this repo (see
+// fixtures/v0_3_sut/README.md); it used to be resolved from $A2A_GO_SRC, but
+// upstream deleted that path, which silently skipped this suite for months.
+// Its absence is therefore fatal, not a skip — it ships with the checkout.
+func test030Suite(t *testing.T, runCLI runnerFunc) {
+	const compatSutDir = "fixtures/v0_3_sut"
+	if _, err := os.Stat(compatSutDir); err != nil {
+		t.Fatalf("vendored 0.3.0 compat SUT not found at %s: %v", compatSutDir, err)
 	}
+
+	// Merge stdout and stderr onto one pipe: the SUT announces its ephemeral
+	// port as the first line of stdout, and a `go run` build failure surfaces on
+	// stderr, so whichever arrives first is the diagnostic we want.
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create 0.3.0 SUT pipe: %v", err)
+	}
+	defer func() { _ = pr.Close() }()
 
 	sutCmd := exec.Command("go", "run", "main.go", "server")
 	sutCmd.Dir = compatSutDir
-	var sutOut bytes.Buffer
-	sutCmd.Stdout = &sutOut
-	sutCmd.Stderr = &sutOut
+	sutCmd.Stdout = pw
+	sutCmd.Stderr = pw
 	if err := sutCmd.Start(); err != nil {
+		_ = pw.Close()
 		t.Fatalf("failed to start 0.3.0 SUT: %v", err)
 	}
 	defer func() { _ = sutCmd.Process.Kill() }()
+	// Drop the parent's write end so the reader below sees EOF once the SUT exits.
+	_ = pw.Close()
 
-	time.Sleep(2 * time.Second)
-	portStr := sutOut.String()
+	// Wait for the announced port rather than sleeping a fixed interval: `go run`
+	// must compile the fixture's legacy dependency tree first, which takes ~25s on
+	// a cold module cache and would outlast any sleep worth hardcoding.
+	type sutLine struct {
+		text string
+		err  error
+	}
+	lineCh := make(chan sutLine, 1)
+	go func() {
+		text, err := bufio.NewReader(pr).ReadString('\n')
+		lineCh <- sutLine{text: text, err: err}
+	}()
+
+	var portStr string
+	select {
+	case line := <-lineCh:
+		if line.text == "" {
+			t.Fatalf("0.3.0 SUT exited without announcing a port: %v", line.err)
+		}
+		portStr = line.text
+	case <-time.After(sutStartTimeout):
+		t.Fatalf("timed out after %s waiting for the 0.3.0 SUT to announce its port", sutStartTimeout)
+	}
+
 	var port int
 	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
 		t.Fatalf("failed to parse 0.3.0 SUT port from %q: %v", portStr, err)
