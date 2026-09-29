@@ -68,4 +68,7 @@ jobs:
           # Point the e2e tests to the pinned sibling checkouts.
           # GOLANG_PROTOBUF_REGISTRATION_CONFLICT is required because the SUT uses
           # both v0 and v1 protobufs which causes a namespace panic at runtime.
-          GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=../../a2a-go A2A_SIMPLE_SRC=../../a2a-simple go test -v ./e2e/...
+          # -count=1 disables the Go test cache: the e2e suites depend on
+          # generated fixture assets outside the module, which do not
+          # invalidate the cache key when they change.
+          GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=../../a2a-go A2A_SIMPLE_SRC=../../a2a-simple go test -v -count=1 ./e2e/...
