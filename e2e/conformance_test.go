@@ -10,14 +10,35 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
-// sutStartTimeout bounds how long a SUT launched via `go run` may take to come
-// up. It is generous because the first run has to compile the SUT and its
-// dependency tree from a cold module cache.
-const sutStartTimeout = 3 * time.Minute
+// sutStartTimeout bounds how long an already-built SUT may take to bind its
+// port and announce it. Compilation happens in a separate, unbounded step
+// before this clock starts, so it only has to cover process startup.
+const sutStartTimeout = 30 * time.Second
+
+// syncBuffer is an io.Writer safe for concurrent use. exec.Cmd writes to a
+// non-*os.File Stderr from a copier goroutine, so a plain bytes.Buffer would
+// race with the test goroutine reading it to build a failure message.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
 
 func waitForServer(url string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
@@ -243,37 +264,48 @@ func test030Suite(t *testing.T, runCLI runnerFunc) {
 		t.Fatalf("vendored 0.3.0 compat SUT not found at %s: %v", compatSutDir, err)
 	}
 
-	// Merge stdout and stderr onto one pipe: the SUT announces its ephemeral
-	// port as the first line of stdout, and a `go run` build failure surfaces on
-	// stderr, so whichever arrives first is the diagnostic we want.
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create 0.3.0 SUT pipe: %v", err)
+	// Build the SUT before running it, rather than launching it under `go run`.
+	// The handshake below reads the SUT's ephemeral port off stdout, and that
+	// channel has to carry nothing but the port: `go run` emits "go: downloading
+	// …" progress on a cold module cache, which would otherwise be read as the
+	// port and fail the suite deterministically on any fresh clone. Building
+	// separately also keeps the full compiler output available as a diagnostic,
+	// and means the server below is our direct child, so killing it works —
+	// `go run` execs the binary as a grandchild and would leak it holding a port.
+	sutBin := filepath.Join(t.TempDir(), "v0_3_sut")
+	buildCmd := exec.Command("go", "build", "-o", sutBin, ".")
+	buildCmd.Dir = compatSutDir
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build the 0.3.0 SUT in %s: %v\nOutput:\n%s", compatSutDir, err, out)
 	}
-	defer func() { _ = pr.Close() }()
 
-	sutCmd := exec.Command("go", "run", "main.go", "server")
+	sutCmd := exec.Command(sutBin, "server")
 	sutCmd.Dir = compatSutDir
-	sutCmd.Stdout = pw
-	sutCmd.Stderr = pw
+	stdout, err := sutCmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("failed to pipe 0.3.0 SUT stdout: %v", err)
+	}
+	// Keep stderr separate from the port channel, but captured, so it can be
+	// quoted in every failure below.
+	var sutErr syncBuffer
+	sutCmd.Stderr = &sutErr
 	if err := sutCmd.Start(); err != nil {
-		_ = pw.Close()
 		t.Fatalf("failed to start 0.3.0 SUT: %v", err)
 	}
-	defer func() { _ = sutCmd.Process.Kill() }()
-	// Drop the parent's write end so the reader below sees EOF once the SUT exits.
-	_ = pw.Close()
+	defer func() {
+		_ = sutCmd.Process.Kill()
+		_ = sutCmd.Wait()
+	}()
 
-	// Wait for the announced port rather than sleeping a fixed interval: `go run`
-	// must compile the fixture's legacy dependency tree first, which takes ~25s on
-	// a cold module cache and would outlast any sleep worth hardcoding.
+	// The SUT announces its port as the first line of stdout. Wait for it rather
+	// than sleeping a fixed interval.
 	type sutLine struct {
 		text string
 		err  error
 	}
 	lineCh := make(chan sutLine, 1)
 	go func() {
-		text, err := bufio.NewReader(pr).ReadString('\n')
+		text, err := bufio.NewReader(stdout).ReadString('\n')
 		lineCh <- sutLine{text: text, err: err}
 	}()
 
@@ -281,19 +313,20 @@ func test030Suite(t *testing.T, runCLI runnerFunc) {
 	select {
 	case line := <-lineCh:
 		if line.text == "" {
-			t.Fatalf("0.3.0 SUT exited without announcing a port: %v", line.err)
+			t.Fatalf("0.3.0 SUT exited without announcing a port: %v\nStderr:\n%s", line.err, sutErr.String())
 		}
 		portStr = line.text
 	case <-time.After(sutStartTimeout):
-		t.Fatalf("timed out after %s waiting for the 0.3.0 SUT to announce its port", sutStartTimeout)
+		t.Fatalf("timed out after %s waiting for the 0.3.0 SUT to announce its port.\nStderr:\n%s",
+			sutStartTimeout, sutErr.String())
 	}
 
 	var port int
 	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
-		t.Fatalf("failed to parse 0.3.0 SUT port from %q: %v", portStr, err)
+		t.Fatalf("failed to parse 0.3.0 SUT port from %q: %v\nStderr:\n%s", portStr, err, sutErr.String())
 	}
 	if port == 0 {
-		t.Fatalf("failed to capture 0.3.0 SUT port. Output:\n%s", portStr)
+		t.Fatalf("failed to capture 0.3.0 SUT port. Stdout:\n%s\nStderr:\n%s", portStr, sutErr.String())
 	}
 
 	sutURL := fmt.Sprintf("http://127.0.0.1:%d", port)
