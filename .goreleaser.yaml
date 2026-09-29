@@ -21,7 +21,8 @@ builds:
       - arm64
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
     # this name template makes the OS and Arch match what the install.sh expects
     name_template: >-
       {{ .ProjectName }}_
@@ -31,11 +32,18 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
 
-brews:
+homebrew_casks:
   - name: a2acli
-    directory: Formula
+    # Replaces the formula's `install: bin.install "a2acli"`. Casks install
+    # binaries declaratively; note `binaries` (plural) -- the singular
+    # `binary` form is itself deprecated since GoReleaser 2.12.6.
+    binaries:
+      - a2acli
+    # Casks must live in the Casks directory; the old formula used Formula.
+    directory: Casks
     repository:
       owner: ghchinoy
       name: homebrew-tap
@@ -43,10 +51,15 @@ brews:
     homepage: "https://github.com/ghchinoy/a2acli"
     description: "A standalone A2A v1.0 compliant command-line client"
     license: "Apache-2.0"
-    install: |
-      bin.install "a2acli"
-    test: |
-      system "#{bin}/a2acli", "--version"
+    # The released binaries are neither signed nor notarized, so macOS
+    # Gatekeeper would otherwise refuse to run them ("a2acli is damaged and
+    # cannot be opened"). Strip the quarantine attribute at install time.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/a2acli"]
+          end
 
 nfpms:
   - id: a2acli
