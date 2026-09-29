@@ -229,14 +229,22 @@ make clean      # Remove bin/
 
 For release instructions see [docs/RELEASING.md](docs/RELEASING.md).
 
-### Conformance (TCK)
+### Conformance
 
-`a2acli` is tested against the official A2A Technology Compatibility Kit for both
-**v0.3.0** and **v1.0.0**. See the [Conformance Report](docs/CONFORMANCE_REPORT.md)
-for current status.
+`a2acli` is tested against reference A2A servers for both **v0.3.0** and **v1.0.0**.
+See the [Conformance Report](docs/CONFORMANCE_REPORT.md) for current status.
 
-Running the tests requires the [a2a-go](https://github.com/a2aproject/a2a-go) SDK
-source locally, as the suite spins up the TCK SUT server dynamically:
+Two different systems-under-test back this suite:
+
+- **v1.0.0** — the `e2e/tck` SUT from the [a2a-go](https://github.com/a2aproject/a2a-go)
+  SDK, an internal test agent maintained by that project. Not to be confused with
+  [a2a-tck](https://github.com/a2aproject/a2a-tck), the official A2A Technology
+  Compatibility Kit, which is a separate repository that `a2acli` does not currently use.
+- **v0.3.0** — a SUT vendored into this repo at
+  [`e2e/fixtures/v0_3_sut`](e2e/fixtures/v0_3_sut), which needs no external checkout.
+
+Running the v1.0.0 suites therefore requires the a2a-go SDK source locally, as they
+spin up its SUT server dynamically:
 
 ```bash
 # Default path: ../../github/a2a-go
