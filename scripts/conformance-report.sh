@@ -27,16 +27,22 @@ GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore \
   A2A_SIMPLE_SRC="$A2A_SIMPLE_SRC" \
   go test -v ./e2e/... >"$log" 2>&1 || test_status=$?
 
+# ere <string> — escape regex metacharacters so a suite name is matched
+# literally. Without this the dots in "A2A-0.3.0" match any character, and the
+# matcher would happily accept a hypothetical "A2A-013x0" suite instead.
+ere() { printf '%s' "$1" | sed 's/[^[:alnum:]_-]/\\&/g'; }
+
 # status <subtest>... — FAILING if any named subtest failed, NOT RUN if any
 # skipped or never reported a verdict, PASSING only if all of them passed.
 status() {
-  local suite result="PASSING"
+  local suite pattern result="PASSING"
   for suite in "$@"; do
-    if grep -qE "^[[:space:]]*--- FAIL: TestConformance/${suite}[[:space:]]" "$log"; then
+    pattern="$(ere "$suite")"
+    if grep -qE "^[[:space:]]*--- FAIL: TestConformance/${pattern}[[:space:]]" "$log"; then
       echo "FAILING"
       return
     fi
-    if ! grep -qE "^[[:space:]]*--- PASS: TestConformance/${suite}[[:space:]]" "$log"; then
+    if ! grep -qE "^[[:space:]]*--- PASS: TestConformance/${pattern}[[:space:]]" "$log"; then
       result="NOT RUN"
     fi
   done
