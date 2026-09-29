@@ -44,27 +44,8 @@ test-journey: build ## Run journey and conversation continuity e2e tests (requir
 	GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=$(A2A_GO_SRC) A2A_SIMPLE_SRC=$(A2A_SIMPLE_SRC) go test -v ./e2e/... -run TestConformance/JourneySuites
 
 conformance-report: ## Run conformance tests and update docs/CONFORMANCE_REPORT.md
-	@echo "Generating Conformance Report..."
-	@echo "# A2A Conformance Report" > docs/CONFORMANCE_REPORT.md
-	@echo "" >> docs/CONFORMANCE_REPORT.md
-	@echo "**Date:** $$(date +%Y-%m-%d)" >> docs/CONFORMANCE_REPORT.md
-	@echo "**CLI Version:** $(VERSION)" >> docs/CONFORMANCE_REPORT.md
-	@echo "**SDK Source:** \`$$(cd $$(echo "$(A2A_GO_SRC)" | sed 's|^\.\./||') 2>/dev/null && git remote get-url origin | sed 's|ssh://git@github.com/|github.com/|;s|git@github.com:|github.com/|;s|.git$$||' || echo unknown)\`" >> docs/CONFORMANCE_REPORT.md
-	@echo "**SDK Branch:** \`$$(cd $$(echo "$(A2A_GO_SRC)" | sed 's|^\.\./||') 2>/dev/null && git branch --show-current || echo unknown)\`" >> docs/CONFORMANCE_REPORT.md
-	@echo "" >> docs/CONFORMANCE_REPORT.md
-	@echo "## Conformance Status" >> docs/CONFORMANCE_REPORT.md
-	@echo "" >> docs/CONFORMANCE_REPORT.md
-	@echo "- A2A v1.0.0: **PASSING**" >> docs/CONFORMANCE_REPORT.md
-	@echo "- A2A v0.3.0: **PASSING**" >> docs/CONFORMANCE_REPORT.md
-	@echo "- A2UI Extension v1.0: **PASSING**" >> docs/CONFORMANCE_REPORT.md
-	@echo "" >> docs/CONFORMANCE_REPORT.md
-	@echo "### Test Results Summary" >> docs/CONFORMANCE_REPORT.md
-	@echo "" >> docs/CONFORMANCE_REPORT.md
-	@echo "\`\`\`text" >> docs/CONFORMANCE_REPORT.md
-	GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore A2A_GO_SRC=$(A2A_GO_SRC) A2A_SIMPLE_SRC=$(A2A_SIMPLE_SRC) go test -v ./e2e/... >> docs/CONFORMANCE_REPORT.md
-	@echo "\`\`\`" >> docs/CONFORMANCE_REPORT.md
-	@echo "" >> docs/CONFORMANCE_REPORT.md
-	@echo "*(Auto-generated via make conformance-report)*" >> docs/CONFORMANCE_REPORT.md
+	@VERSION="$(VERSION)" A2A_GO_SRC=$(A2A_GO_SRC) A2A_SIMPLE_SRC=$(A2A_SIMPLE_SRC) \
+		scripts/conformance-report.sh
 
 install: ## Install the binary to GOBIN
 	go install -ldflags="$(LDFLAGS)" ./cmd/a2acli
