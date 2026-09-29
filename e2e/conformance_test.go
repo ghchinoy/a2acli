@@ -544,13 +544,25 @@ func testMultimodalSuite(t *testing.T, simpleSrc string, runCLI runnerFunc) {
 	// a2a-experiments and are produced by scripts/gen-assets.sh (needs ffmpeg),
 	// so a fresh clone never has them. Preflight here: without this, the suite
 	// runs anyway and reports "missing expected artifact type", which looks like
-	// a product defect rather than an unmet local prerequisite. CI runs
-	// gen-assets.sh before the suite, so this skip is unreachable there.
+	// a product defect rather than an unmet local prerequisite.
+	//
+	// Locally this is a skip. In CI it is a hard failure: the workflow runs
+	// gen-assets.sh before the suite, and that script cannot fail soft (it is
+	// set -euo pipefail and exits 1 without ffmpeg, failing the step). But the
+	// workflow checks out a2a-experiments at a floating ref, so fixture drift
+	// can rename or relocate an asset while the script still exits 0. Skipping
+	// on that would mean a green build with this suite silently not running.
 	assetsPath := filepath.Join(simpleSrc, "cmd/multimodal/testdata/assets")
 	for _, asset := range []string{"sample.png", "sample.wav", "sample.mp3", "sample.mp4", "sample.pdf"} {
 		if _, err := os.Stat(filepath.Join(assetsPath, asset)); err != nil {
-			t.Skipf("multimodal test assets not generated (%s missing in %s); "+
+			msg := fmt.Sprintf("multimodal test assets not generated (%s missing in %s); "+
 				"run ./scripts/gen-assets.sh in %s to generate them", asset, assetsPath, simpleSrc)
+			// CI=true is set automatically by GitHub Actions.
+			if os.Getenv("CI") != "" {
+				t.Fatalf("%s — CI generates these assets before the suite, "+
+					"so this must fail rather than skip", msg)
+			}
+			t.Skipf("%s", msg)
 		}
 	}
 
