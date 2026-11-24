@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -115,9 +114,9 @@ must advertise Capabilities.PushNotifications: true in its AgentCard.`,
 	return pushCmd
 }
 
-func runPushConfigCreate(_ *cobra.Command, args []string) {
+func runPushConfigCreate(cmd *cobra.Command, args []string) {
 	taskID, callbackURL := args[0], args[1]
-	ctx := context.Background()
+	ctx := cmd.Context()
 	verboseLog("push-config create: task=%s url=%s scheme=%q", taskID, callbackURL, pushAuthScheme)
 
 	card, err := resolveAgentCard(ctx, serviceURL)
@@ -162,9 +161,9 @@ func runPushConfigCreate(_ *cobra.Command, args []string) {
 	fmt.Printf("  URL:       %s\n", result.URL)
 }
 
-func runPushConfigList(_ *cobra.Command, args []string) {
+func runPushConfigList(cmd *cobra.Command, args []string) {
 	taskID := args[0]
-	ctx := context.Background()
+	ctx := cmd.Context()
 	verboseLog("push-config list: task=%s pageSize=%d", taskID, pushPageSize)
 
 	card, err := resolveAgentCard(ctx, serviceURL)
@@ -203,9 +202,9 @@ func runPushConfigList(_ *cobra.Command, args []string) {
 	}
 }
 
-func runPushConfigGet(_ *cobra.Command, args []string) {
+func runPushConfigGet(cmd *cobra.Command, args []string) {
 	taskID, configID := args[0], args[1]
-	ctx := context.Background()
+	ctx := cmd.Context()
 	verboseLog("push-config get: task=%s config=%s", taskID, configID)
 
 	card, err := resolveAgentCard(ctx, serviceURL)
@@ -242,9 +241,9 @@ func runPushConfigGet(_ *cobra.Command, args []string) {
 	}
 }
 
-func runPushConfigDelete(_ *cobra.Command, args []string) {
+func runPushConfigDelete(cmd *cobra.Command, args []string) {
 	taskID, configID := args[0], args[1]
-	ctx := context.Background()
+	ctx := cmd.Context()
 	verboseLog("push-config delete: task=%s config=%s", taskID, configID)
 
 	card, err := resolveAgentCard(ctx, serviceURL)

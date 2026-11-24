@@ -48,8 +48,8 @@ func TestCredentialFlagsOnTheWire(t *testing.T) {
 		t.Fatalf("failed to build a2acli: %v\nOutput:\n%s", err, out)
 	}
 
-	cap := &headerCapture{byPath: map[string]http.Header{}}
-	srvURL, closeSrv := newCapturingServer(t, cap)
+	capture := &headerCapture{byPath: map[string]http.Header{}}
+	srvURL, closeSrv := newCapturingServer(t, capture)
 	defer closeSrv()
 
 	runCLI := func(env []string, args ...string) (string, error) {
@@ -63,12 +63,12 @@ func TestCredentialFlagsOnTheWire(t *testing.T) {
 	sendPath := "/" // JSON-RPC message send lands on the root handler.
 
 	t.Run("BearerFlag", func(t *testing.T) {
-		cap.reset()
+		capture.reset()
 		out, err := runCLI(nil, "send", "hi", "-o", "json", "-u", srvURL, "--bearer", "secret-bearer-123")
 		if err != nil {
 			t.Fatalf("send failed: %v\n%s", err, out)
 		}
-		if got := cap.get(sendPath).Get("Authorization"); got != "Bearer secret-bearer-123" {
+		if got := capture.get(sendPath).Get("Authorization"); got != "Bearer secret-bearer-123" {
 			t.Errorf("Authorization header = %q, want %q", got, "Bearer secret-bearer-123")
 		}
 		if strings.Contains(out, "secret-bearer-123") {
@@ -77,12 +77,12 @@ func TestCredentialFlagsOnTheWire(t *testing.T) {
 	})
 
 	t.Run("APIKeyFlagDefaultHeader", func(t *testing.T) {
-		cap.reset()
+		capture.reset()
 		out, err := runCLI(nil, "send", "hi", "-o", "json", "-u", srvURL, "--api-key", "secret-key-abc")
 		if err != nil {
 			t.Fatalf("send failed: %v\n%s", err, out)
 		}
-		if got := cap.get(sendPath).Get("X-Api-Key"); got != "secret-key-abc" {
+		if got := capture.get(sendPath).Get("X-Api-Key"); got != "secret-key-abc" {
 			t.Errorf("X-Api-Key header = %q, want %q", got, "secret-key-abc")
 		}
 		if strings.Contains(out, "secret-key-abc") {
@@ -91,34 +91,34 @@ func TestCredentialFlagsOnTheWire(t *testing.T) {
 	})
 
 	t.Run("BearerEnv", func(t *testing.T) {
-		cap.reset()
+		capture.reset()
 		out, err := runCLI([]string{"A2ACLI_BEARER=env-bearer-xyz"}, "send", "hi", "-o", "json", "-u", srvURL)
 		if err != nil {
 			t.Fatalf("send failed: %v\n%s", err, out)
 		}
-		if got := cap.get(sendPath).Get("Authorization"); got != "Bearer env-bearer-xyz" {
+		if got := capture.get(sendPath).Get("Authorization"); got != "Bearer env-bearer-xyz" {
 			t.Errorf("Authorization header = %q, want %q", got, "Bearer env-bearer-xyz")
 		}
 	})
 
 	t.Run("APIKeyEnv", func(t *testing.T) {
-		cap.reset()
+		capture.reset()
 		out, err := runCLI([]string{"A2ACLI_API_KEY=env-key-987"}, "send", "hi", "-o", "json", "-u", srvURL)
 		if err != nil {
 			t.Fatalf("send failed: %v\n%s", err, out)
 		}
-		if got := cap.get(sendPath).Get("X-Api-Key"); got != "env-key-987" {
+		if got := capture.get(sendPath).Get("X-Api-Key"); got != "env-key-987" {
 			t.Errorf("X-Api-Key header = %q, want %q", got, "env-key-987")
 		}
 	})
 
 	t.Run("FlagOverridesEnv", func(t *testing.T) {
-		cap.reset()
+		capture.reset()
 		out, err := runCLI([]string{"A2ACLI_BEARER=from-env"}, "send", "hi", "-o", "json", "-u", srvURL, "--bearer", "from-flag")
 		if err != nil {
 			t.Fatalf("send failed: %v\n%s", err, out)
 		}
-		if got := cap.get(sendPath).Get("Authorization"); got != "Bearer from-flag" {
+		if got := capture.get(sendPath).Get("Authorization"); got != "Bearer from-flag" {
 			t.Errorf("explicit flag must override env: Authorization = %q, want %q", got, "Bearer from-flag")
 		}
 	})
@@ -154,7 +154,7 @@ func (h *headerCapture) reset() {
 // newCapturingServer starts an in-process A2A JSON-RPC server whose Agent Card
 // points back at its own URL, wrapped so every inbound request's headers are
 // captured. It returns the server URL and a close function.
-func newCapturingServer(t *testing.T, cap *headerCapture) (string, func()) {
+func newCapturingServer(t *testing.T, capture *headerCapture) (string, func()) {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -179,7 +179,7 @@ func newCapturingServer(t *testing.T, cap *headerCapture) (string, func()) {
 	mux.Handle("/", a2asrv.NewJSONRPCHandler(handler))
 
 	capturing := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cap.record(r.URL.Path, r.Header)
+		capture.record(r.URL.Path, r.Header)
 		mux.ServeHTTP(w, r)
 	})
 

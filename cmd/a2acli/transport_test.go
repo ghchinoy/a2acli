@@ -139,11 +139,11 @@ func TestSelectTransportInvalidValue(t *testing.T) {
 func TestPrimaryTransport(t *testing.T) {
 	transports = nil
 	if got := primaryTransport(); got != "" {
-		t.Errorf("primaryTransport() with none = %q, want empty", got)
+		t.Errorf("primaryTransport with transports=%v = %q, want empty", transports, got)
 	}
 	transports = []string{"grpc", "rest"}
 	if got := primaryTransport(); got != "grpc" {
-		t.Errorf("primaryTransport() = %q, want grpc", got)
+		t.Errorf("primaryTransport with transports=%v = %q, want %q", transports, got, "grpc")
 	}
 	transports = nil
 }

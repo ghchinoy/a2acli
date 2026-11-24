@@ -138,8 +138,8 @@ func newState() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func runAuthLogin(_ *cobra.Command, _ []string) {
-	ctx := context.Background()
+func runAuthLogin(cmd *cobra.Command, _ []string) {
+	ctx := cmd.Context()
 
 	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {

@@ -49,7 +49,7 @@ func TestCheckTaskContinuable(t *testing.T) {
 			}
 			err := checkTaskContinuable(task)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("checkTaskContinuable() err = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("checkTaskContinuable(state=%q) err = %v, wantErr %v", tt.state, err, tt.wantErr)
 			}
 			if tt.wantErr && !strings.Contains(err.Error(), string(tt.state)) {
 				t.Errorf("expected error message to contain state %q, got: %v", tt.state, err)

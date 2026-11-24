@@ -231,7 +231,7 @@ func fatalCode(code string, format string, err error, hint string) {
 		// The error envelope IS the structured payload — emit it on stdout so
 		// -o json consumers can parse it (SPEC §11.1 / §11.4).
 		b, _ := json.Marshal(buildErrorEnvelope(code, msg, hint, err))
-		fmt.Fprintln(os.Stdout, string(b))
+		_, _ = fmt.Fprintln(os.Stdout, string(b))
 	} else {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
 		if hint != "" {
@@ -940,11 +940,7 @@ func handleSendWait(ctx context.Context, client *a2aclient.Client, params *a2a.S
 	}
 }
 
-func runSend(_ *cobra.Command, args []string) {
-	if err := validateOutDir(outDir); err != nil {
-		fatalCode(ErrUsage, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
-	}
-
+func resolveSendMessageText(args []string) string {
 	var messageText string
 	if len(args) == 0 {
 		// No positional arg — read from stdin (only reachable when stdin is not a TTY)
@@ -965,24 +961,10 @@ func runSend(_ *cobra.Command, args []string) {
 		}
 		messageText = fmt.Sprintf("%s\n\nSupplemental Instructions:\n%s", messageText, string(content))
 	}
+	return messageText
+}
 
-	ctx := context.Background()
-
-	card, err := resolveAgentCard(ctx, serviceURL)
-	if err != nil {
-		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
-	}
-
-	client, err := createClient(ctx, card)
-	if err != nil {
-		fatalf("failed to create client", err, "Verify your --token or configuration settings")
-	}
-
-	msg, err := buildMessage(messageText)
-	if err != nil {
-		fatalf("failed to build message", err, "Check --json/--parts/--attach/--data flags for valid input")
-	}
-
+func attachTaskContext(ctx context.Context, client *a2aclient.Client, msg *a2a.Message) {
 	if targetTaskID != "" {
 		msg.TaskID = a2a.TaskID(targetTaskID)
 		verboseLog("continuing task: %s", targetTaskID)
@@ -999,9 +981,8 @@ func runSend(_ *cobra.Command, args []string) {
 					// FAILED_PRECONDITION (was A2ACLI_ERR_INTERNAL).
 					fatalCode("", "cannot continue task", checkErr,
 						fmt.Sprintf("Use --context %s to continue the conversation thread", t.ContextID))
-				} else {
-					fmt.Fprintf(os.Stderr, "Warning: %v. Use --context %s to continue the conversation thread.\n\n", checkErr, t.ContextID)
 				}
+				fmt.Fprintf(os.Stderr, "Warning: %v. Use --context %s to continue the conversation thread.\n\n", checkErr, t.ContextID)
 			}
 		}
 
@@ -1025,6 +1006,45 @@ func runSend(_ *cobra.Command, args []string) {
 			fmt.Printf("Referencing Task: %s\n", refTaskID)
 		}
 	}
+}
+
+func renderStream(events chan streamMsg, outDir string) (streamSummary, error) {
+	switch outputMode {
+	case "json":
+		return runRaw(events, outDir)
+	case "text":
+		return runText(events, outDir)
+	case "compact":
+		return runCompact(events, outDir)
+	default:
+		return runTUI(events)
+	}
+}
+
+func runSend(cmd *cobra.Command, args []string) {
+	if err := validateOutDir(outDir); err != nil {
+		fatalCode(ErrUsage, "invalid --out-dir / -d argument", err, "Use -o or --output to set output format (tui/text/json)")
+	}
+
+	messageText := resolveSendMessageText(args)
+	ctx := cmd.Context()
+
+	card, err := resolveAgentCard(ctx, serviceURL)
+	if err != nil {
+		fatalf("failed to resolve AgentCard", err, "Check --service-url or A2ACLI_SERVICE_URL")
+	}
+
+	client, err := createClient(ctx, card)
+	if err != nil {
+		fatalf("failed to create client", err, "Verify your --token or configuration settings")
+	}
+
+	msg, err := buildMessage(messageText)
+	if err != nil {
+		fatalf("failed to build message", err, "Check --json/--parts/--attach/--data flags for valid input")
+	}
+
+	attachTaskContext(ctx, client, msg)
 
 	params := &a2a.SendMessageRequest{
 		Message: msg,
@@ -1066,20 +1086,7 @@ func runSend(_ *cobra.Command, args []string) {
 		}
 	}()
 
-	var summary streamSummary
-	var renderErr error
-
-	switch outputMode {
-	case "json":
-		summary, renderErr = runRaw(events, outDir)
-	case "text":
-		summary, renderErr = runText(events, outDir)
-	case "compact":
-		summary, renderErr = runCompact(events, outDir)
-	default:
-		summary, renderErr = runTUI(events)
-	}
-
+	summary, renderErr := renderStream(events, outDir)
 	if renderErr != nil {
 		// Route through classifyError (empty code) so a mid-stream unreachable /
 		// timeout failure gets the correct A2ACLI_ERR_* code instead of always
@@ -1142,13 +1149,8 @@ func runWatch(_ *cobra.Command, args []string) {
 		}
 	}()
 
-	switch outputMode {
-	case "json":
-		runRaw(stream, outDir)
-	case "text":
-		runText(stream, outDir)
-	default:
-		runTUI(stream)
+	if _, err := renderStream(stream, outDir); err != nil {
+		fatalCode("", "subscription stream failed", err, "Ensure the service is accessible and the task is active")
 	}
 }
 
@@ -1614,26 +1616,72 @@ func runRaw(stream chan streamMsg, outDir string) (streamSummary, error) {
 	return summary, nil
 }
 
+func displayCompactTask(task *a2a.Task, outDir string) {
+	var hist []string
+	for _, m := range task.History {
+		role := strings.TrimPrefix(strings.ToLower(string(m.Role)), "role_")
+		for _, p := range m.Parts {
+			if tp, ok := p.Content.(a2a.Text); ok {
+				hist = append(hist, fmt.Sprintf("[%s] %s", role, string(tp)))
+			}
+		}
+	}
+	renderCompactBlock(string(task.ID), task.ContextID, &task.Status, task.Artifacts, hist)
+	saveAllArtifacts(task.Artifacts, outDir)
+}
+
+func saveAllArtifacts(artifacts []*a2a.Artifact, outDir string) {
+	if outDir == "" && outFile == "" {
+		return
+	}
+	for i, art := range artifacts {
+		_, _ = saveArtifact(outDir, outFile, *art, i)
+	}
+}
+
+func displayArtifactPart(art *a2a.Artifact, p *a2a.Part) bool {
+	switch v := p.Content.(type) {
+	case a2a.Data:
+		prettyJSON, _ := json.MarshalIndent(v.Value, "", "  ")
+		fmt.Printf("%s\n%s\n", StyleMuted.Render("Data (Preview):"), string(prettyJSON))
+		return false
+	case a2a.Text:
+		content := string(v)
+		if !showFull && len(content) > 500 {
+			fmt.Printf("%s\n%s\n", StyleMuted.Render("Content (Preview):"), content[:500]+"... (truncated)")
+			return true
+		}
+		label := "Content:"
+		if !showFull {
+			label = "Content (Preview):"
+		}
+		fmt.Printf("%s\n%s\n", StyleMuted.Render(label), content)
+		return false
+	case a2a.Raw:
+		mediaType := p.MediaType
+		if mediaType == "" {
+			mediaType = "application/octet-stream"
+		}
+		fname := p.Filename
+		if fname == "" {
+			fname = art.Name + mimeToExt(mediaType)
+		}
+		fmt.Printf("%s %s (%d bytes)\n",
+			StyleMuted.Render("Binary:"), StyleArtifact.Render(fname), len(v))
+		return true
+	case a2a.URL:
+		fmt.Printf("%s %s\n", StyleMuted.Render("URL:"), StyleArtifact.Render(string(v)))
+		if p.MediaType != "" {
+			fmt.Printf("%s %s\n", StyleMuted.Render("Type:"), p.MediaType)
+		}
+		return true
+	}
+	return false
+}
+
 func displayTaskResult(task *a2a.Task, outDir string) {
 	if outputMode == "compact" {
-		var hist []string
-		if task.History != nil {
-			for _, m := range task.History {
-				role := strings.ToLower(string(m.Role))
-				role = strings.TrimPrefix(role, "role_")
-				for _, p := range m.Parts {
-					if tp, ok := p.Content.(a2a.Text); ok {
-						hist = append(hist, fmt.Sprintf("[%s] %s", role, string(tp)))
-					}
-				}
-			}
-		}
-		renderCompactBlock(string(task.ID), task.ContextID, &task.Status, task.Artifacts, hist)
-		if outDir != "" || outFile != "" {
-			for i, art := range task.Artifacts {
-				_, _ = saveArtifact(outDir, outFile, *art, i)
-			}
-		}
+		displayCompactTask(task, outDir)
 		return
 	}
 	if disableTUI {
@@ -1641,11 +1689,7 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 		if err == nil {
 			fmt.Println(string(b))
 		}
-		if outDir != "" || outFile != "" {
-			for i, art := range task.Artifacts {
-				_, _ = saveArtifact(outDir, outFile, *art, i)
-			}
-		}
+		saveAllArtifacts(task.Artifacts, outDir)
 		return
 	}
 
@@ -1677,39 +1721,7 @@ func displayTaskResult(task *a2a.Task, outDir string) {
 
 		truncated := false
 		for _, p := range art.Parts {
-			switch v := p.Content.(type) {
-			case a2a.Data:
-				prettyJSON, _ := json.MarshalIndent(v.Value, "", "  ")
-				fmt.Printf("%s\n%s\n", StyleMuted.Render("Data (Preview):"), string(prettyJSON))
-			case a2a.Text:
-				content := string(v)
-				if !showFull && len(content) > 500 {
-					fmt.Printf("%s\n%s\n", StyleMuted.Render("Content (Preview):"), content[:500]+"... (truncated)")
-					truncated = true
-				} else {
-					label := "Content:"
-					if !showFull {
-						label = "Content (Preview):"
-					}
-					fmt.Printf("%s\n%s\n", StyleMuted.Render(label), content)
-				}
-			case a2a.Raw:
-				mediaType := p.MediaType
-				if mediaType == "" {
-					mediaType = "application/octet-stream"
-				}
-				fname := p.Filename
-				if fname == "" {
-					fname = art.Name + mimeToExt(mediaType)
-				}
-				fmt.Printf("%s %s (%d bytes)\n",
-					StyleMuted.Render("Binary:"), StyleArtifact.Render(fname), len(v))
-				truncated = true
-			case a2a.URL:
-				fmt.Printf("%s %s\n", StyleMuted.Render("URL:"), StyleArtifact.Render(string(v)))
-				if p.MediaType != "" {
-					fmt.Printf("%s %s\n", StyleMuted.Render("Type:"), p.MediaType)
-				}
+			if displayArtifactPart(art, p) {
 				truncated = true
 			}
 		}

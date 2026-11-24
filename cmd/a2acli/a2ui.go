@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -65,8 +64,8 @@ Exit code is non-zero if any check fails.`,
 	return a2uiCmd
 }
 
-func runA2UIValidate(_ *cobra.Command, _ []string) {
-	ctx := context.Background()
+func runA2UIValidate(cmd *cobra.Command, _ []string) {
+	ctx := cmd.Context()
 	var results []conformance.Result
 
 	schemas, err := a2ui.NewSchemaSet()

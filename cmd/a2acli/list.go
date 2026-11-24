@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -66,8 +65,8 @@ func addListTasksFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&listStatus, "status", "", "Filter by task state (short forms: submitted, working, completed, failed, canceled, rejected)")
 }
 
-func runListTasks(_ *cobra.Command, _ []string) {
-	ctx := context.Background()
+func runListTasks(cmd *cobra.Command, _ []string) {
+	ctx := cmd.Context()
 
 	card, err := resolveAgentCard(ctx, serviceURL)
 	if err != nil {

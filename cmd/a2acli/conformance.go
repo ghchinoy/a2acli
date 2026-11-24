@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -77,7 +76,7 @@ func runConformance(cmd *cobra.Command, _ []string) {
 		return conformanceResult{Name: name, Skipped: true, Message: msg}
 	}
 
-	ctx := context.Background()
+	ctx := cmd.Context()
 
 	// ── Check 1: AgentCard well-formed ──────────────────────────────────────
 	card, err := resolveAgentCard(ctx, serviceURL)
@@ -87,7 +86,7 @@ func runConformance(cmd *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 
-	cardIssues := []string{}
+	var cardIssues []string
 	if card.Name == "" {
 		cardIssues = append(cardIssues, "missing name")
 	}

@@ -315,9 +315,9 @@ func runConfigShow(_ *cobra.Command, _ []string) {
 	fmt.Printf("Active Environment: %s\n\n", activeEnvName())
 
 	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "SETTING\tVALUE\tSOURCE")
+	_, _ = fmt.Fprintln(tw, "SETTING\tVALUE\tSOURCE")
 	for _, v := range views {
-		fmt.Fprintf(tw, "%s\t%s\t%s\n", v.Name, v.Value, v.Source)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", v.Name, v.Value, v.Source)
 	}
 	_ = tw.Flush()
 }

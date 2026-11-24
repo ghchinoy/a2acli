@@ -61,7 +61,7 @@ func TestApiKeyAttachment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			loc, name := apiKeyAttachment(tt.card)
 			if loc != tt.wantLoc || name != tt.wantName {
-				t.Errorf("apiKeyAttachment() = (%q, %q), want (%q, %q)", loc, name, tt.wantLoc, tt.wantName)
+				t.Errorf("apiKeyAttachment(%+v) = (%q, %q), want (%q, %q)", tt.card, loc, name, tt.wantLoc, tt.wantName)
 			}
 		})
 	}

@@ -40,6 +40,6 @@ func TestGetVersionInfo(t *testing.T) {
 
 	v, c, d = getVersionInfo()
 	if v == "" || c == "" || d == "" {
-		t.Errorf("getVersionInfo() returned empty values: v=%q, c=%q, d=%q", v, c, d)
+		t.Errorf("getVersionInfo fallback (version=%q, commit=%q, date=%q) returned empty values: v=%q, c=%q, d=%q", version, commit, date, v, c, d)
 	}
 }

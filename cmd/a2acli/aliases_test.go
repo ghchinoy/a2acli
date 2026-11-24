@@ -106,7 +106,7 @@ func TestFlagAliasLastWins(t *testing.T) {
 				t.Errorf("after %v: serviceURL = %q, want %q", tt.args, serviceURL, tt.want)
 			}
 			if !serviceURLFlagChanged() {
-				t.Errorf("serviceURLFlagChanged() = false, want true after explicit flag")
+				t.Errorf("after ParseFlags(%v): serviceURLFlagChanged = false, want true", tt.args)
 			}
 		})
 	}
