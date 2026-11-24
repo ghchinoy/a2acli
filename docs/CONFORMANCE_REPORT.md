@@ -1,9 +1,9 @@
 # A2A Conformance Report
 
-**Date:** 2026-09-29
-**CLI Version:** v2.1.1-7-g6fcda79
+**Date:** 2026-11-24
+**CLI Version:** v2.3.0
 **SDK Source:** `github.com/a2aproject/a2a-go`
-**SDK Ref:** `v2.6.0`
+**SDK Ref:** `v2.9.0`
 
 ## Conformance Status
 
@@ -24,9 +24,9 @@ It is not a pass.
 === RUN   TestCredentialFlagsOnTheWire/BearerEnv
 === RUN   TestCredentialFlagsOnTheWire/APIKeyEnv
 === RUN   TestCredentialFlagsOnTheWire/FlagOverridesEnv
---- PASS: TestCredentialFlagsOnTheWire (1.18s)
-    --- PASS: TestCredentialFlagsOnTheWire/BearerFlag (0.01s)
-    --- PASS: TestCredentialFlagsOnTheWire/APIKeyFlagDefaultHeader (0.01s)
+--- PASS: TestCredentialFlagsOnTheWire (1.04s)
+    --- PASS: TestCredentialFlagsOnTheWire/BearerFlag (0.31s)
+    --- PASS: TestCredentialFlagsOnTheWire/APIKeyFlagDefaultHeader (0.02s)
     --- PASS: TestCredentialFlagsOnTheWire/BearerEnv (0.01s)
     --- PASS: TestCredentialFlagsOnTheWire/APIKeyEnv (0.01s)
     --- PASS: TestCredentialFlagsOnTheWire/FlagOverridesEnv (0.01s)
@@ -63,35 +63,35 @@ It is not a pass.
 === RUN   TestConformance/JourneySuites/TerminalTaskStrict
 === RUN   TestConformance/JourneySuites/ListTasksColumns
 === RUN   TestConformance/JourneySuites/DirectoryGuard
---- PASS: TestConformance (14.24s)
-    --- PASS: TestConformance/JSON-RPC (6.07s)
-        --- PASS: TestConformance/JSON-RPC/Describe (0.01s)
+--- PASS: TestConformance (15.77s)
+    --- PASS: TestConformance/JSON-RPC (6.35s)
+        --- PASS: TestConformance/JSON-RPC/Describe (0.28s)
         --- PASS: TestConformance/JSON-RPC/SendWait (2.03s)
-        --- PASS: TestConformance/JSON-RPC/SendStdin (2.01s)
-        --- PASS: TestConformance/JSON-RPC/ConformanceSmoke (2.01s)
-    --- PASS: TestConformance/gRPC (4.03s)
-        --- PASS: TestConformance/gRPC/SendWait (2.01s)
-        --- PASS: TestConformance/gRPC/ForcegRPC (2.01s)
-    --- PASS: TestConformance/A2A-0.3.0 (0.85s)
-        --- PASS: TestConformance/A2A-0.3.0/Describe (0.01s)
-        --- PASS: TestConformance/A2A-0.3.0/SendWait (0.01s)
+        --- PASS: TestConformance/JSON-RPC/SendStdin (2.02s)
+        --- PASS: TestConformance/JSON-RPC/ConformanceSmoke (2.03s)
+    --- PASS: TestConformance/gRPC (4.06s)
+        --- PASS: TestConformance/gRPC/SendWait (2.03s)
+        --- PASS: TestConformance/gRPC/ForcegRPC (2.02s)
+    --- PASS: TestConformance/A2A-0.3.0 (0.78s)
+        --- PASS: TestConformance/A2A-0.3.0/Describe (0.02s)
+        --- PASS: TestConformance/A2A-0.3.0/SendWait (0.02s)
     --- SKIP: TestConformance/A2UI-Extension-v1.0 (0.00s)
-    --- PASS: TestConformance/A2A-Simple-MultiTransport (1.11s)
-        --- PASS: TestConformance/A2A-Simple-MultiTransport/Discover (0.01s)
-        --- PASS: TestConformance/A2A-Simple-MultiTransport/JSONRPC (0.01s)
+    --- PASS: TestConformance/A2A-Simple-MultiTransport (2.17s)
+        --- PASS: TestConformance/A2A-Simple-MultiTransport/Discover (0.02s)
+        --- PASS: TestConformance/A2A-Simple-MultiTransport/JSONRPC (0.02s)
         --- PASS: TestConformance/A2A-Simple-MultiTransport/REST (0.01s)
         --- PASS: TestConformance/A2A-Simple-MultiTransport/gRPC (0.01s)
-    --- PASS: TestConformance/A2A-Simple-Multimodal (0.81s)
-        --- PASS: TestConformance/A2A-Simple-Multimodal/ArtifactTypes (0.01s)
-        --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates (0.04s)
-            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-completed (0.01s)
+    --- PASS: TestConformance/A2A-Simple-Multimodal (0.87s)
+        --- PASS: TestConformance/A2A-Simple-Multimodal/ArtifactTypes (0.03s)
+        --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates (0.05s)
+            --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-completed (0.02s)
             --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-failed (0.01s)
             --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-input-required (0.01s)
             --- PASS: TestConformance/A2A-Simple-Multimodal/TaskStates/state-auth-required (0.01s)
-    --- PASS: TestConformance/JourneySuites (1.14s)
-        --- PASS: TestConformance/JourneySuites/PositionalURLDiscover (0.01s)
+    --- PASS: TestConformance/JourneySuites (0.96s)
+        --- PASS: TestConformance/JourneySuites/PositionalURLDiscover (0.02s)
         --- PASS: TestConformance/JourneySuites/ZeroArgValidation (0.01s)
-        --- PASS: TestConformance/JourneySuites/ContextContinuity (0.02s)
+        --- PASS: TestConformance/JourneySuites/ContextContinuity (0.03s)
         --- PASS: TestConformance/JourneySuites/TerminalTaskStrict (0.02s)
         --- PASS: TestConformance/JourneySuites/ListTasksColumns (0.02s)
         --- PASS: TestConformance/JourneySuites/DirectoryGuard (0.01s)
@@ -101,14 +101,14 @@ It is not a pass.
 === RUN   TestTier1CLIContract/UsageErrorsExit2/UnknownFlag
 === RUN   TestTier1CLIContract/DefaultSendIsSingleJSONDoc
 === RUN   TestTier1CLIContract/StreamSendIsJSONL
---- PASS: TestTier1CLIContract (1.43s)
-    --- PASS: TestTier1CLIContract/UsageErrorsExit2 (0.03s)
-        --- PASS: TestTier1CLIContract/UsageErrorsExit2/UnknownCommand (0.01s)
+--- PASS: TestTier1CLIContract (1.35s)
+    --- PASS: TestTier1CLIContract/UsageErrorsExit2 (0.34s)
+        --- PASS: TestTier1CLIContract/UsageErrorsExit2/UnknownCommand (0.31s)
         --- PASS: TestTier1CLIContract/UsageErrorsExit2/UnknownFlag (0.01s)
-    --- PASS: TestTier1CLIContract/DefaultSendIsSingleJSONDoc (0.01s)
-    --- PASS: TestTier1CLIContract/StreamSendIsJSONL (0.01s)
+    --- PASS: TestTier1CLIContract/DefaultSendIsSingleJSONDoc (0.03s)
+    --- PASS: TestTier1CLIContract/StreamSendIsJSONL (0.02s)
 PASS
-ok  	github.com/ghchinoy/a2acli/e2e	16.844s
+ok  	github.com/ghchinoy/a2acli/e2e	18.349s
 ```
 
 *(Auto-generated via make conformance-report)*
